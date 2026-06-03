@@ -153,6 +153,9 @@ body {
 .btn-primary:hover { background: var(--primary-d); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(74,87,204,.3); }
 .btn-ghost { background: var(--surface); color: var(--text-2); border: 1px solid var(--border); }
 .btn-ghost:hover { background: var(--bg); }
+.btn-pluggy { background: #F0FDF8; color: #16A376; border: 1.5px solid #A8EDD8; }
+.btn-pluggy:hover { background: #E3F7F1; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,118,.2); }
+.btn-pluggy.loading { opacity: .7; pointer-events: none; }
 
 /* ── PERIOD TABS ── */
 .period-tabs {
@@ -712,6 +715,9 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
             <button class="ptab"        data-period="quarter" onclick="setDashPeriod('quarter',this)">Trimestre</button>
             <button class="ptab"        data-period="year"   onclick="setDashPeriod('year',this)">Ano</button>
           </div>
+          <button class="btn btn-pluggy" onclick="openSyncModal()" title="Importar transações do Nubank, XP e BTG automaticamente">
+            <i class="ti ti-refresh"></i> Sincronizar Pluggy
+          </button>
           <button class="btn btn-primary" onclick="openTxModal()">
             <i class="ti ti-plus"></i> Lançamento
           </button>
@@ -911,7 +917,50 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
   </div>
 </div>
 
-<!-- Confirm delete -->
+<!-- Modal: Sincronização Pluggy -->
+<div class="modal-backdrop" id="modal-sync">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">Sincronizar com Pluggy</span>
+      <button class="modal-close" onclick="closeModal('modal-sync')"><i class="ti ti-x"></i></button>
+    </div>
+
+    <div id="sync-idle">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:1.25rem;line-height:1.6">
+        Isso vai buscar as transações dos últimos <strong>90 dias</strong> do Nubank, XP e BTG e importar automaticamente para o seu app. Transações já existentes não serão duplicadas.
+      </p>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1rem;margin-bottom:1.25rem">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:.5rem">Contas que serão sincronizadas</div>
+        <div style="display:flex;flex-direction:column;gap:4px" id="sync-accounts-preview">
+          <div style="font-size:13px;color:var(--text-2)">Carregando...</div>
+        </div>
+      </div>
+      <div class="modal-footer" style="margin-top:0;padding-top:.875rem">
+        <button class="btn btn-ghost" onclick="closeModal('modal-sync')">Cancelar</button>
+        <button class="btn btn-pluggy" id="btn-start-sync" onclick="runSync()">
+          <i class="ti ti-refresh"></i> Iniciar sincronização
+        </button>
+      </div>
+    </div>
+
+    <div id="sync-running" style="display:none;text-align:center;padding:1.5rem 0">
+      <div style="font-size:32px;margin-bottom:.75rem;animation:spin 1.2s linear infinite;display:inline-block"><i class="ti ti-refresh"></i></div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:.25rem">Sincronizando...</div>
+      <div style="font-size:12px;color:var(--text-3)">Isso pode levar alguns segundos</div>
+    </div>
+
+    <div id="sync-result" style="display:none">
+      <div id="sync-result-content"></div>
+      <div class="modal-footer" style="margin-top:1rem">
+        <button class="btn btn-primary" onclick="closeModal('modal-sync');loadDashboard()">
+          <i class="ti ti-check"></i> Ver dashboard atualizado
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 <div class="confirm-backdrop" id="confirm-modal">
   <div class="confirm-box">
     <div class="confirm-title" id="confirm-title">Confirmar exclusão</div>
@@ -1413,6 +1462,80 @@ document.addEventListener('keydown', e => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// PLUGGY SYNC
+// ─────────────────────────────────────────────────────────────
+function openSyncModal() {
+  // Preview accounts
+  const preview = document.getElementById('sync-accounts-preview');
+  if (accounts.length) {
+    preview.innerHTML = accounts.map(a =>
+      `<div style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${a.color};flex-shrink:0"></div>
+        <span style="font-weight:500">${a.name}</span>
+        <span style="color:var(--text-3)">${a.institution}</span>
+      </div>`
+    ).join('');
+  }
+  // Reset state
+  document.getElementById('sync-idle').style.display    = 'block';
+  document.getElementById('sync-running').style.display = 'none';
+  document.getElementById('sync-result').style.display  = 'none';
+  document.getElementById('modal-sync').classList.add('open');
+}
+
+async function runSync() {
+  document.getElementById('sync-idle').style.display    = 'none';
+  document.getElementById('sync-running').style.display = 'block';
+
+  try {
+    const res  = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await res.json();
+
+    document.getElementById('sync-running').style.display = 'none';
+    document.getElementById('sync-result').style.display  = 'block';
+
+    if (data.success) {
+      const logHtml = (data.log || []).map(l =>
+        `<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid var(--border-2);font-size:12px">
+          <i class="ti ti-${l.status==='ok'?'check':'alert-triangle'}" style="color:${l.status==='ok'?'var(--green)':'#BA7517'};margin-top:1px;flex-shrink:0"></i>
+          <span style="color:var(--text-2)">${l.msg}</span>
+        </div>`
+      ).join('');
+
+      document.getElementById('sync-result-content').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem">
+          <div style="background:var(--green-l);border-radius:var(--radius);padding:.875rem;text-align:center">
+            <div style="font-size:28px;font-weight:700;color:var(--green)">${data.imported}</div>
+            <div style="font-size:11px;color:#0D7A5A;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Importadas</div>
+          </div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem;text-align:center">
+            <div style="font-size:28px;font-weight:700;color:var(--text-2)">${data.duplicates}</div>
+            <div style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Já existiam</div>
+          </div>
+        </div>
+        ${logHtml ? `<div style="margin-bottom:.5rem">${logHtml}</div>` : ''}
+      `;
+    } else {
+      document.getElementById('sync-result-content').innerHTML = `
+        <div style="background:var(--red-l);border:1px solid #F5B4AB;border-radius:var(--radius);padding:1rem;margin-bottom:1rem">
+          <div style="font-weight:600;color:var(--red);margin-bottom:.25rem"><i class="ti ti-alert-circle"></i> Erro na sincronização</div>
+          <div style="font-size:12px;color:var(--red)">${data.error}</div>
+        </div>
+      `;
+    }
+  } catch (err) {
+    document.getElementById('sync-running').style.display = 'none';
+    document.getElementById('sync-result').style.display  = 'block';
+    document.getElementById('sync-result-content').innerHTML = `
+      <div style="background:var(--red-l);border:1px solid #F5B4AB;border-radius:var(--radius);padding:1rem">
+        <div style="font-weight:600;color:var(--red)"><i class="ti ti-alert-circle"></i> Não foi possível conectar</div>
+        <div style="font-size:12px;color:var(--red);margin-top:.25rem">Verifique se as variáveis de ambiente estão configuradas na Vercel.</div>
+      </div>
+    `;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────
 (async () => {
@@ -1421,4 +1544,4 @@ document.addEventListener('keydown', e => {
 })();
 </script>
 </body>
-</html> 
+</html>
