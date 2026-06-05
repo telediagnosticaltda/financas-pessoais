@@ -1931,7 +1931,7 @@ function normalizeDate(d) {
 
 // ── PDF Parser via PDF.js text extraction + Claude AI ────────
 async function parsePDFWithAI(arrayBuffer, password = '') {
-  // 1. Load PDF with password if needed
+  // 1. Load PDF
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(arrayBuffer),
     password: password || undefined
@@ -1947,36 +1947,38 @@ async function parsePDFWithAI(arrayBuffer, password = '') {
     throw err;
   }
 
-  // 2. Extract text from all pages, preserving row structure
+  // 2. Extract text — sort items by Y desc then X asc for correct reading order
   let fullText = '';
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const textContent = await page.getTextContent();
 
-    // Group text items by Y position to reconstruct rows
-    const rows = {};
-    textContent.items.forEach(item => {
-      if (!item.str.trim()) return;
-      const y = Math.round(item.transform[5] / 4) * 4; // bucket by ~4px rows
-      if (!rows[y]) rows[y] = [];
-      rows[y].push({ x: item.transform[4], text: item.str });
-    });
+    const items = textContent.items
+      .filter(i => i.str.trim())
+      .sort((a, b) => {
+        const yDiff = b.transform[5] - a.transform[5];
+        if (Math.abs(yDiff) > 8) return yDiff;
+        return a.transform[4] - b.transform[4];
+      });
 
-    // Sort rows top-to-bottom (PDF y-axis is inverted), items left-to-right
-    const sortedYs = Object.keys(rows).map(Number).sort((a, b) => b - a);
     let pageText = `\n=== Página ${pageNum} ===\n`;
-    sortedYs.forEach(y => {
-      const line = rows[y].sort((a, b) => a.x - b.x).map(i => i.text).join(' ');
-      pageText += line + '\n';
+    let lastY = null;
+    items.forEach(item => {
+      const y = item.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > 8) pageText += '\n';
+      pageText += item.str + ' ';
+      lastY = y;
     });
-    fullText += pageText;
+    fullText += pageText + '\n';
   }
+
+  window._lastPDFText = fullText; // for debug
 
   if (fullText.trim().length < 100) {
     throw new Error('Não foi possível extrair texto do PDF. O arquivo pode ser uma imagem escaneada.');
   }
 
-  // 3. Send extracted text to our Vercel function
+  // 3. Send to Vercel function
   const response = await fetch('/api/parse-pdf', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1984,9 +1986,13 @@ async function parsePDFWithAI(arrayBuffer, password = '') {
   });
 
   const data = await response.json();
-  if (!response.ok || data.error) throw new Error(data.error || 'Erro ao processar PDF');
+  if (!response.ok || data.error) {
+    const detail = data.raw ? ` | IA respondeu: ${data.raw}` : '';
+    throw new Error((data.error || 'Erro ao processar PDF') + detail);
+  }
   return data.transactions;
 }
+
 
 // ── Preview ──────────────────────────────────────────────────
 function renderPreview() {
