@@ -1882,10 +1882,14 @@ async function processFile() {
   } catch (err) {
     document.getElementById('import-processing').style.display = 'none';
     document.getElementById('import-upload').style.display     = 'block';
-    const msg = err.message.includes('password') || err.message.includes('senha')
-      ? 'Senha incorreta ou PDF corrompido. Verifique a senha e tente novamente.'
-      : 'Erro ao processar: ' + err.message;
-    toast(msg, 'error');
+    const isPasswordErr = err.message.includes('password') || err.message.includes('senha') || err.message.includes('Senha');
+    if (isPasswordErr) {
+      document.getElementById('pdf-password-row').style.display = 'block';
+      toast('Senha incorreta ou PDF corrompido. Verifique a senha e tente novamente.', 'error');
+    } else {
+      // Show full error in a visible alert so user can read/copy it
+      alert('Erro ao processar:\n\n' + err.message);
+    }
   }
 }
 
@@ -1972,7 +1976,8 @@ async function parsePDFWithAI(arrayBuffer, password = '') {
     fullText += pageText + '\n';
   }
 
-  window._lastPDFText = fullText; // for debug
+  // Store for debug and show first 300 chars in error if empty
+  window._lastPDFText = fullText;
 
   if (fullText.trim().length < 100) {
     throw new Error('Não foi possível extrair texto do PDF. O arquivo pode ser uma imagem escaneada.');
@@ -1990,6 +1995,13 @@ async function parsePDFWithAI(arrayBuffer, password = '') {
     const detail = data.raw ? ` | IA respondeu: ${data.raw}` : '';
     throw new Error((data.error || 'Erro ao processar PDF') + detail);
   }
+
+  if (!data.transactions || !data.transactions.length) {
+    // Show first 400 chars of extracted text to help debug
+    const preview = fullText.replace(/\s+/g, ' ').trim().slice(0, 400);
+    throw new Error(`IA não encontrou transações. Texto extraído do PDF:\n\n"${preview}..."`);
+  }
+
   return data.transactions;
 }
 
