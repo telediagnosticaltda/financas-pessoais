@@ -1,7 +1,5 @@
 // api/parse-pdf.js
-// Recebe imagens das páginas do PDF e usa a API da Anthropic para extrair transações
-
-export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
+export const config = { api: { bodyParser: { sizeLimit: '15mb' } } };
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -27,18 +25,23 @@ export default async function handler(req, res) {
     })),
     {
       type: 'text',
-      text: `Você é um extrator de dados financeiros. Analise as imagens desta fatura de cartão de crédito brasileiro e extraia todas as transações de compra.
+      text: `Você é um especialista em extrair dados de faturas de cartão de crédito brasileiras.
 
-Retorne APENAS um array JSON válido, sem texto antes ou depois, sem blocos de código markdown:
-[{"date":"YYYY-MM-DD","description":"nome do estabelecimento","amount":99.90,"type":"expense"}]
+Analise TODAS as imagens desta fatura e extraia TODAS as transações — compras, parcelamentos, assinaturas, débitos.
 
-Regras:
-- "amount" sempre número positivo (ex: 89.50)
-- "date" sempre YYYY-MM-DD — se o ano não aparecer, use o ano da fatura
-- "type": "expense" para compras, "income" para estornos/créditos
-- Inclua TODAS as compras e cada parcela individualmente
-- NÃO inclua: total da fatura, pagamento, encargos, IOF, limites
-- Retorne SOMENTE o JSON, nada mais`
+As faturas brasileiras costumam ter tabelas com colunas como: DATA | ESTABELECIMENTO/DESCRIÇÃO | VALOR
+Parcelamentos aparecem como "2/12" ou "Parcela 2 de 12" — inclua cada parcela como uma linha separada.
+
+Retorne APENAS um array JSON, sem markdown, sem texto extra:
+[{"date":"YYYY-MM-DD","description":"Nome do estabelecimento","amount":99.90,"type":"expense"}]
+
+Regras obrigatórias:
+- "amount": número positivo sem símbolo de moeda (ex: 89.50)
+- "date": formato YYYY-MM-DD. Se só aparecer dia/mês, use o ano da fatura
+- "type": "expense" para compras/débitos, "income" para estornos/créditos/reembolsos
+- NÃO inclua: total da fatura, valor do pagamento, encargos financeiros, IOF, limite de crédito, saldo
+- Se não encontrar nenhuma transação nas imagens, retorne um array vazio: []
+- Retorne SOMENTE o JSON`
     }
   ];
 
@@ -64,16 +67,21 @@ Regras:
     }
 
     const text = data.content.map(b => b.text || '').join('').trim();
+
     let transactions;
     try {
       transactions = JSON.parse(text);
     } catch {
       const match = text.match(/\[[\s\S]*\]/);
-      if (match) transactions = JSON.parse(match[0]);
-      else return res.status(500).json({ error: 'IA não conseguiu extrair as transações' });
+      if (match) {
+        try { transactions = JSON.parse(match[0]); }
+        catch { return res.status(500).json({ error: 'Resposta inválida da IA', raw: text.slice(0, 500) }); }
+      } else {
+        return res.status(500).json({ error: 'IA não retornou JSON válido', raw: text.slice(0, 500) });
+      }
     }
 
-    return res.status(200).json({ transactions });
+    return res.status(200).json({ transactions, pages: images.length });
 
   } catch (err) {
     console.error('[parse-pdf] erro:', err);
