@@ -1929,9 +1929,9 @@ function normalizeDate(d) {
   return d.slice(0, 10);
 }
 
-// ── PDF Parser via PDF.js + /api/parse-pdf ───────────────────
+// ── PDF Parser via PDF.js text extraction + Claude AI ────────
 async function parsePDFWithAI(arrayBuffer, password = '') {
-  // 1. Render PDF pages to images using PDF.js (handles password-protected PDFs)
+  // 1. Load PDF with password if needed
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(arrayBuffer),
     password: password || undefined
@@ -1947,23 +1947,40 @@ async function parsePDFWithAI(arrayBuffer, password = '') {
     throw err;
   }
 
-  // Render up to 8 pages as JPEG images — scale 2.0 for better readability
-  const pageImages = [];
-  for (let p = 1; p <= Math.min(pdf.numPages, 8); p++) {
-    const page     = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 2.0 });
-    const canvas   = document.createElement('canvas');
-    canvas.width   = viewport.width;
-    canvas.height  = viewport.height;
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    pageImages.push(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+  // 2. Extract text from all pages, preserving row structure
+  let fullText = '';
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+
+    // Group text items by Y position to reconstruct rows
+    const rows = {};
+    textContent.items.forEach(item => {
+      if (!item.str.trim()) return;
+      const y = Math.round(item.transform[5] / 4) * 4; // bucket by ~4px rows
+      if (!rows[y]) rows[y] = [];
+      rows[y].push({ x: item.transform[4], text: item.str });
+    });
+
+    // Sort rows top-to-bottom (PDF y-axis is inverted), items left-to-right
+    const sortedYs = Object.keys(rows).map(Number).sort((a, b) => b - a);
+    let pageText = `\n=== Página ${pageNum} ===\n`;
+    sortedYs.forEach(y => {
+      const line = rows[y].sort((a, b) => a.x - b.x).map(i => i.text).join(' ');
+      pageText += line + '\n';
+    });
+    fullText += pageText;
   }
 
-  // 2. Send to our Vercel function (which calls Anthropic server-side)
+  if (fullText.trim().length < 100) {
+    throw new Error('Não foi possível extrair texto do PDF. O arquivo pode ser uma imagem escaneada.');
+  }
+
+  // 3. Send extracted text to our Vercel function
   const response = await fetch('/api/parse-pdf', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: pageImages })
+    body: JSON.stringify({ text: fullText })
   });
 
   const data = await response.json();
