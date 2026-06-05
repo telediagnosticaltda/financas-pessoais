@@ -752,6 +752,9 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
     <button class="nav-item" data-page="categories" onclick="navigate('categories')">
       <i class="ti ti-tag"></i> Categorias
     </button>
+    <button class="nav-item" data-page="settings" onclick="navigate('settings')">
+      <i class="ti ti-settings"></i> Configurações
+    </button>
   </nav>
 
   <!-- Main -->
@@ -879,6 +882,38 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
       <div class="cat-grid" id="cat-income-grid"><div class="loading-msg">Carregando...</div></div>
       <div class="cat-section-title">Saídas</div>
       <div class="cat-grid" id="cat-expense-grid"><div class="loading-msg">Carregando...</div></div>
+    </div>
+
+    <!-- PAGE: SETTINGS -->
+    <div id="page-settings" class="page">
+      <div class="page-header">
+        <h1 class="page-title">Configurações</h1>
+      </div>
+      <div style="max-width:480px;display:flex;flex-direction:column;gap:1rem">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Importação automática de faturas PDF</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
+            Informe seu CPF para que o app abra automaticamente os PDFs protegidos por senha.
+            Fica salvo apenas neste navegador — nunca é enviado para nenhum servidor.
+          </p>
+          <div class="form-row">
+            <label>CPF <span style="color:var(--text-3);font-weight:400">(somente números, sem pontos)</span></label>
+            <input type="password" id="settings-cpf" placeholder="00000000000" maxlength="11"
+              oninput="this.value=this.value.replace(/\D/g,'')">
+          </div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;font-size:12px;color:var(--text-2);margin-bottom:1rem;line-height:1.7">
+            <i class="ti ti-info-circle" style="color:var(--primary)"></i>
+            <b> EQI/BTG:</b> CPF completo (11 dígitos) ·
+            <b>XP:</b> primeiros 5 dígitos do CPF
+          </div>
+          <div id="settings-cpf-status" style="margin-bottom:.875rem;font-size:13px;display:none"></div>
+          <button class="btn btn-primary" onclick="saveSettings()">
+            <i class="ti ti-device-floppy"></i> Salvar CPF
+          </button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -1042,6 +1077,13 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
           <div class="drop-sub">Aceita: PDF de fatura (BTG/EQI, XP) ou CSV (Nubank)</div>
         </div>
       </div>
+      <div class="form-row" id="pdf-password-row" style="display:none">
+        <label>Senha do PDF <span style="color:var(--text-3);font-weight:400">(se a fatura for protegida por senha)</span></label>
+        <input type="password" id="pdf-password" placeholder="Ex: CPF sem pontos ou primeiros 5 dígitos">
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">
+          <b>EQI/BTG:</b> seu CPF sem pontos · <b>XP:</b> primeiros 5 dígitos do CPF
+        </div>
+      </div>
       <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1rem;font-size:12px;color:var(--text-2);line-height:1.6">
         <strong style="color:var(--text)">Como exportar cada arquivo:</strong><br>
         <b>Nubank:</b> App → Me → Extrato → ⋯ → Exportar como CSV<br>
@@ -1115,6 +1157,10 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 <div class="toast-wrap" id="toasts"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+</script>
 <script>
 // ─────────────────────────────────────────────────────────────
 // CONFIG
@@ -1219,6 +1265,7 @@ function navigate(page) {
   if (page === 'dashboard')    loadDashboard();
   if (page === 'transactions') { populateFilterSelects(); loadTxPage(); }
   if (page === 'categories')   loadCatPage();
+  if (page === 'settings')     loadSettingsPage();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1675,6 +1722,31 @@ async function runSync() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────────────────────
+function loadSettingsPage() {
+  const cpf = localStorage.getItem('fp_cpf') || '';
+  const el  = document.getElementById('settings-cpf');
+  if (el) el.value = cpf;
+  const status = document.getElementById('settings-cpf-status');
+  if (cpf && status) {
+    status.style.display = 'block';
+    status.innerHTML = `<span style="color:var(--green)"><i class="ti ti-check"></i> CPF salvo — importação automática ativada</span>`;
+  }
+}
+
+function saveSettings() {
+  const cpf = document.getElementById('settings-cpf').value.trim();
+  if (cpf && cpf.length !== 11) { toast('CPF deve ter 11 dígitos', 'error'); return; }
+  if (cpf) localStorage.setItem('fp_cpf', cpf);
+  else     localStorage.removeItem('fp_cpf');
+  toast(cpf ? 'CPF salvo! Importação automática ativada.' : 'CPF removido.');
+  loadSettingsPage();
+}
+
+function getSavedCPF() { return localStorage.getItem('fp_cpf') || ''; }
+
+// ─────────────────────────────────────────────────────────────
 // IMPORT FEATURE
 // ─────────────────────────────────────────────────────────────
 let importFile     = null;
@@ -1708,6 +1780,8 @@ function resetImport() {
   dz.classList.remove('has-file', 'dragover');
   document.getElementById('drop-title').textContent = 'Arraste o arquivo aqui ou clique para selecionar';
   document.getElementById('import-file').value = '';
+  document.getElementById('pdf-password').value = '';
+  document.getElementById('pdf-password-row').style.display = 'none';
 }
 
 function setupDropZone() {
@@ -1731,6 +1805,9 @@ function handleFileSelect(file) {
   dz.classList.add('has-file');
   document.getElementById('drop-title').textContent = `✓ ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
   document.getElementById('btn-process').disabled = false;
+  // Show password field only for PDFs
+  document.getElementById('pdf-password-row').style.display = ext === 'pdf' ? 'block' : 'none';
+  if (ext === 'csv') document.getElementById('pdf-password').value = '';
 }
 
 async function processFile() {
@@ -1741,7 +1818,8 @@ async function processFile() {
   document.getElementById('import-upload').style.display     = 'none';
   document.getElementById('import-processing').style.display = 'block';
 
-  const ext = importFile.name.split('.').pop().toLowerCase();
+  const ext      = importFile.name.split('.').pop().toLowerCase();
+  const password = document.getElementById('pdf-password').value.trim();
 
   try {
     let txs = [];
@@ -1750,9 +1828,42 @@ async function processFile() {
       const text = await importFile.text();
       txs = parseNubankCSV(text);
     } else {
-      document.getElementById('processing-msg').textContent = 'IA lendo o PDF da fatura...';
-      const base64 = await fileToBase64(importFile);
-      txs = await parsePDFWithAI(base64);
+      const cpf = getSavedCPF();
+      // Try passwords automatically: full CPF (EQI/BTG), then first 5 digits (XP)
+      const passwords = cpf
+        ? [cpf, cpf.slice(0, 5), '']   // try saved CPF first, then XP variant, then no password
+        : [document.getElementById('pdf-password').value.trim(), ''];
+
+      document.getElementById('processing-msg').textContent = 'Abrindo PDF com senha automática...';
+      const arrayBuffer = await importFile.arrayBuffer();
+
+      let txs = null;
+      let lastErr = null;
+      for (const pwd of passwords) {
+        try {
+          document.getElementById('processing-msg').textContent =
+            pwd ? 'Tentando senha automaticamente...' : 'Tentando sem senha...';
+          txs = await parsePDFWithAI(arrayBuffer, pwd);
+          break; // success
+        } catch (err) {
+          lastErr = err;
+          if (!err.message.includes('senha') && !err.message.includes('password') && !err.message.includes('Password')) {
+            throw err; // non-password error, stop trying
+          }
+        }
+      }
+
+      if (!txs) {
+        // All passwords failed — ask user manually
+        document.getElementById('import-processing').style.display = 'none';
+        document.getElementById('import-upload').style.display     = 'block';
+        document.getElementById('pdf-password-row').style.display  = 'block';
+        toast(getSavedCPF()
+          ? 'Senha automática não funcionou. Tente inserir manualmente ou verifique o CPF em Configurações.'
+          : 'PDF protegido por senha. Informe a senha abaixo.',
+          'error');
+        return;
+      }
     }
 
     if (!txs.length) throw new Error('Nenhuma transação encontrada no arquivo');
@@ -1767,7 +1878,10 @@ async function processFile() {
   } catch (err) {
     document.getElementById('import-processing').style.display = 'none';
     document.getElementById('import-upload').style.display     = 'block';
-    toast('Erro ao processar: ' + err.message, 'error');
+    const msg = err.message.includes('password') || err.message.includes('senha')
+      ? 'Senha incorreta ou PDF corrompido. Verifique a senha e tente novamente.'
+      : 'Erro ao processar: ' + err.message;
+    toast(msg, 'error');
   }
 }
 
@@ -1811,48 +1925,66 @@ function normalizeDate(d) {
   return d.slice(0, 10);
 }
 
-// ── PDF Parser via Claude AI ─────────────────────────────────
-async function fileToBase64(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload  = () => res(r.result.split(',')[1]);
-    r.onerror = () => rej(new Error('Erro ao ler arquivo'));
-    r.readAsDataURL(file);
+// ── PDF Parser via PDF.js + Claude AI ───────────────────────
+async function parsePDFWithAI(arrayBuffer, password = '') {
+  // 1. Render PDF pages to images using PDF.js (handles password-protected PDFs)
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(arrayBuffer),
+    password: password || undefined
   });
-}
 
-async function parsePDFWithAI(base64) {
+  let pdf;
+  try {
+    pdf = await loadingTask.promise;
+  } catch (err) {
+    if (err.name === 'PasswordException') {
+      throw new Error(password ? 'Senha incorreta para este PDF' : 'Este PDF requer uma senha');
+    }
+    throw err;
+  }
+
+  // Render up to 8 pages (enough for any invoice)
+  const pageImages = [];
+  for (let p = 1; p <= Math.min(pdf.numPages, 8); p++) {
+    const page     = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale: 1.8 });
+    const canvas   = document.createElement('canvas');
+    canvas.width   = viewport.width;
+    canvas.height  = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    pageImages.push(canvas.toDataURL('image/jpeg', 0.82).split(',')[1]);
+  }
+
+  // 2. Send page images to Claude API
+  const content = [
+    ...pageImages.map(img => ({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: img }
+    })),
+    {
+      type: 'text',
+      text: `Você é um extrator de dados financeiros. Analise as imagens desta fatura de cartão de crédito brasileiro e extraia todas as transações de compra.
+
+Retorne APENAS um array JSON válido, sem texto antes ou depois, sem blocos de código markdown:
+[{"date":"YYYY-MM-DD","description":"nome do estabelecimento","amount":99.90,"type":"expense"}]
+
+Regras:
+- "amount" sempre número positivo (ex: 89.50)
+- "date" sempre YYYY-MM-DD — se o ano não aparecer, use o ano da fatura
+- "type": "expense" para compras, "income" para estornos/créditos
+- Inclua TODAS as compras e cada parcela individualmente
+- NÃO inclua: total da fatura, pagamento, encargos, IOF, limites
+- Retorne SOMENTE o JSON, nada mais`
+    }
+  ];
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: base64 }
-          },
-          {
-            type: 'text',
-            text: `Você é um extrator de dados financeiros. Analise esta fatura de cartão de crédito brasileiro e extraia todas as transações de compra.
-
-Retorne APENAS um array JSON válido, sem texto antes ou depois, sem blocos de código markdown, com este formato exato:
-[{"date":"YYYY-MM-DD","description":"nome do estabelecimento","amount":99.90,"type":"expense"}]
-
-Regras importantes:
-- "amount" deve ser sempre um número positivo (ex: 89.50, não "R$ 89,50")
-- "date" sempre no formato YYYY-MM-DD
-- "type" deve ser "expense" para compras e "income" para estornos/créditos
-- Inclua TODAS as compras, inclusive parcelamentos (cada parcela = uma linha)
-- NÃO inclua: total da fatura, pagamento mínimo, encargos, IOF, limite disponível
-- Para descrições, use o nome do estabelecimento de forma limpa e legível
-- Retorne SOMENTE o JSON, nada mais`
-          }
-        ]
-      }]
+      messages: [{ role: 'user', content }]
     })
   });
 
@@ -1866,7 +1998,6 @@ Regras importantes:
   try {
     return JSON.parse(text);
   } catch {
-    // Try to extract JSON array if there's extra text
     const match = text.match(/\[[\s\S]*\]/);
     if (match) return JSON.parse(match[0]);
     throw new Error('IA não conseguiu extrair as transações. Tente novamente.');
