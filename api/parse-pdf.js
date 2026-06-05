@@ -1,5 +1,5 @@
 // api/parse-pdf.js
-export const config = { api: { bodyParser: { sizeLimit: '15mb' } } };
+export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -10,40 +10,50 @@ export default async function handler(req, res) {
 
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada nas variáveis de ambiente da Vercel' });
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada' });
   }
 
-  const { images } = req.body;
-  if (!images?.length) {
-    return res.status(400).json({ error: 'Nenhuma imagem recebida' });
+  const { text } = req.body;
+  if (!text || text.trim().length < 50) {
+    return res.status(400).json({ error: 'Texto do PDF não recebido ou muito curto' });
   }
 
-  const content = [
-    ...images.map(img => ({
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg', data: img }
-    })),
-    {
-      type: 'text',
-      text: `Você é um especialista em extrair dados de faturas de cartão de crédito brasileiras.
+  const prompt = `Você é um especialista em extrair dados de faturas de cartão de crédito brasileiras.
 
-Analise TODAS as imagens desta fatura e extraia TODAS as transações — compras, parcelamentos, assinaturas, débitos.
+Analise o texto abaixo extraído de uma fatura do cartão EQI/BTG Pactual e extraia TODAS as transações de compra.
 
-As faturas brasileiras costumam ter tabelas com colunas como: DATA | ESTABELECIMENTO/DESCRIÇÃO | VALOR
-Parcelamentos aparecem como "2/12" ou "Parcela 2 de 12" — inclua cada parcela como uma linha separada.
+O formato típico desta fatura é:
+DD Mês  Descrição (parcela)  R$ valor
 
-Retorne APENAS um array JSON, sem markdown, sem texto extra:
+Onde:
+- DD = dia (ex: 25, 08, 30)
+- Mês = abreviação em português (Jan, Fev, Mar, Abr, Mai, Jun, Jul, Ago, Set, Out, Nov, Dez)
+- Descrição = nome do estabelecimento, às vezes seguido de (X/Y) indicando parcela X de Y
+- R$ valor = o valor da compra
+
+A página de lançamentos pode ter duas colunas lado a lado — extraia transações de AMBAS as colunas.
+
+O texto também pode ter um ⊕ ou símbolos extras após os valores — ignore-os.
+
+Retorne APENAS um array JSON válido, sem markdown, sem texto extra:
 [{"date":"YYYY-MM-DD","description":"Nome do estabelecimento","amount":99.90,"type":"expense"}]
 
-Regras obrigatórias:
-- "amount": número positivo sem símbolo de moeda (ex: 89.50)
-- "date": formato YYYY-MM-DD. Se só aparecer dia/mês, use o ano da fatura
-- "type": "expense" para compras/débitos, "income" para estornos/créditos/reembolsos
-- NÃO inclua: total da fatura, valor do pagamento, encargos financeiros, IOF, limite de crédito, saldo
-- Se não encontrar nenhuma transação nas imagens, retorne um array vazio: []
-- Retorne SOMENTE o JSON`
-    }
-  ];
+Regras:
+- "amount": número positivo (ex: 89.50, não "R$ 89,50")
+- "date": formato YYYY-MM-DD
+  - Para determinar o ano: a fatura é de Junho de 2026 (período 27/04 a 28/05/2026)
+  - Transações de Mai/Abr/Mar/Fev/Jan de 2026 → ano 2026
+  - Transações de Dez/Nov/Out/Set/Ago/Jul de anos anteriores → ano 2025
+  - Transações com data muito antiga (ex: Ago, Out, Nov, Dez) são parcelas de compras antigas → use 2025
+- "type": "expense" para compras, "income" para estornos/créditos
+- NÃO inclua: pagamentos de fatura, total da fatura, encargos, IOF, limites, mensalidade do cartão
+- Inclua parcelamentos (cada parcela = uma linha separada)
+- Se uma linha só tiver "Pagamento de fatura" ou "Pagamento" → NÃO inclua
+
+TEXTO DA FATURA:
+${text}
+
+Retorne SOMENTE o JSON array.`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -55,33 +65,31 @@ Regras obrigatórias:
       },
       body: JSON.stringify({
         model: 'claude-opus-4-5',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content }]
+        max_tokens: 8000,
+        messages: [{ role: 'user', content: prompt }]
       })
     });
 
     const data = await response.json();
-
     if (!response.ok) {
       return res.status(500).json({ error: data.error?.message || 'Erro na API da Anthropic' });
     }
 
-    const text = data.content.map(b => b.text || '').join('').trim();
-
+    const rawText = data.content.map(b => b.text || '').join('').trim();
     let transactions;
     try {
-      transactions = JSON.parse(text);
+      transactions = JSON.parse(rawText);
     } catch {
-      const match = text.match(/\[[\s\S]*\]/);
+      const match = rawText.match(/\[[\s\S]*\]/);
       if (match) {
         try { transactions = JSON.parse(match[0]); }
-        catch { return res.status(500).json({ error: 'Resposta inválida da IA', raw: text.slice(0, 500) }); }
+        catch { return res.status(500).json({ error: 'Resposta inválida da IA', raw: rawText.slice(0, 300) }); }
       } else {
-        return res.status(500).json({ error: 'IA não retornou JSON válido', raw: text.slice(0, 500) });
+        return res.status(500).json({ error: 'IA não retornou JSON', raw: rawText.slice(0, 300) });
       }
     }
 
-    return res.status(200).json({ transactions, pages: images.length });
+    return res.status(200).json({ transactions });
 
   } catch (err) {
     console.error('[parse-pdf] erro:', err);
