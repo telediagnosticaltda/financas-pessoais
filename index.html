@@ -652,7 +652,59 @@ textarea { resize: vertical; min-height: 68px; }
 
 td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); font-size: 13px; }
 
-/* ── DELETE CONFIRM ── */
+/* ── IMPORT ── */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: var(--surface-2);
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--primary);
+  background: var(--primary-l);
+}
+.drop-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  border: none; padding: 0;
+}
+.drop-zone i { font-size: 32px; color: var(--text-3); display: block; margin-bottom: .5rem; }
+.drop-zone .drop-title { font-size: 14px; font-weight: 600; color: var(--text-2); }
+.drop-zone .drop-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+.drop-zone.has-file { border-color: var(--green); background: var(--green-l); }
+.drop-zone.has-file i { color: var(--green); }
+.drop-zone.has-file .drop-title { color: var(--green); }
+
+.preview-wrap { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.preview-table th {
+  text-align: left; padding: 8px 12px; background: var(--surface-2);
+  border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--text-3);
+  position: sticky; top: 0;
+}
+.preview-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); }
+.preview-table tr:last-child td { border-bottom: none; }
+.preview-table tr:hover td { background: var(--surface-2); }
+.preview-table tr.excluded td { opacity: .35; text-decoration: line-through; }
+.btn-exclude {
+  width: 22px; height: 22px; border-radius: 5px; border: none;
+  background: var(--red-l); color: var(--red); cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-exclude:hover { background: #FAD5D0; }
+.import-summary {
+  display: flex; gap: .75rem; margin-bottom: 1rem;
+}
+.import-stat {
+  flex: 1; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: .75rem; text-align: center;
+}
+.import-stat-val { font-size: 22px; font-weight: 700; }
+.import-stat-lbl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); }
 .confirm-backdrop {
   position: fixed;
   inset: 0;
@@ -766,9 +818,14 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
     <div id="page-transactions" class="page">
       <div class="page-header">
         <h1 class="page-title">Lançamentos</h1>
-        <button class="btn btn-primary" onclick="openTxModal()">
-          <i class="ti ti-plus"></i> Novo lançamento
-        </button>
+        <div class="header-right">
+          <button class="btn btn-ghost" onclick="openImportModal()">
+            <i class="ti ti-upload"></i> Importar arquivo
+          </button>
+          <button class="btn btn-primary" onclick="openTxModal()">
+            <i class="ti ti-plus"></i> Novo lançamento
+          </button>
+        </div>
       </div>
 
       <div class="filters-bar">
@@ -961,6 +1018,88 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 </div>
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+<!-- Modal: Importar arquivo -->
+<div class="modal-backdrop" id="modal-import">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title">Importar transações</span>
+      <button class="modal-close" onclick="closeImport()"><i class="ti ti-x"></i></button>
+    </div>
+
+    <!-- Estado 1: Upload -->
+    <div id="import-upload">
+      <div class="form-row">
+        <label>Conta de destino *</label>
+        <select id="import-account"></select>
+      </div>
+      <div class="form-row">
+        <label>Arquivo (PDF de fatura ou CSV do Nubank)</label>
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="import-file" accept=".pdf,.csv" onchange="handleFileSelect(this.files[0])">
+          <i class="ti ti-cloud-upload"></i>
+          <div class="drop-title" id="drop-title">Arraste o arquivo aqui ou clique para selecionar</div>
+          <div class="drop-sub">Aceita: PDF de fatura (BTG/EQI, XP) ou CSV (Nubank)</div>
+        </div>
+      </div>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1rem;font-size:12px;color:var(--text-2);line-height:1.6">
+        <strong style="color:var(--text)">Como exportar cada arquivo:</strong><br>
+        <b>Nubank:</b> App → Me → Extrato → ⋯ → Exportar como CSV<br>
+        <b>BTG/EQI:</b> O PDF da fatura chega no seu e-mail mensalmente<br>
+        <b>XP:</b> App XP → Cartão → Ver fatura → Baixar PDF
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeImport()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-process" onclick="processFile()" disabled>
+          <i class="ti ti-wand"></i> Processar arquivo
+        </button>
+      </div>
+    </div>
+
+    <!-- Estado 2: Processando -->
+    <div id="import-processing" style="display:none;text-align:center;padding:2.5rem 0">
+      <div style="font-size:36px;margin-bottom:.875rem;animation:spin 1.2s linear infinite;display:inline-block;color:var(--primary)">
+        <i class="ti ti-refresh"></i>
+      </div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:.375rem" id="processing-msg">IA lendo o arquivo...</div>
+      <div style="font-size:12px;color:var(--text-3)">Isso pode levar alguns segundos para PDFs</div>
+    </div>
+
+    <!-- Estado 3: Prévia -->
+    <div id="import-preview" style="display:none">
+      <div class="import-summary" id="import-summary"></div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:.625rem">
+        Clique em <span style="color:var(--red);font-weight:600">✕</span> para remover uma transação antes de importar.
+      </div>
+      <div class="preview-wrap">
+        <table class="preview-table">
+          <thead>
+            <tr><th>Data</th><th>Descrição</th><th style="text-align:right">Valor</th><th>Tipo</th><th></th></tr>
+          </thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="resetImport()"><i class="ti ti-arrow-left"></i> Voltar</button>
+        <button class="btn btn-primary" id="btn-confirm-import" onclick="confirmImport()">
+          <i class="ti ti-download"></i> <span id="btn-import-label">Importar</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Estado 4: Resultado -->
+    <div id="import-result" style="display:none">
+      <div id="import-result-content"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="resetImport()"><i class="ti ti-upload"></i> Importar outro arquivo</button>
+        <button class="btn btn-primary" onclick="closeImport();navigate('transactions')">
+          <i class="ti ti-check"></i> Ver lançamentos
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="confirm-backdrop" id="confirm-modal">
   <div class="confirm-box">
     <div class="confirm-title" id="confirm-title">Confirmar exclusão</div>
@@ -1533,6 +1672,306 @@ async function runSync() {
       </div>
     `;
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPORT FEATURE
+// ─────────────────────────────────────────────────────────────
+let importFile     = null;
+let previewTxs     = []; // [{date, description, amount, type, excluded}]
+let excludedRows   = new Set();
+
+function openImportModal() {
+  resetImport();
+  // Populate account selector
+  document.getElementById('import-account').innerHTML =
+    '<option value="">Selecione a conta...</option>' +
+    accounts.map(a => `<option value="${a.id}">${a.name} — ${a.institution}</option>`).join('');
+  document.getElementById('modal-import').classList.add('open');
+  setupDropZone();
+}
+
+function closeImport() {
+  document.getElementById('modal-import').classList.remove('open');
+}
+
+function resetImport() {
+  importFile   = null;
+  previewTxs   = [];
+  excludedRows = new Set();
+  document.getElementById('import-upload').style.display     = 'block';
+  document.getElementById('import-processing').style.display = 'none';
+  document.getElementById('import-preview').style.display    = 'none';
+  document.getElementById('import-result').style.display     = 'none';
+  document.getElementById('btn-process').disabled = true;
+  const dz = document.getElementById('drop-zone');
+  dz.classList.remove('has-file', 'dragover');
+  document.getElementById('drop-title').textContent = 'Arraste o arquivo aqui ou clique para selecionar';
+  document.getElementById('import-file').value = '';
+}
+
+function setupDropZone() {
+  const dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('dragover'); }, { once: false });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFileSelect(f);
+  });
+}
+
+function handleFileSelect(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['pdf','csv'].includes(ext)) { toast('Use apenas arquivos PDF ou CSV', 'error'); return; }
+  importFile = file;
+  const dz = document.getElementById('drop-zone');
+  dz.classList.add('has-file');
+  document.getElementById('drop-title').textContent = `✓ ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
+  document.getElementById('btn-process').disabled = false;
+}
+
+async function processFile() {
+  if (!importFile) return;
+  const accId = document.getElementById('import-account').value;
+  if (!accId) { toast('Selecione a conta de destino', 'error'); return; }
+
+  document.getElementById('import-upload').style.display     = 'none';
+  document.getElementById('import-processing').style.display = 'block';
+
+  const ext = importFile.name.split('.').pop().toLowerCase();
+
+  try {
+    let txs = [];
+    if (ext === 'csv') {
+      document.getElementById('processing-msg').textContent = 'Lendo CSV do Nubank...';
+      const text = await importFile.text();
+      txs = parseNubankCSV(text);
+    } else {
+      document.getElementById('processing-msg').textContent = 'IA lendo o PDF da fatura...';
+      const base64 = await fileToBase64(importFile);
+      txs = await parsePDFWithAI(base64);
+    }
+
+    if (!txs.length) throw new Error('Nenhuma transação encontrada no arquivo');
+
+    previewTxs = txs.map(t => ({ ...t, excluded: false }));
+    excludedRows.clear();
+    renderPreview();
+
+    document.getElementById('import-processing').style.display = 'none';
+    document.getElementById('import-preview').style.display    = 'block';
+
+  } catch (err) {
+    document.getElementById('import-processing').style.display = 'none';
+    document.getElementById('import-upload').style.display     = 'block';
+    toast('Erro ao processar: ' + err.message, 'error');
+  }
+}
+
+// ── CSV Parser (Nubank) ──────────────────────────────────────
+function parseNubankCSV(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  if (lines.length < 2) throw new Error('Arquivo CSV vazio ou inválido');
+
+  const txs = [];
+  for (let i = 1; i < lines.length; i++) {
+    // Handle quoted fields with commas inside
+    const parts = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g) || lines[i].split(',');
+    if (parts.length < 3) continue;
+
+    const clean  = s => (s || '').replace(/^"|"$/g, '').trim();
+    const rawDate = clean(parts[0]);
+    const desc    = clean(parts[1]);
+    const rawAmt  = clean(parts[parts.length - 1]).replace(',', '.');
+    const amount  = parseFloat(rawAmt);
+
+    if (!rawDate || !desc || isNaN(amount)) continue;
+    // Skip payment entries (pagamento de fatura)
+    if (desc.toLowerCase().includes('pagamento') && amount > 0) continue;
+
+    txs.push({
+      date:        normalizeDate(rawDate),
+      description: desc,
+      amount:      Math.abs(amount),
+      type:        amount < 0 ? 'expense' : 'income'
+    });
+  }
+  return txs;
+}
+
+function normalizeDate(d) {
+  // Handles DD/MM/YYYY or YYYY-MM-DD
+  if (d.includes('/')) {
+    const [a, b, c] = d.split('/');
+    return a.length === 4 ? `${a}-${b}-${c}` : `${c}-${b}-${a}`;
+  }
+  return d.slice(0, 10);
+}
+
+// ── PDF Parser via Claude AI ─────────────────────────────────
+async function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = () => res(r.result.split(',')[1]);
+    r.onerror = () => rej(new Error('Erro ao ler arquivo'));
+    r.readAsDataURL(file);
+  });
+}
+
+async function parsePDFWithAI(base64) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+          },
+          {
+            type: 'text',
+            text: `Você é um extrator de dados financeiros. Analise esta fatura de cartão de crédito brasileiro e extraia todas as transações de compra.
+
+Retorne APENAS um array JSON válido, sem texto antes ou depois, sem blocos de código markdown, com este formato exato:
+[{"date":"YYYY-MM-DD","description":"nome do estabelecimento","amount":99.90,"type":"expense"}]
+
+Regras importantes:
+- "amount" deve ser sempre um número positivo (ex: 89.50, não "R$ 89,50")
+- "date" sempre no formato YYYY-MM-DD
+- "type" deve ser "expense" para compras e "income" para estornos/créditos
+- Inclua TODAS as compras, inclusive parcelamentos (cada parcela = uma linha)
+- NÃO inclua: total da fatura, pagamento mínimo, encargos, IOF, limite disponível
+- Para descrições, use o nome do estabelecimento de forma limpa e legível
+- Retorne SOMENTE o JSON, nada mais`
+          }
+        ]
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || 'Erro na API de IA');
+  }
+
+  const data = await response.json();
+  const text = data.content.map(b => b.text || '').join('').trim();
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Try to extract JSON array if there's extra text
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) return JSON.parse(match[0]);
+    throw new Error('IA não conseguiu extrair as transações. Tente novamente.');
+  }
+}
+
+// ── Preview ──────────────────────────────────────────────────
+function renderPreview() {
+  const active = previewTxs.filter(t => !t.excluded);
+  const total  = active.reduce((s, t) => s + t.amount, 0);
+
+  document.getElementById('import-summary').innerHTML = `
+    <div class="import-stat">
+      <div class="import-stat-val" style="color:var(--primary)">${previewTxs.length}</div>
+      <div class="import-stat-lbl">Encontradas</div>
+    </div>
+    <div class="import-stat">
+      <div class="import-stat-val" style="color:var(--green)">${active.length}</div>
+      <div class="import-stat-lbl">Para importar</div>
+    </div>
+    <div class="import-stat">
+      <div class="import-stat-val" style="color:var(--red)">${R(total)}</div>
+      <div class="import-stat-lbl">Total</div>
+    </div>`;
+
+  document.getElementById('btn-import-label').textContent = `Importar ${active.length} transações`;
+
+  document.getElementById('preview-tbody').innerHTML = previewTxs.map((t, i) => `
+    <tr class="${t.excluded ? 'excluded' : ''}">
+      <td style="white-space:nowrap;color:var(--text-2)">${fmtDate(t.date)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description}</td>
+      <td style="text-align:right;font-weight:600;color:${t.type==='income'?'var(--green)':'var(--red)'}">
+        ${t.type==='income'?'+':'-'} ${R(t.amount)}
+      </td>
+      <td><span style="font-size:11px;color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'Entrada':'Saída'}</span></td>
+      <td>
+        <button class="btn-exclude" onclick="toggleExclude(${i})" title="${t.excluded?'Incluir':'Excluir'}">
+          ${t.excluded ? '<i class="ti ti-plus"></i>' : '<i class="ti ti-x"></i>'}
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+function toggleExclude(i) {
+  previewTxs[i].excluded = !previewTxs[i].excluded;
+  renderPreview();
+}
+
+// ── Confirm import ───────────────────────────────────────────
+async function confirmImport() {
+  const accId  = document.getElementById('import-account').value;
+  const active = previewTxs.filter(t => !t.excluded);
+  if (!active.length) { toast('Nenhuma transação selecionada', 'error'); return; }
+
+  const btn = document.getElementById('btn-confirm-import');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Importando...';
+
+  let imported = 0, duplicates = 0, errors = 0;
+
+  for (const tx of active) {
+    // Check duplicate by date + description + amount
+    const { data: existing } = await db.from('transactions')
+      .select('id')
+      .eq('account_id', accId)
+      .eq('date', tx.date)
+      .eq('amount', tx.amount)
+      .ilike('description', tx.description);
+
+    if (existing?.length) { duplicates++; continue; }
+
+    const { error } = await db.from('transactions').insert({
+      date:        tx.date,
+      description: tx.description,
+      amount:      tx.amount,
+      type:        tx.type,
+      account_id:  accId,
+      source:      'manual'
+    });
+
+    if (error) errors++;
+    else imported++;
+  }
+
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-result').style.display  = 'block';
+  document.getElementById('import-result-content').innerHTML = `
+    <div class="import-summary">
+      <div class="import-stat">
+        <div class="import-stat-val" style="color:var(--green)">${imported}</div>
+        <div class="import-stat-lbl">Importadas</div>
+      </div>
+      <div class="import-stat">
+        <div class="import-stat-val" style="color:var(--text-2)">${duplicates}</div>
+        <div class="import-stat-lbl">Duplicatas ignoradas</div>
+      </div>
+      ${errors ? `<div class="import-stat">
+        <div class="import-stat-val" style="color:var(--red)">${errors}</div>
+        <div class="import-stat-lbl">Erros</div>
+      </div>` : ''}
+    </div>
+    <p style="font-size:13px;color:var(--text-2)">
+      ${imported > 0 ? `✓ ${imported} transações adicionadas com sucesso.` : ''}
+      ${duplicates > 0 ? `${duplicates} já existiam e foram ignoradas.` : ''}
+    </p>`;
 }
 
 // ─────────────────────────────────────────────────────────────
