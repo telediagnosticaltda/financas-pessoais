@@ -1822,7 +1822,7 @@ async function processFile() {
   const password = document.getElementById('pdf-password').value.trim();
 
   try {
-    let txs = [];
+    let txs = null;
     if (ext === 'csv') {
       document.getElementById('processing-msg').textContent = 'Lendo CSV do Nubank...';
       const text = await importFile.text();
@@ -1837,7 +1837,6 @@ async function processFile() {
       document.getElementById('processing-msg').textContent = 'Abrindo PDF com senha automática...';
       const arrayBuffer = await importFile.arrayBuffer();
 
-      let txs = null;
       let lastErr = null;
       for (const pwd of passwords) {
         try {
