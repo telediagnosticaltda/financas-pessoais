@@ -2059,8 +2059,20 @@ async function confirmImport() {
 
   let imported = 0, duplicates = 0, errors = 0;
 
+  // Pre-count occurrences of each transaction in the current batch
+  // so we can allow legitimate identical transactions (ex: same toll twice in one day)
+  const batchKey = t => `${t.date}||${t.amount}||${t.description.toLowerCase()}`;
+  const batchCounts = {};
+  active.forEach(t => { const k = batchKey(t); batchCounts[k] = (batchCounts[k] || 0) + 1; });
+
+  // Track how many of each we've already imported in this session
+  const sessionImported = {};
+
   for (const tx of active) {
-    // Check duplicate by date + description + amount
+    const key = batchKey(tx);
+    const sessionCount = sessionImported[key] || 0;
+
+    // Count how many of this exact transaction already exist in DB
     const { data: existing } = await db.from('transactions')
       .select('id')
       .eq('account_id', accId)
@@ -2068,7 +2080,8 @@ async function confirmImport() {
       .eq('amount', tx.amount)
       .ilike('description', tx.description);
 
-    if (existing?.length) { duplicates++; continue; }
+    // Only skip if DB already has at least (sessionCount + 1) of this transaction
+    if ((existing?.length || 0) > sessionCount) { duplicates++; continue; }
 
     const { error } = await db.from('transactions').insert({
       date:        tx.date,
@@ -2080,7 +2093,7 @@ async function confirmImport() {
     });
 
     if (error) errors++;
-    else imported++;
+    else { imported++; sessionImported[key] = sessionCount + 1; }
   }
 
   document.getElementById('import-preview').style.display = 'none';
