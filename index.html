@@ -1866,7 +1866,11 @@ async function processFile() {
       }
     }
 
-    if (!txs.length) throw new Error('Nenhuma transação encontrada no arquivo');
+    if (!txs || !txs.length) {
+      // Show how many pages were processed to help diagnose
+      const pageCount = importFile ? Math.min(Math.ceil(importFile.size / 50000), 8) : '?';
+      throw new Error(`Nenhuma transação encontrada. O PDF foi processado (${pageCount} páginas). Verifique se é uma fatura de cartão de crédito com lançamentos no período.`);
+    }
 
     previewTxs = txs.map(t => ({ ...t, excluded: false }));
     excludedRows.clear();
@@ -1943,16 +1947,16 @@ async function parsePDFWithAI(arrayBuffer, password = '') {
     throw err;
   }
 
-  // Render up to 8 pages as JPEG images
+  // Render up to 8 pages as JPEG images — scale 2.0 for better readability
   const pageImages = [];
   for (let p = 1; p <= Math.min(pdf.numPages, 8); p++) {
     const page     = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 1.5 });
+    const viewport = page.getViewport({ scale: 2.0 });
     const canvas   = document.createElement('canvas');
     canvas.width   = viewport.width;
     canvas.height  = viewport.height;
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    pageImages.push(canvas.toDataURL('image/jpeg', 0.75).split(',')[1]);
+    pageImages.push(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
   }
 
   // 2. Send to our Vercel function (which calls Anthropic server-side)
