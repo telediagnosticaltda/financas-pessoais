@@ -1116,7 +1116,7 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
       <div class="preview-wrap">
         <table class="preview-table">
           <thead>
-            <tr><th>Data</th><th>Descrição</th><th style="text-align:right">Valor</th><th>Tipo</th><th></th></tr>
+            <tr><th>Data</th><th>Descrição</th><th style="text-align:right">Valor</th><th>Categoria</th><th></th></tr>
           </thead>
           <tbody id="preview-tbody"></tbody>
         </table>
@@ -1541,7 +1541,22 @@ async function saveTx() {
 
   if (error) { toast('Erro ao salvar: ' + error.message, 'error'); return; }
 
-  toast(editingTxId ? 'Lançamento atualizado!' : 'Lançamento criado!');
+  // Save category rule for future auto-categorization
+  if (category_id && desc) {
+    saveCatRule(desc, category_id);
+
+    // On edit: offer to apply category to all similar uncategorized transactions
+    if (editingTxId) {
+      const count = await applyRuleToAll(desc, category_id);
+      toast(count > 0
+        ? `Categoria salva e aplicada a mais ${count} lançamento(s) similar(es)!`
+        : 'Lançamento atualizado!');
+    } else {
+      toast('Lançamento criado!');
+    }
+  } else {
+    toast(editingTxId ? 'Lançamento atualizado!' : 'Lançamento criado!');
+  }
   closeModal('modal-tx');
   if (currentPage === 'dashboard')    loadDashboard();
   if (currentPage === 'transactions') loadTxPage();
@@ -1747,6 +1762,55 @@ function saveSettings() {
 function getSavedCPF() { return localStorage.getItem('fp_cpf') || ''; }
 
 // ─────────────────────────────────────────────────────────────
+// CATEGORY RULES (auto-categorization)
+// ─────────────────────────────────────────────────────────────
+function getCatRules() {
+  try { return JSON.parse(localStorage.getItem('fp_cat_rules') || '{}'); }
+  catch { return {}; }
+}
+
+function saveCatRule(description, categoryId) {
+  if (!description || !categoryId) return;
+  const rules = getCatRules();
+  // Use first 3 significant words as key
+  const key = description.toLowerCase()
+    .replace(/\s*\(\d+\/\d+\)\s*/g, '') // remove parcel notation like (2/6)
+    .trim()
+    .split(/\s+/).slice(0, 3).join(' ');
+  if (key.length < 3) return;
+  rules[key] = categoryId;
+  localStorage.setItem('fp_cat_rules', JSON.stringify(rules));
+}
+
+function getCategoryForDesc(description) {
+  if (!description) return null;
+  const rules = getCatRules();
+  const descLower = description.toLowerCase();
+  let best = null, bestLen = 0;
+  for (const [key, catId] of Object.entries(rules)) {
+    if (descLower.includes(key) && key.length > bestLen) {
+      best = catId; bestLen = key.length;
+    }
+  }
+  return best;
+}
+
+async function applyRuleToAll(description, categoryId) {
+  // Update all uncategorized transactions with similar description
+  const keyword = description.toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+  const { data: matches } = await db.from('transactions')
+    .select('id, description')
+    .is('category_id', null);
+  if (!matches?.length) return 0;
+  const toUpdate = matches.filter(t => t.description.toLowerCase().includes(keyword));
+  if (!toUpdate.length) return 0;
+  for (const t of toUpdate) {
+    await db.from('transactions').update({ category_id: categoryId }).eq('id', t.id);
+  }
+  return toUpdate.length;
+}
+
+// ─────────────────────────────────────────────────────────────
 // IMPORT FEATURE
 // ─────────────────────────────────────────────────────────────
 let importFile     = null;
@@ -1805,9 +1869,26 @@ function handleFileSelect(file) {
   dz.classList.add('has-file');
   document.getElementById('drop-title').textContent = `✓ ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
   document.getElementById('btn-process').disabled = false;
-  // Show password field only for PDFs
-  document.getElementById('pdf-password-row').style.display = ext === 'pdf' ? 'block' : 'none';
+
+  // Show password field only for PDFs AND only when CPF is not saved
+  const hasCPF = !!getSavedCPF();
+  document.getElementById('pdf-password-row').style.display =
+    (ext === 'pdf' && !hasCPF) ? 'block' : 'none';
   if (ext === 'csv') document.getElementById('pdf-password').value = '';
+
+  // Auto-detect account from filename
+  const fname = file.name.toLowerCase();
+  const accSel = document.getElementById('import-account');
+  if (accSel && accounts.length) {
+    const detected = accounts.find(a => {
+      const inst = a.institution.toLowerCase();
+      if ((fname.includes('eqi') || fname.includes('btg')) && inst.includes('btg')) return true;
+      if (fname.includes('xp') && inst.includes('xp')) return true;
+      if (fname.includes('nubank') && inst.includes('nubank')) return true;
+      return false;
+    });
+    if (detected) accSel.value = detected.id;
+  }
 }
 
 async function processFile() {
@@ -1871,7 +1952,11 @@ async function processFile() {
       throw new Error(`Nenhuma transação encontrada. O PDF foi processado (${pageCount} páginas). Verifique se é uma fatura de cartão de crédito com lançamentos no período.`);
     }
 
-    previewTxs = txs.map(t => ({ ...t, excluded: false }));
+    previewTxs = txs.map(t => ({
+      ...t,
+      excluded:    false,
+      category_id: getCategoryForDesc(t.description) || null
+    }));
     excludedRows.clear();
     renderPreview();
 
@@ -2026,20 +2111,31 @@ function renderPreview() {
 
   document.getElementById('btn-import-label').textContent = `Importar ${active.length} transações`;
 
-  document.getElementById('preview-tbody').innerHTML = previewTxs.map((t, i) => `
+  document.getElementById('preview-tbody').innerHTML = previewTxs.map((t, i) => {
+    const catOptions = categories
+      .filter(c => c.type === t.type)
+      .map(c => `<option value="${c.id}" ${t.category_id===c.id?'selected':''}>${c.icon} ${c.name}</option>`)
+      .join('');
+    const autoMark = t.category_id ? ' style="border-color:var(--green)"' : '';
+    return `
     <tr class="${t.excluded ? 'excluded' : ''}">
       <td style="white-space:nowrap;color:var(--text-2)">${fmtDate(t.date)}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description}</td>
       <td style="text-align:right;font-weight:600;color:${t.type==='income'?'var(--green)':'var(--red)'}">
         ${t.type==='income'?'+':'-'} ${R(t.amount)}
       </td>
-      <td><span style="font-size:11px;color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'Entrada':'Saída'}</span></td>
+      <td>
+        <select style="font-size:11px;padding:3px 6px;max-width:130px${autoMark?';border-color:var(--green)':''}"
+          onchange="previewTxs[${i}].category_id=this.value||null">
+          <option value="">—</option>${catOptions}
+        </select>
+      </td>
       <td>
         <button class="btn-exclude" onclick="toggleExclude(${i})" title="${t.excluded?'Incluir':'Excluir'}">
           ${t.excluded ? '<i class="ti ti-plus"></i>' : '<i class="ti ti-x"></i>'}
         </button>
       </td>
-    </tr>`).join('');
+    </tr>`}).join('');
 }
 
 function toggleExclude(i) {
@@ -2059,29 +2155,19 @@ async function confirmImport() {
 
   let imported = 0, duplicates = 0, errors = 0;
 
-  // Pre-count occurrences of each transaction in the current batch
-  // so we can allow legitimate identical transactions (ex: same toll twice in one day)
-  const batchKey = t => `${t.date}||${t.amount}||${t.description.toLowerCase()}`;
-  const batchCounts = {};
-  active.forEach(t => { const k = batchKey(t); batchCounts[k] = (batchCounts[k] || 0) + 1; });
+  // Assign stable external_id to each transaction based on position in file
+  // This correctly handles identical transactions (e.g. same toll twice in a day)
+  // and prevents re-importing the same file twice
+  const fileTag = `${accId}_${importFile.name.replace(/\s/g,'_')}_${importFile.size}`;
+  active.forEach((tx, idx) => {
+    tx._extId = `import_${fileTag}_${idx}`;
+  });
 
-  // Track how many of each we've already imported in this session
-  const sessionImported = {};
-
-  for (const tx of active) {
-    const key = batchKey(tx);
-    const sessionCount = sessionImported[key] || 0;
-
-    // Count how many of this exact transaction already exist in DB
+  for (const [idx, tx] of active.entries()) {
+    // Only check external_id — no content-based deduplication
     const { data: existing } = await db.from('transactions')
-      .select('id')
-      .eq('account_id', accId)
-      .eq('date', tx.date)
-      .eq('amount', tx.amount)
-      .ilike('description', tx.description);
-
-    // Only skip if DB already has at least (sessionCount + 1) of this transaction
-    if ((existing?.length || 0) > sessionCount) { duplicates++; continue; }
+      .select('id').eq('external_id', tx._extId);
+    if (existing?.length) { duplicates++; continue; }
 
     const { error } = await db.from('transactions').insert({
       date:        tx.date,
@@ -2089,11 +2175,13 @@ async function confirmImport() {
       amount:      tx.amount,
       type:        tx.type,
       account_id:  accId,
-      source:      'manual'
+      category_id: tx.category_id || null,
+      source:      'manual',
+      external_id: tx._extId
     });
 
     if (error) errors++;
-    else { imported++; sessionImported[key] = sessionCount + 1; }
+    else imported++;
   }
 
   document.getElementById('import-preview').style.display = 'none';
