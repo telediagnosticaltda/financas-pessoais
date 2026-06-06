@@ -2,6 +2,6 @@
   "name": "financas-pessoais",
   "version": "1.0.0",
   "dependencies": {
-    "pdf-parse": "1.1.1"
+    "pdfjs-dist": "3.11.174"
   }
 }
