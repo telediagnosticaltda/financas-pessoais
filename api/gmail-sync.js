@@ -219,7 +219,7 @@ export default async function handler(req, res) {
       log.push(`Encontrados ${btgMsgs.length} e-mail(s) EQI/BTG`);
 
       for (const { id: msgId } of btgMsgs) {
-        if (pdfCount >= 3) { log.push('⏸ Limite de PDFs por chamada atingido (3). Clique novamente para continuar.'); break; }
+        if (pdfCount >= 1) { log.push('⏸ 1 PDF processado por chamada. Clique novamente para continuar.'); break; }
         const msg  = await getMessage(accessToken, msgId);
         const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
 
@@ -266,7 +266,7 @@ export default async function handler(req, res) {
       log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
 
       for (const { id: msgId } of xpMsgs) {
-        if (pdfCount >= 3) { log.push('⏸ Limite de PDFs por chamada atingido. Clique novamente para continuar.'); break; }
+        if (pdfCount >= 1) { log.push('⏸ 1 PDF processado por chamada. Clique novamente para continuar.'); break; }
         const msg     = await getMessage(accessToken, msgId);
         const date    = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
         const parts   = msg.payload?.parts || [];
@@ -309,11 +309,11 @@ export default async function handler(req, res) {
     if (nubankAccountId) {
       // Busca e-mails dos últimos 2 dias (cron roda diariamente)
       const nubankMsgs = await searchMessages(accessToken,
-        `from:@nubank.com.br newer_than:${Math.max(days, 2)}d`, 15);
+        `from:@nubank.com.br newer_than:${Math.max(days, 2)}d`, 5);
       log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank`);
 
       for (const { id: msgId } of nubankMsgs) {
-        if (pdfCount >= 3) { log.push('⏸ Limite de PDFs por chamada atingido. Clique novamente.'); break; }
+        if (pdfCount >= 1) { log.push('⏸ 1 PDF por chamada. Clique novamente para continuar.'); break; }
         const msg  = await getMessage(accessToken, msgId);
         const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
 
