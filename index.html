@@ -1767,7 +1767,11 @@ async function runGmailSync(days = 50) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
     });
-    const { transactions: txs = [] } = await parseRes.json();
+    const { transactions: txsRaw = [] } = await parseRes.json();
+
+    // Filtrar parcelamentos com datas futuras ainda não vencidos
+    const hoje = new Date().toISOString().slice(0, 10);
+    const txs = txsRaw.filter(t => t.date <= hoje);
 
     // Importar para Supabase
     const accId = await getAccountIdByBank(next.bank);
@@ -2152,7 +2156,11 @@ async function processFile() {
       throw new Error(`Nenhuma transação encontrada. O PDF foi processado (${pageCount} páginas). Verifique se é uma fatura de cartão de crédito com lançamentos no período.`);
     }
 
-    previewTxs = txs.map(t => ({
+    // Filtrar parcelamentos futuros
+    const hojeImport = new Date().toISOString().slice(0, 10);
+    const txsFiltradas = txs.filter(t => t.date <= hojeImport);
+
+    previewTxs = txsFiltradas.map(t => ({
       ...t,
       excluded:    false,
       category_id: getCategoryForDesc(t.description) || null
