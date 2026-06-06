@@ -1774,34 +1774,6 @@ async function runGmailSync(days = 50) {
     toast(`Gmail: ${totalImported} importadas${remaining > 0 ? ` — ${remaining} arquivo(s) restantes, clique para continuar` : ' ✓ tudo importado'}`);
     if (totalImported > 0) loadDashboard();
 
-    // 3. Processar e-mails de texto do Nubank (sem PDF)
-    for (const em of emailTexts) {
-      try {
-        const parseRes = await fetch('/api/parse-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: em.text })
-        });
-        const { transactions: txs = [] } = await parseRes.json();
-        const accId = await getAccountIdByBank('nubank');
-        if (!accId) continue;
-        for (const [i, tx] of txs.entries()) {
-          const extId = `gmail_${em.msgId}_${i}`;
-          const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
-          if (ex?.length) { totalDuplicates++; continue; }
-          await db.from('transactions').insert({
-            date: tx.date, description: tx.description, amount: tx.amount,
-            type: tx.type, account_id: accId, source: 'manual', external_id: extId
-          });
-          totalImported++;
-        }
-      } catch { /* silencioso */ }
-    }
-
-    const hasMore = (pdfs.length >= 1 || emailTexts.length >= 2);
-    toast(`Gmail: ${totalImported} importadas, ${totalDuplicates} já existiam${hasMore ? ' — clique para continuar' : ' ✓'}`);
-    if (totalImported > 0) loadDashboard();
-
   } catch (err) {
     toast('Erro: ' + err.message, 'error');
   } finally {
