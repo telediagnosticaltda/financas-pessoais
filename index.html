@@ -773,8 +773,11 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
           <button class="btn btn-pluggy" onclick="openSyncModal()" title="Importar transações do Nubank, XP e BTG automaticamente">
             <i class="ti ti-refresh"></i> Sincronizar Pluggy
           </button>
-          <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1.5px solid #A5D6A7" onclick="runGmailSync()" title="Buscar faturas e transações no Gmail">
+          <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1.5px solid #A5D6A7" onclick="runGmailSync(50)" title="Buscar faturas e transações dos últimos 50 dias">
             <i class="ti ti-mail"></i> Sincronizar Gmail
+          </button>
+          <button class="btn" style="background:#E3F2FD;color:#1565C0;border:1.5px solid #90CAF9" onclick="runGmailSync(180)" title="Buscar faturas desde janeiro de 2026">
+            <i class="ti ti-history"></i> Histórico Gmail
           </button>
           <button class="btn btn-primary" onclick="openTxModal()">
             <i class="ti ti-plus"></i> Lançamento
@@ -1668,34 +1671,42 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────────────────────
 // GMAIL SYNC
 // ─────────────────────────────────────────────────────────────
-async function runGmailSync() {
+async function runGmailSync(days = 50) {
   const btn = document.querySelector('[onclick="runGmailSync()"]');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Sincronizando...';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Sincronizando...';
+  }
 
   try {
-    const res  = await fetch('/api/gmail-sync', { method: 'POST' });
+    const res  = await fetch('/api/gmail-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days })
+    });
     const data = await res.json();
 
     if (data.success) {
-      const logLines = (data.log || []).join('\n');
-      toast(`Gmail: ${data.imported} importadas, ${data.duplicates} já existiam`);
+      const msg = `Gmail: ${data.imported} importadas, ${data.duplicates} já existiam`;
+      toast(data.imported > 0 ? msg : msg);
       if (data.imported > 0) loadDashboard();
-      if (data.log?.length) console.log('[Gmail Sync]\n' + logLines);
+      if (data.log?.length) console.log('[Gmail Sync]\n' + data.log.join('\n'));
     } else {
       if (data.error?.includes('gmail-auth') || data.error?.includes('autorizado')) {
         if (confirm('Gmail ainda não autorizado. Abrir tela de autorização agora?')) {
           window.open('/api/gmail-auth', '_blank');
         }
       } else {
-        alert('Erro no sync Gmail:\n' + data.error);
+        alert('Erro no sync Gmail:\n' + (data.error || JSON.stringify(data.log)));
       }
     }
   } catch (err) {
     toast('Erro ao conectar com o servidor', 'error');
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-mail"></i> Sincronizar Gmail';
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-mail"></i> Sincronizar Gmail';
+    }
   }
 }
 
