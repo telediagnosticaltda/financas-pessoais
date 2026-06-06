@@ -1700,7 +1700,7 @@ async function runGmailSync(days = 50) {
 
     let totalImported = 0, totalDuplicates = 0, totalErrors = 0;
 
-    // 2. Browser processa cada PDF com PDF.js (já funciona com senhas)
+    // 2. Browser processa PDFs — pula os já importados e avança para os próximos
     const { pdfs = [], emailTexts = [] } = data;
 
     if (!pdfs.length && !emailTexts.length) {
@@ -1708,38 +1708,41 @@ async function runGmailSync(days = 50) {
       return;
     }
 
+    let processedThisCall = 0;
+
     for (const pdf of pdfs) {
+      // Verifica se este e-mail já foi totalmente processado
+      const { data: existingTxs } = await db.from('transactions')
+        .select('id').like('external_id', `gmail_${pdf.msgId}_%`).limit(1);
+
+      if (existingTxs?.length) {
+        console.log(`[Gmail] Pulando ${pdf.bank} (${pdf.date}) — já importado`);
+        continue; // Pula para o próximo e-mail
+      }
+
       if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${pdf.filename || pdf.bank}...`;
 
       try {
-        // Converter base64 para ArrayBuffer
         const binary = atob(pdf.base64);
         const bytes  = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const arrayBuffer = bytes.buffer;
 
-        // Extrair texto com PDF.js (suporta senha)
-        const text = await extractTextFromBuffer(arrayBuffer, pdf.password);
+        const text = await extractTextFromBuffer(bytes.buffer, pdf.password);
 
-        // Enviar para parse-pdf (Claude)
         const parseRes = await fetch('/api/parse-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text })
         });
-        const parseData = await parseRes.json();
-        const txs = parseData.transactions || [];
+        const { transactions: txs = [] } = await parseRes.json();
 
-        // Determinar conta de destino
         const accId = await getAccountIdByBank(pdf.bank);
-        if (!accId) { console.warn(`Conta não encontrada para banco: ${pdf.bank}`); continue; }
+        if (!accId) { console.warn(`Conta não encontrada: ${pdf.bank}`); continue; }
 
-        // Importar transações
-        const fileTag = `gmail_${pdf.msgId}`;
         for (const [i, tx] of txs.entries()) {
-          const extId = `${fileTag}_${i}`;
-          const { data: existing } = await db.from('transactions').select('id').eq('external_id', extId);
-          if (existing?.length) { totalDuplicates++; continue; }
+          const extId = `gmail_${pdf.msgId}_${i}`;
+          const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
+          if (ex?.length) { totalDuplicates++; continue; }
           const { error } = await db.from('transactions').insert({
             date: tx.date, description: tx.description, amount: tx.amount,
             type: tx.type, account_id: accId, source: 'manual', external_id: extId,
@@ -1748,9 +1751,15 @@ async function runGmailSync(days = 50) {
           if (error) totalErrors++;
           else totalImported++;
         }
-        console.log(`✓ ${pdf.bank} (${pdf.date}): ${txs.length} transações processadas`);
+
+        processedThisCall++;
+        console.log(`✓ ${pdf.bank} (${pdf.date}): ${txs.length} transações processadas, ${totalImported} importadas`);
+
+        // Processa apenas 1 PDF por vez para não travar o browser
+        if (processedThisCall >= 1) break;
+
       } catch (err) {
-        console.warn(`⚠ Erro ao processar ${pdf.bank}:`, err.message);
+        console.warn(`⚠ Erro ${pdf.bank} (${pdf.date}):`, err.message);
       }
     }
 
