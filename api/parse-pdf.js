@@ -92,7 +92,11 @@ ${text}`;
       }
     }
 
-    return res.status(200).json({ transactions });
+    // Filtrar transações com datas futuras (parcelamentos ainda não vencidos)
+    const today = new Date().toISOString().slice(0, 10);
+    const filtered = transactions.filter(t => t.date <= today);
+
+    return res.status(200).json({ transactions: filtered });
 
   } catch (err) {
     console.error('[parse-pdf] erro:', err);
