@@ -31,11 +31,18 @@ PARA FATURA DE CARTÃO (EQI, BTG, XP, Nubank Crédito):
 - NÃO inclua: total da fatura, pagamento de fatura, encargos, IOF, limite disponível
 
 PARA EXTRATO DE CONTA CORRENTE (Nubank conta, etc):
-- "Transferência enviada", "Pagamento de boleto", "Pix enviado/enviada" = "expense"
-- "Transferência recebida", "Pix recebido/recebida", "Depósito", "Salário" = "income"
-- Inclua TODAS as movimentações — tanto entradas quanto saídas
+- "Transferência recebida", "Pix recebido", "Depósito", "Salário" = "income" → sempre inclua
+- "Transferência enviada", "Pix enviado" para pessoas/empresas = "expense" → inclua
+- "Pagamento de boleto" para contas comuns (escola, condomínio, energia, serviços) = "expense" → inclua
 - NÃO inclua: saldo inicial, saldo final, rendimento da conta
 - Para descrição: use o nome do destinatário/remetente (não inclua agência, conta, CNPJ)
+
+REGRA CRÍTICA - EVITAR DUPLA CONTAGEM:
+NÃO inclua pagamentos de fatura de cartão de crédito:
+- "Pagamento de boleto" ou "Pagamento de fatura" para: BTG Pactual, Banco XP, XP Investimentos,
+  Nubank (crédito), Itaú, Bradesco, Santander, C6, Inter, Caixa e similares
+- Esses gastos já foram capturados pelas faturas individuais dos cartões
+- Em caso de dúvida, EXCLUA
 
 Referência de data: ${today}
 
