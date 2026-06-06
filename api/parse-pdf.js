@@ -18,42 +18,38 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Texto do PDF não recebido ou muito curto' });
   }
 
-  const prompt = `Você é um especialista em extrair dados de faturas de cartão de crédito brasileiras.
+  const today = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-Analise o texto abaixo extraído de uma fatura do cartão EQI/BTG Pactual e extraia TODAS as transações de compra.
+  const prompt = `Você é um especialista em extrair dados de documentos financeiros brasileiros.
 
-O formato típico desta fatura é:
-DD Mês  Descrição (parcela)  R$ valor
+Analise o texto abaixo — pode ser uma FATURA DE CARTÃO DE CRÉDITO ou um EXTRATO DE CONTA CORRENTE.
 
-Onde:
-- DD = dia (ex: 25, 08, 30)
-- Mês = abreviação em português (Jan, Fev, Mar, Abr, Mai, Jun, Jul, Ago, Set, Out, Nov, Dez)
-- Descrição = nome do estabelecimento, às vezes seguido de (X/Y) indicando parcela X de Y
-- R$ valor = o valor da compra
+PARA FATURA DE CARTÃO (EQI, BTG, XP, Nubank Crédito):
+- Extraia cada compra/parcela como "expense"
+- Estornos e créditos como "income"
+- Inclua parcelamentos (cada parcela = uma linha separada)
+- NÃO inclua: total da fatura, pagamento de fatura, encargos, IOF, limite disponível
 
-A página de lançamentos pode ter duas colunas lado a lado — extraia transações de AMBAS as colunas.
+PARA EXTRATO DE CONTA CORRENTE (Nubank conta, etc):
+- "Transferência enviada", "Pagamento de boleto", "Pix enviado/enviada" = "expense"
+- "Transferência recebida", "Pix recebido/recebida", "Depósito", "Salário" = "income"
+- Inclua TODAS as movimentações — tanto entradas quanto saídas
+- NÃO inclua: saldo inicial, saldo final, rendimento da conta
+- Para descrição: use o nome do destinatário/remetente (não inclua agência, conta, CNPJ)
 
-O texto também pode ter um ⊕ ou símbolos extras após os valores — ignore-os.
+Referência de data: ${today}
 
-Retorne APENAS um array JSON válido, sem markdown, sem texto extra:
-[{"date":"YYYY-MM-DD","description":"Nome do estabelecimento","amount":99.90,"type":"expense"}]
+Retorne APENAS um array JSON válido, sem texto antes ou depois, sem markdown:
+[{"date":"YYYY-MM-DD","description":"Nome limpo do estabelecimento ou pessoa","amount":99.90,"type":"expense"}]
 
 Regras:
-- "amount": número positivo (ex: 89.50, não "R$ 89,50")
-- "date": formato YYYY-MM-DD
-  - Para determinar o ano: a fatura é de Junho de 2026 (período 27/04 a 28/05/2026)
-  - Transações de Mai/Abr/Mar/Fev/Jan de 2026 → ano 2026
-  - Transações de Dez/Nov/Out/Set/Ago/Jul de anos anteriores → ano 2025
-  - Transações com data muito antiga (ex: Ago, Out, Nov, Dez) são parcelas de compras antigas → use 2025
-- "type": "expense" para compras, "income" para estornos/créditos
-- NÃO inclua: pagamentos de fatura, total da fatura, encargos, IOF, limites, mensalidade do cartão
-- Inclua parcelamentos (cada parcela = uma linha separada)
-- Se uma linha só tiver "Pagamento de fatura" ou "Pagamento" → NÃO inclua
+- amount: sempre número positivo
+- date: YYYY-MM-DD com o ano correto (para extratos de conta, use a data da movimentação)
+- type: "expense" para saídas/pagamentos/transferências enviadas, "income" para entradas/recebimentos
+- Retorne SOMENTE o JSON, nada mais
 
-TEXTO DA FATURA:
-${text}
-
-Retorne SOMENTE o JSON array.`;
+TEXTO DO DOCUMENTO:
+${text}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
