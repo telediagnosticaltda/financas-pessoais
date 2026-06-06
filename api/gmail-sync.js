@@ -215,7 +215,7 @@ export default async function handler(req, res) {
     if (btgAccountId) {
       // Busca específica por EQI ou BTG — evita capturar e-mails do Nubank
       const btgMsgs = await searchMessages(accessToken,
-        `has:attachment filename:(EQI OR BTG) newer_than:${days}d`, 5);
+        `(filename:EQI OR filename:BTG) filename:Fatura has:attachment newer_than:${days}d`, 5);
       log.push(`Encontrados ${btgMsgs.length} e-mail(s) EQI/BTG`);
 
       for (const { id: msgId } of btgMsgs) {
@@ -262,7 +262,7 @@ export default async function handler(req, res) {
     const xpAccountId = await getAccountId('xp', 'credit');
     if (xpAccountId) {
       const xpMsgs = await searchMessages(accessToken,
-        `has:attachment filename:(XP) newer_than:${days}d`, 5);
+        `filename:XP has:attachment newer_than:${days}d`, 5);
       log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
 
       for (const { id: msgId } of xpMsgs) {
@@ -309,7 +309,7 @@ export default async function handler(req, res) {
     if (nubankAccountId) {
       // Busca e-mails dos últimos 2 dias (cron roda diariamente)
       const nubankMsgs = await searchMessages(accessToken,
-        `from:@nubank.com.br newer_than:${Math.max(days, 2)}d`, 5);
+        `from:nubank.com.br newer_than:${Math.max(days, 2)}d`, 10);
       log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank`);
 
       for (const { id: msgId } of nubankMsgs) {
