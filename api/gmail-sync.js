@@ -170,11 +170,16 @@ async function importTransaction(tx, accountId, externalId) {
 }
 
 // ── Find account ID by institution keyword ────────────────────
-async function getAccountId(keyword) {
-  const accounts = await sbGet('accounts?active=eq.true&select=id,institution,name');
+async function getAccountId(keyword, preferType = null) {
+  const accounts = await sbGet('accounts?active=eq.true&select=id,institution,name,type');
   if (!Array.isArray(accounts)) return null;
   const kw = keyword.toLowerCase();
-  return accounts.find(a => (a.institution || '').toLowerCase().includes(kw))?.id || null;
+  const matches = accounts.filter(a => (a.institution || '').toLowerCase().includes(kw));
+  if (preferType) {
+    const preferred = matches.find(a => a.type === preferType);
+    if (preferred) return preferred.id;
+  }
+  return matches[0]?.id || null;
 }
 
 // ── Main handler ──────────────────────────────────────────────
@@ -195,13 +200,14 @@ export default async function handler(req, res) {
     log.push(`✓ Gmail autorizado — buscando últimos ${days} dias`);
 
     // ── 1. Faturas EQI/BTG (PDF em anexo) ──────────────────────
-    const btgAccountId = await getAccountId('btg');
+    let pdfCount = 0; // contador compartilhado entre BTG e XP
+    const btgAccountId = await getAccountId('btg', 'credit');
     if (btgAccountId) {
+      // Busca específica por EQI ou BTG — evita capturar e-mails do Nubank
       const btgMsgs = await searchMessages(accessToken,
-        `has:attachment filename:pdf (EQI OR BTG OR fatura) newer_than:${days}d`, 5);
+        `has:attachment filename:pdf (EQI OR BTG) newer_than:${days}d`, 5);
       log.push(`Encontrados ${btgMsgs.length} e-mail(s) EQI/BTG`);
 
-      let pdfCount = 0;
       for (const { id: msgId } of btgMsgs) {
         if (pdfCount >= 3) { log.push('⏸ Limite de PDFs por chamada atingido (3). Clique novamente para continuar.'); break; }
         const msg  = await getMessage(accessToken, msgId);
@@ -243,10 +249,10 @@ export default async function handler(req, res) {
     }
 
     // ── 2. Faturas XP (PDF em anexo) ───────────────────────────
-    const xpAccountId = await getAccountId('xp');
+    const xpAccountId = await getAccountId('xp', 'credit');
     if (xpAccountId) {
       const xpMsgs = await searchMessages(accessToken,
-        `has:attachment filename:pdf (XP OR "xp investimentos" OR fatura) newer_than:${days}d`, 5);
+        `has:attachment filename:pdf (XP OR "xp investimentos") newer_than:${days}d`, 5);
       log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
 
       for (const { id: msgId } of xpMsgs) {
@@ -289,7 +295,7 @@ export default async function handler(req, res) {
     }
 
     // ── 3. Transações Nubank (e-mails individuais) ─────────────
-    const nubankAccountId = await getAccountId('nubank');
+    const nubankAccountId = await getAccountId('nubank', 'checking');
     if (nubankAccountId) {
       // Busca e-mails dos últimos 2 dias (cron roda diariamente)
       const nubankMsgs = await searchMessages(accessToken,
