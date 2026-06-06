@@ -1,7 +1,4 @@
 {
   "name": "financas-pessoais",
-  "version": "1.0.0",
-  "dependencies": {
-    "pdfjs-dist": "3.11.174"
-  }
+  "version": "1.0.0"
 }
