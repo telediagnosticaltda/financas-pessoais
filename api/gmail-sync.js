@@ -43,7 +43,7 @@ async function searchMessages(accessToken, query, max) {
 
 async function getMessage(accessToken, id) {
   const r = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Date`,
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   return r.json();
