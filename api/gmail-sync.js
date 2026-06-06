@@ -186,15 +186,19 @@ export default async function handler(req, res) {
   const log = [];
   let totalImported = 0, totalDuplicates = 0;
 
+  // Suporte a sync completo (desde uma data específica)
+  const body = req.body || {};
+  const days = body.days || 50; // padrão: 50 dias; full sync: 180 dias
+
   try {
     const accessToken = await getAccessToken();
-    log.push('✓ Gmail autorizado');
+    log.push(`✓ Gmail autorizado — buscando últimos ${days} dias`);
 
     // ── 1. Faturas EQI/BTG (PDF em anexo) ──────────────────────
     const btgAccountId = await getAccountId('btg');
     if (btgAccountId) {
       const btgMsgs = await searchMessages(accessToken,
-        'has:attachment filename:pdf (EQI OR BTG OR fatura) newer_than:50d', 10);
+        `has:attachment filename:pdf (EQI OR BTG OR fatura) newer_than:${days}d`, 20);
       log.push(`Encontrados ${btgMsgs.length} e-mail(s) EQI/BTG`);
 
       for (const { id: msgId } of btgMsgs) {
@@ -239,7 +243,7 @@ export default async function handler(req, res) {
     const xpAccountId = await getAccountId('xp');
     if (xpAccountId) {
       const xpMsgs = await searchMessages(accessToken,
-        'has:attachment filename:pdf (XP OR "xp investimentos" OR fatura) newer_than:50d', 10);
+        `has:attachment filename:pdf (XP OR "xp investimentos" OR fatura) newer_than:${days}d`, 20);
       log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
 
       for (const { id: msgId } of xpMsgs) {
@@ -284,7 +288,7 @@ export default async function handler(req, res) {
     if (nubankAccountId) {
       // Busca e-mails dos últimos 2 dias (cron roda diariamente)
       const nubankMsgs = await searchMessages(accessToken,
-        'from:@nubank.com.br newer_than:2d', 30);
+        `from:@nubank.com.br newer_than:${Math.max(days, 2)}d`, 100);
       log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank`);
 
       for (const { id: msgId } of nubankMsgs) {
