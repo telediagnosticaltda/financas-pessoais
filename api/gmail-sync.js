@@ -121,11 +121,18 @@ PARA FATURA DE CARTÃO:
 - NÃO inclua: total da fatura, pagamento de fatura, encargos, IOF, limite
 
 PARA EXTRATO DE CONTA CORRENTE (Nubank, etc):
-- "Transferência enviada", "Pagamento de boleto", "Pix enviado" = "expense"
-- "Transferência recebida", "Pix recebido", "Depósito", "Salário" = "income"
-- Inclua TODAS as movimentações (entradas E saídas)
+- "Transferência recebida", "Pix recebido", "Depósito", "Salário" = "income" → sempre inclua
+- "Transferência enviada", "Pix enviado" para pessoas físicas ou empresas = "expense" → inclua
+- "Pagamento de boleto" para contas comuns (escola, condomínio, energia, serviços) = "expense" → inclua
 - NÃO inclua: saldo inicial, saldo final, rendimento da conta, tarifas do extrato
 - Para descrição: use o nome do destinatário/remetente, não dados bancários (agência/conta)
+
+REGRA CRÍTICA - EVITAR DUPLA CONTAGEM:
+NÃO inclua pagamentos de fatura de cartão de crédito. São identificados por:
+- "Pagamento de boleto" ou "Pagamento de fatura" cujo destinatário é banco/financeira emissora de cartão:
+  BTG Pactual, Banco XP, XP Investimentos, Nubank (crédito), Itaú, Bradesco, Santander, C6, Inter, Caixa
+- Esses gastos já foram capturados individualmente pelas faturas dos cartões
+- Em caso de dúvida se é pagamento de fatura ou boleto legítimo, EXCLUA
 
 Referência de data: ${today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
 
