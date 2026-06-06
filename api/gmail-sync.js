@@ -110,25 +110,35 @@ async function parseWithClaude(prompt) {
 
 async function parsePDFTransactions(pdfText) {
   const today = new Date();
-  return parseWithClaude(`Você é um especialista em extrair dados de faturas de cartão de crédito brasileiras.
+  return parseWithClaude(`Você é um especialista em extrair dados de documentos financeiros brasileiros.
 
-Analise o texto abaixo extraído de uma fatura e extraia TODAS as transações de compra.
-Fatura de referência: ${today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+Analise o texto abaixo — pode ser uma FATURA DE CARTÃO DE CRÉDITO ou um EXTRATO DE CONTA CORRENTE.
 
-Formato típico: DD Mês  Descrição  R$ valor
+PARA FATURA DE CARTÃO:
+- Extraia cada compra/parcela como "expense"
+- Estornos e créditos como "income"
+- Inclua parcelamentos (cada parcela = uma linha separada)
+- NÃO inclua: total da fatura, pagamento de fatura, encargos, IOF, limite
 
-Retorne APENAS um array JSON:
-[{"date":"YYYY-MM-DD","description":"Nome do estabelecimento","amount":99.90,"type":"expense"}]
+PARA EXTRATO DE CONTA CORRENTE (Nubank, etc):
+- "Transferência enviada", "Pagamento de boleto", "Pix enviado" = "expense"
+- "Transferência recebida", "Pix recebido", "Depósito", "Salário" = "income"
+- Inclua TODAS as movimentações (entradas E saídas)
+- NÃO inclua: saldo inicial, saldo final, rendimento da conta, tarifas do extrato
+- Para descrição: use o nome do destinatário/remetente, não dados bancários (agência/conta)
 
-Regras:
-- amount: número positivo
-- date: YYYY-MM-DD (use o ano correto baseado no mês da fatura)
-- type: "expense" para compras, "income" para estornos
-- NÃO inclua: pagamentos, totais, encargos, IOF, limites
-- Inclua parcelamentos (cada parcela = uma linha)
+Referência de data: ${today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+
+Retorne APENAS um array JSON, sem texto extra:
+[{"date":"YYYY-MM-DD","description":"Nome limpo","amount":99.90,"type":"expense"}]
+
+Regras gerais:
+- amount: sempre número positivo
+- date: YYYY-MM-DD com o ano correto
+- type: "expense" para saídas, "income" para entradas
 - Retorne SOMENTE o JSON
 
-TEXTO DA FATURA:
+TEXTO DO DOCUMENTO:
 ${pdfText.slice(0, 15000)}`);
 }
 
@@ -303,22 +313,47 @@ export default async function handler(req, res) {
       log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank`);
 
       for (const { id: msgId } of nubankMsgs) {
+        if (pdfCount >= 3) { log.push('⏸ Limite de PDFs por chamada atingido. Clique novamente.'); break; }
         const msg  = await getMessage(accessToken, msgId);
         const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
 
-        // Extrair texto do e-mail
-        const body = extractEmailBody(msg.payload);
-        if (!body) continue;
-
         try {
-          const txs = await parseNubankEmail(body, date);
-          for (const [i, tx] of txs.entries()) {
-            const extId  = `gmail_${msgId}_${i}`;
-            const result = await importTransaction(tx, nubankAccountId, extId);
-            if (result === 'ok')  totalImported++;
-            if (result === 'dup') totalDuplicates++;
+          // Verificar se tem PDF anexo (extrato mensal)
+          const parts   = msg.payload?.parts || [];
+          const pdfPart = parts.find(p =>
+            p.mimeType === 'application/pdf' ||
+            (p.filename || '').toLowerCase().endsWith('.pdf')
+          );
+
+          if (pdfPart?.body?.attachmentId) {
+            // Extrato PDF do Nubank (sem senha)
+            const b64     = await getAttachment(accessToken, msgId, pdfPart.body.attachmentId);
+            const pdfText = await extractPDFText(b64, ''); // Nubank não tem senha
+            if (pdfText.trim().length > 100) {
+              const txs = await parsePDFTransactions(pdfText);
+              let msgImported = 0;
+              for (const [i, tx] of txs.entries()) {
+                const extId  = `gmail_${msgId}_${i}`;
+                const result = await importTransaction(tx, nubankAccountId, extId);
+                if (result === 'ok')  { msgImported++; totalImported++; }
+                if (result === 'dup') totalDuplicates++;
+              }
+              pdfCount++;
+              log.push(`✓ Nubank PDF (${date}): ${msgImported} de ${txs.length} transações importadas`);
+            }
+          } else {
+            // E-mail de transação individual (sem PDF)
+            const body = extractEmailBody(msg.payload);
+            if (!body) continue;
+            const txs = await parseNubankEmail(body, date);
+            for (const [i, tx] of txs.entries()) {
+              const extId  = `gmail_${msgId}_${i}`;
+              const result = await importTransaction(tx, nubankAccountId, extId);
+              if (result === 'ok')  totalImported++;
+              if (result === 'dup') totalDuplicates++;
+            }
+            if (txs.length > 0) log.push(`✓ Nubank email (${date}): ${txs.length} transação(ões)`);
           }
-          if (txs.length > 0) log.push(`✓ Nubank (${date}): ${txs.length} transação(ões)`);
         } catch (err) {
           log.push(`⚠ Erro ao processar e-mail Nubank ${msgId}: ${err.message}`);
         }
