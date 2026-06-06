@@ -49,6 +49,21 @@ async function getMessage(accessToken, id) {
   return r.json();
 }
 
+// Busca recursiva por anexo PDF em qualquer nível da estrutura MIME
+function findPDFPart(payload) {
+  if (!payload) return null;
+  const isPdf = payload.mimeType === 'application/pdf' ||
+    (payload.filename || '').toLowerCase().endsWith('.pdf');
+  if (isPdf && payload.body?.attachmentId) return payload;
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      const found = findPDFPart(part);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
