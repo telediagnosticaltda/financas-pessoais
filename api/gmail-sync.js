@@ -9,7 +9,9 @@ export const config = { api: { bodyParser: true } };
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const USER_CPF = process.env.USER_CPF || '';
+// USER_CPF is read from Supabase app_tokens (set via app Settings page)
+// Fallback to env var if set
+const ENV_CPF = process.env.USER_CPF || '';
 
 const sbH = {
   'apikey':        SB_KEY,
@@ -214,6 +216,16 @@ export default async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
+
+    // Carregar CPF do Supabase (configurado pelo usuário na tela de Configurações)
+    const [cpfToken] = await sbGet('app_tokens?key=eq.user_cpf&select=value');
+    const USER_CPF = cpfToken?.value || ENV_CPF;
+    if (!USER_CPF) {
+      log.push('⚠ CPF não configurado. Acesse Configurações no app e salve seu CPF.');
+    } else {
+      log.push(`✓ CPF configurado (${USER_CPF.length} dígitos)`);
+    }
+
     log.push(`✓ Gmail autorizado — buscando últimos ${days} dias`);
 
     // ── 1. Faturas EQI/BTG (PDF em anexo) ──────────────────────
