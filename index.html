@@ -1198,6 +1198,7 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
     <div class="confirm-msg" id="confirm-msg">Tem certeza? Essa ação não pode ser desfeita.</div>
     <div class="confirm-footer">
       <button class="btn btn-ghost" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-ghost" id="confirm-alt" style="display:none" onclick="confirmAltClick()">Apenas esta</button>
       <button class="btn btn-delete" id="confirm-ok"><i class="ti ti-trash"></i> Excluir</button>
     </div>
   </div>
@@ -1234,7 +1235,8 @@ let catType = 'expense';
 let selColor = '#4A57CC';
 let accounts   = [];
 let categories = [];
-let confirmCallback = null;
+let confirmCallback    = null;
+let confirmAltCallback = null;
 
 const PALETTE = [
   '#4A57CC','#16A376','#D94F3A','#BA7517','#993556',
@@ -1289,16 +1291,34 @@ function toast(msg, type = 'success') {
   setTimeout(() => el.remove(), 3500);
 }
 
-function showConfirm(title, msg, cb) {
+function showConfirm(title, msg, cb, btnLabel = 'Excluir', btnClass = 'btn-delete', altCb = null, altLabel = 'Alterar apenas esta') {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-msg').textContent   = msg;
+  const okBtn = document.getElementById('confirm-ok');
+  okBtn.className = `btn ${btnClass}`;
+  okBtn.innerHTML = `<i class="ti ti-${btnClass === 'btn-delete' ? 'trash' : 'check'}"></i> ${btnLabel}`;
+  const altBtn = document.getElementById('confirm-alt');
+  if (altCb !== null) {
+    altBtn.style.display = '';
+    altBtn.textContent = altLabel;
+    confirmAltCallback = altCb;
+  } else {
+    altBtn.style.display = 'none';
+    confirmAltCallback = null;
+  }
   confirmCallback = cb;
   document.getElementById('confirm-modal').classList.add('open');
 }
 
+function confirmAltClick() {
+  if (confirmAltCallback) confirmAltCallback();
+  closeConfirm();
+}
+
 function closeConfirm() {
   document.getElementById('confirm-modal').classList.remove('open');
-  confirmCallback = null;
+  confirmCallback    = null;
+  confirmAltCallback = null;
 }
 
 document.getElementById('confirm-ok').onclick = async () => {
@@ -1682,7 +1702,11 @@ async function saveTx() {
           toast(`Categoria aplicada a ${similar.length} lançamento(s)!`);
           if (currentPage === 'transactions') loadTxPage();
           if (currentPage === 'dashboard')    loadDashboard();
-        }
+        },
+        'Aplicar a todos',
+        'btn-primary',
+        () => { /* só esta já foi salva — não faz nada adicional */ },
+        'Alterar apenas esta'
       );
     }
   }
