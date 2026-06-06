@@ -2,7 +2,7 @@
 // Roda automaticamente todo dia às 9h (configurado no vercel.json)
 // Também pode ser disparado manualmente pelo app
 
-import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 
 export const config = { api: { bodyParser: true } };
 
