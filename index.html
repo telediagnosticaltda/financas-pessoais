@@ -1672,10 +1672,11 @@ document.addEventListener('keydown', e => {
 // GMAIL SYNC
 // ─────────────────────────────────────────────────────────────
 async function runGmailSync(days = 50) {
-  const btn = document.querySelector('[onclick="runGmailSync()"]');
+  const btnSelector = days > 50 ? '[onclick="runGmailSync(180)"]' : '[onclick="runGmailSync(50)"]';
+  const btn = document.querySelector(btnSelector);
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Sincronizando...';
+    btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Buscando...';
   }
 
   try {
@@ -1684,28 +1685,47 @@ async function runGmailSync(days = 50) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ days })
     });
+
+    if (!res.ok) {
+      throw new Error(`Erro ${res.status}: ${res.statusText}`);
+    }
+
     const data = await res.json();
 
     if (data.success) {
-      const msg = `Gmail: ${data.imported} importadas, ${data.duplicates} já existiam`;
-      toast(data.imported > 0 ? msg : msg);
+      const hasMore = (data.log || []).some(l => l.includes('Limite'));
+      const summary = `${data.imported} importadas, ${data.duplicates} já existiam`;
+
+      if (hasMore) {
+        toast(`Gmail: ${summary} — clique novamente para continuar`);
+      } else {
+        toast(`Gmail: ${summary} ✓`);
+      }
+
       if (data.imported > 0) loadDashboard();
       if (data.log?.length) console.log('[Gmail Sync]\n' + data.log.join('\n'));
+
     } else {
       if (data.error?.includes('gmail-auth') || data.error?.includes('autorizado')) {
         if (confirm('Gmail ainda não autorizado. Abrir tela de autorização agora?')) {
           window.open('/api/gmail-auth', '_blank');
         }
       } else {
-        alert('Erro no sync Gmail:\n' + (data.error || JSON.stringify(data.log)));
+        alert('Erro no sync Gmail:\n' + (data.error || (data.log || []).join('\n')));
       }
     }
   } catch (err) {
-    toast('Erro ao conectar com o servidor', 'error');
+    if (err.message.includes('504') || err.message.includes('timeout')) {
+      toast('Tempo limite atingido — clique novamente para continuar de onde parou', 'error');
+    } else {
+      toast('Erro: ' + err.message, 'error');
+    }
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-mail"></i> Sincronizar Gmail';
+      btn.innerHTML = days > 50
+        ? '<i class="ti ti-history"></i> Histórico Gmail'
+        : '<i class="ti ti-mail"></i> Sincronizar Gmail';
     }
   }
 }
