@@ -215,7 +215,7 @@ export default async function handler(req, res) {
     if (btgAccountId) {
       // Busca específica por EQI ou BTG — evita capturar e-mails do Nubank
       const btgMsgs = await searchMessages(accessToken,
-        `has:attachment filename:pdf (EQI OR BTG) newer_than:${days}d`, 5);
+        `has:attachment filename:(EQI OR BTG) newer_than:${days}d`, 5);
       log.push(`Encontrados ${btgMsgs.length} e-mail(s) EQI/BTG`);
 
       for (const { id: msgId } of btgMsgs) {
@@ -262,7 +262,7 @@ export default async function handler(req, res) {
     const xpAccountId = await getAccountId('xp', 'credit');
     if (xpAccountId) {
       const xpMsgs = await searchMessages(accessToken,
-        `has:attachment filename:pdf (XP OR "xp investimentos") newer_than:${days}d`, 5);
+        `has:attachment filename:(XP) newer_than:${days}d`, 5);
       log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
 
       for (const { id: msgId } of xpMsgs) {
