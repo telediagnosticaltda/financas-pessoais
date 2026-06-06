@@ -2,7 +2,7 @@
 // Roda automaticamente todo dia às 9h (configurado no vercel.json)
 // Também pode ser disparado manualmente pelo app
 
-import pdfParse from 'pdf-parse';
+import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 
 export const config = { api: { bodyParser: true } };
 
@@ -82,19 +82,47 @@ async function getAttachment(accessToken, msgId, attId) {
 
 // ── PDF helpers ───────────────────────────────────────────────
 async function extractPDFText(base64Data, password = '') {
-  const buffer = Buffer.from(base64Data, 'base64');
-  // Try with password first, fall back without if no password needed
-  const options = { max: 0 }; // max:0 = extract all pages
-  if (password) options.password = password;
+  // Usa pdfjs-dist (mesma lib do browser) — suporta PDFs com senha
+  const data = new Uint8Array(Buffer.from(base64Data, 'base64'));
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    password: password || undefined
+  });
+
+  let pdfDoc;
   try {
-    const data = await pdfParse(buffer, options);
-    return data.text || '';
+    pdfDoc = await loadingTask.promise;
   } catch (err) {
-    if (err.message?.includes('password') || err.message?.includes('Password')) {
-      throw new Error(`Senha incorreta ou ausente para este PDF (${err.message})`);
+    if (err.name === 'PasswordException' || err.message?.toLowerCase().includes('password')) {
+      throw new Error(`Senha incorreta para este PDF`);
     }
     throw err;
   }
+
+  // Extrai texto página a página mantendo ordem de leitura
+  let fullText = '';
+  for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+    const page = await pdfDoc.getPage(pageNum);
+    const textContent = await page.getTextContent();
+
+    const items = textContent.items
+      .filter(i => i.str?.trim())
+      .sort((a, b) => {
+        const yDiff = b.transform[5] - a.transform[5];
+        if (Math.abs(yDiff) > 8) return yDiff;
+        return a.transform[4] - b.transform[4];
+      });
+
+    let lastY = null;
+    items.forEach(item => {
+      const y = item.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > 8) fullText += '\n';
+      fullText += item.str + ' ';
+      lastY = y;
+    });
+    fullText += `\n=== Página ${pageNum} ===\n`;
+  }
+  return fullText;
 }
 
 // ── Claude helpers ────────────────────────────────────────────
