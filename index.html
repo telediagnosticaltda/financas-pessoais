@@ -1669,57 +1669,121 @@ document.addEventListener('keydown', e => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// GMAIL SYNC
+// GMAIL SYNC — browser processa os PDFs (sem problemas de worker)
 // ─────────────────────────────────────────────────────────────
 async function runGmailSync(days = 50) {
   const btnSelector = days > 50 ? '[onclick="runGmailSync(180)"]' : '[onclick="runGmailSync(50)"]';
   const btn = document.querySelector(btnSelector);
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Buscando...';
-  }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Buscando...'; }
 
   try {
+    // 1. Servidor busca e-mails e retorna PDFs brutos
     const res  = await fetch('/api/gmail-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ days })
     });
 
-    if (!res.ok) {
-      throw new Error(`Erro ${res.status}: ${res.statusText}`);
-    }
-
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
     const data = await res.json();
 
-    if (data.success) {
-      const hasMore = (data.log || []).some(l => l.includes('Limite'));
-      const summary = `${data.imported} importadas, ${data.duplicates} já existiam`;
-
-      if (hasMore) {
-        toast(`Gmail: ${summary} — clique novamente para continuar`);
-      } else {
-        toast(`Gmail: ${summary} ✓`);
-      }
-
-      if (data.imported > 0) loadDashboard();
-      if (data.log?.length) console.log('[Gmail Sync]\n' + data.log.join('\n'));
-
-    } else {
+    if (!data.success) {
       if (data.error?.includes('gmail-auth') || data.error?.includes('autorizado')) {
-        if (confirm('Gmail ainda não autorizado. Abrir tela de autorização agora?')) {
-          window.open('/api/gmail-auth', '_blank');
-        }
+        if (confirm('Gmail não autorizado. Abrir tela de autorização?')) window.open('/api/gmail-auth', '_blank');
       } else {
-        alert('Erro no sync Gmail:\n' + (data.error || (data.log || []).join('\n')));
+        alert('Erro:\n' + (data.error || data.log?.join('\n')));
+      }
+      return;
+    }
+
+    console.log('[Gmail Sync]\n' + (data.log || []).join('\n'));
+
+    let totalImported = 0, totalDuplicates = 0, totalErrors = 0;
+
+    // 2. Browser processa cada PDF com PDF.js (já funciona com senhas)
+    const { pdfs = [], emailTexts = [] } = data;
+
+    if (!pdfs.length && !emailTexts.length) {
+      toast('Gmail: nenhum arquivo novo encontrado ✓');
+      return;
+    }
+
+    for (const pdf of pdfs) {
+      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${pdf.filename || pdf.bank}...`;
+
+      try {
+        // Converter base64 para ArrayBuffer
+        const binary = atob(pdf.base64);
+        const bytes  = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const arrayBuffer = bytes.buffer;
+
+        // Extrair texto com PDF.js (suporta senha)
+        const text = await extractTextFromBuffer(arrayBuffer, pdf.password);
+
+        // Enviar para parse-pdf (Claude)
+        const parseRes = await fetch('/api/parse-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const parseData = await parseRes.json();
+        const txs = parseData.transactions || [];
+
+        // Determinar conta de destino
+        const accId = await getAccountIdByBank(pdf.bank);
+        if (!accId) { console.warn(`Conta não encontrada para banco: ${pdf.bank}`); continue; }
+
+        // Importar transações
+        const fileTag = `gmail_${pdf.msgId}`;
+        for (const [i, tx] of txs.entries()) {
+          const extId = `${fileTag}_${i}`;
+          const { data: existing } = await db.from('transactions').select('id').eq('external_id', extId);
+          if (existing?.length) { totalDuplicates++; continue; }
+          const { error } = await db.from('transactions').insert({
+            date: tx.date, description: tx.description, amount: tx.amount,
+            type: tx.type, account_id: accId, source: 'manual', external_id: extId,
+            category_id: getCategoryForDesc(tx.description) || null
+          });
+          if (error) totalErrors++;
+          else totalImported++;
+        }
+        console.log(`✓ ${pdf.bank} (${pdf.date}): ${txs.length} transações processadas`);
+      } catch (err) {
+        console.warn(`⚠ Erro ao processar ${pdf.bank}:`, err.message);
       }
     }
-  } catch (err) {
-    if (err.message.includes('504') || err.message.includes('timeout')) {
-      toast('Tempo limite atingido — clique novamente para continuar de onde parou', 'error');
-    } else {
-      toast('Erro: ' + err.message, 'error');
+
+    // 3. Processar e-mails de texto do Nubank (sem PDF)
+    for (const em of emailTexts) {
+      try {
+        const parseRes = await fetch('/api/parse-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: em.text })
+        });
+        const { transactions: txs = [] } = await parseRes.json();
+        const accId = await getAccountIdByBank('nubank');
+        if (!accId) continue;
+        for (const [i, tx] of txs.entries()) {
+          const extId = `gmail_${em.msgId}_${i}`;
+          const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
+          if (ex?.length) { totalDuplicates++; continue; }
+          await db.from('transactions').insert({
+            date: tx.date, description: tx.description, amount: tx.amount,
+            type: tx.type, account_id: accId, source: 'manual', external_id: extId
+          });
+          totalImported++;
+        }
+      } catch { /* silencioso */ }
     }
+
+    const hasMore = (pdfs.length >= 1 || emailTexts.length >= 2);
+    toast(`Gmail: ${totalImported} importadas, ${totalDuplicates} já existiam${hasMore ? ' — clique para continuar' : ' ✓'}`);
+    if (totalImported > 0) loadDashboard();
+
+  } catch (err) {
+    toast('Erro: ' + err.message, 'error');
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -1728,6 +1792,51 @@ async function runGmailSync(days = 50) {
         : '<i class="ti ti-mail"></i> Sincronizar Gmail';
     }
   }
+}
+
+// Extrai texto de ArrayBuffer com PDF.js (suporta senha) — reutiliza parsePDFWithAI
+async function extractTextFromBuffer(arrayBuffer, password = '') {
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(arrayBuffer),
+    password: password || undefined
+  });
+  let pdf;
+  try { pdf = await loadingTask.promise; }
+  catch (err) {
+    if (err.name === 'PasswordException') throw new Error('Senha incorreta para PDF');
+    throw err;
+  }
+  let fullText = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const items = content.items.filter(i => i.str?.trim())
+      .sort((a, b) => { const d = b.transform[5]-a.transform[5]; return Math.abs(d)>8?d:a.transform[4]-b.transform[4]; });
+    let lastY = null;
+    items.forEach(item => {
+      if (lastY !== null && Math.abs(item.transform[5] - lastY) > 8) fullText += '\n';
+      fullText += item.str + ' ';
+      lastY = item.transform[5];
+    });
+    fullText += `\n=== Página ${p} ===\n`;
+  }
+  return fullText;
+}
+
+async function getAccountIdByBank(bank) {
+  const keyword = bank === 'btg' ? 'btg' : bank === 'xp' ? 'xp' : 'nubank';
+  const preferType = bank === 'nubank' ? 'checking' : 'credit';
+  const acc = accounts.find(a => {
+    const inst = (a.institution || '').toLowerCase();
+    return inst.includes(keyword);
+  });
+  if (!acc) return null;
+  // Para BTG, prefere credit sobre additional
+  if (bank === 'btg') {
+    const credit = accounts.find(a => a.institution?.toLowerCase().includes('btg') && a.type === 'credit');
+    if (credit) return credit.id;
+  }
+  return acc.id;
 }
 
 // ─────────────────────────────────────────────────────────────
