@@ -837,13 +837,57 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
         </div>
       </div>
 
-      <div class="filters-bar">
+      <!-- Filtro de período -->
+      <div class="filters-bar" style="margin-bottom:.75rem">
         <div class="period-tabs">
           <button class="ptab active" onclick="setTxPeriod('month',this)">Mês</button>
           <button class="ptab"        onclick="setTxPeriod('quarter',this)">Trimestre</button>
           <button class="ptab"        onclick="setTxPeriod('year',this)">Ano</button>
           <button class="ptab"        onclick="setTxPeriod('all',this)">Tudo</button>
         </div>
+      </div>
+
+      <!-- Navegação mês/ano (visível só no modo Mês) -->
+      <div id="month-nav" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:.875rem">
+        <div class="period-tabs" id="month-tabs" style="gap:2px">
+          <button class="ptab" onclick="setTxMonth(1,this)">Jan</button>
+          <button class="ptab" onclick="setTxMonth(2,this)">Fev</button>
+          <button class="ptab" onclick="setTxMonth(3,this)">Mar</button>
+          <button class="ptab" onclick="setTxMonth(4,this)">Abr</button>
+          <button class="ptab" onclick="setTxMonth(5,this)">Mai</button>
+          <button class="ptab" onclick="setTxMonth(6,this)">Jun</button>
+          <button class="ptab" onclick="setTxMonth(7,this)">Jul</button>
+          <button class="ptab" onclick="setTxMonth(8,this)">Ago</button>
+          <button class="ptab" onclick="setTxMonth(9,this)">Set</button>
+          <button class="ptab" onclick="setTxMonth(10,this)">Out</button>
+          <button class="ptab" onclick="setTxMonth(11,this)">Nov</button>
+          <button class="ptab" onclick="setTxMonth(12,this)">Dez</button>
+        </div>
+        <select class="filter-select" id="tx-year-sel" onchange="setTxYear(this.value)" style="font-weight:700;color:var(--primary)"></select>
+      </div>
+
+      <!-- Cards de resumo do período -->
+      <div class="cards-grid" style="margin-bottom:1rem" id="tx-summary-cards">
+        <div class="card card-income">
+          <div class="card-icon"><i class="ti ti-arrow-down-circle"></i></div>
+          <div class="card-label">Entradas do período</div>
+          <div class="card-value" id="tx-sum-income">—</div>
+        </div>
+        <div class="card card-expense">
+          <div class="card-icon"><i class="ti ti-arrow-up-circle"></i></div>
+          <div class="card-label">Saídas do período</div>
+          <div class="card-value" id="tx-sum-expense">—</div>
+        </div>
+        <div class="card card-hero">
+          <div class="card-icon"><i class="ti ti-scale"></i></div>
+          <div class="card-label">Saldo do período</div>
+          <div class="card-value" id="tx-sum-balance">—</div>
+          <div class="card-sub" id="tx-sum-label">&nbsp;</div>
+        </div>
+      </div>
+
+      <!-- Filtros de tipo/conta/categoria -->
+      <div class="filters-bar">
         <select class="filter-select" id="f-type" onchange="loadTxPage()">
           <option value="">Todos os tipos</option>
           <option value="income">Entradas</option>
@@ -1181,6 +1225,8 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentPage = 'dashboard';
 let dashPeriod  = 'month';
 let txPeriod    = 'month';
+let txMonth     = new Date().getMonth() + 1; // 1-12
+let txYear      = new Date().getFullYear();
 let editingTxId  = null;
 let editingCatId = null;
 let txType  = 'expense';
@@ -1206,8 +1252,9 @@ function periodRange(p) {
   if (p === 'all') return null;
   let s, e;
   if (p === 'month') {
-    s = new Date(now.getFullYear(), now.getMonth(), 1);
-    e = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // Use selected month/year (not necessarily current)
+    s = new Date(txYear, txMonth - 1, 1);
+    e = new Date(txYear, txMonth, 0);
   } else if (p === 'quarter') {
     const q = Math.floor(now.getMonth() / 3);
     s = new Date(now.getFullYear(), q * 3, 1);
@@ -1269,7 +1316,7 @@ function navigate(page) {
   document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
   currentPage = page;
   if (page === 'dashboard')    loadDashboard();
-  if (page === 'transactions') { populateFilterSelects(); loadTxPage(); }
+  if (page === 'transactions') { populateFilterSelects(); initMonthNav(); loadTxPage(); }
   if (page === 'categories')   loadCatPage();
   if (page === 'settings')     loadSettingsPage();
 }
@@ -1379,7 +1426,39 @@ function setTxPeriod(p, el) {
   txPeriod = p;
   document.querySelectorAll('#page-transactions .ptab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
+  // Show/hide month nav
+  document.getElementById('month-nav').style.display = p === 'month' ? 'flex' : 'none';
+  document.getElementById('tx-summary-cards').style.display = p !== 'all' ? 'grid' : 'none';
   loadTxPage();
+}
+
+function setTxMonth(month, el) {
+  txMonth = month;
+  document.querySelectorAll('#month-tabs .ptab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadTxPage();
+}
+
+function setTxYear(year) {
+  txYear = parseInt(year);
+  loadTxPage();
+}
+
+function initMonthNav() {
+  // Highlight current month
+  const tabs = document.querySelectorAll('#month-tabs .ptab');
+  tabs.forEach((t, i) => { if (i + 1 === txMonth) t.classList.add('active'); });
+
+  // Build year dropdown (last 3 years + current)
+  const sel = document.getElementById('tx-year-sel');
+  const now = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = now; y >= now - 2; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === txYear) opt.selected = true;
+    sel.appendChild(opt);
+  }
 }
 
 function populateFilterSelects() {
@@ -1396,6 +1475,10 @@ async function loadTxPage() {
   const tbody = document.getElementById('tx-tbody');
   tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Carregando...</td></tr>';
 
+  // Hide month-nav for non-month periods
+  const monthNav = document.getElementById('month-nav');
+  if (monthNav) monthNav.style.display = txPeriod === 'month' ? 'flex' : 'none';
+
   let q = db.from('transactions').select('*')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
@@ -1411,6 +1494,29 @@ async function loadTxPage() {
   if (catV)  q = q.eq('category_id', catV);
 
   const { data, error } = await q;
+
+  // Update summary cards
+  if (txPeriod !== 'all') {
+    const income  = (data || []).filter(t => t.type === 'income').reduce((s, t) => s + +t.amount, 0);
+    const expense = (data || []).filter(t => t.type === 'expense').reduce((s, t) => s + +t.amount, 0);
+    const balance = income - expense;
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('tx-sum-income',  R(income));
+    setEl('tx-sum-expense', R(expense));
+    setEl('tx-sum-balance', R(balance));
+    setEl('tx-sum-label',   balance >= 0 ? '✓ Período positivo' : '⚠ Período negativo');
+    const cards = document.getElementById('tx-summary-cards');
+    if (cards) {
+      cards.style.display = 'grid';
+      const balCard = cards.querySelector('.card-hero');
+      if (balCard) balCard.style.background = balance >= 0
+        ? 'linear-gradient(145deg,#1D9E75,#2BBF8A)'
+        : 'linear-gradient(145deg,#D94F3A,#E87060)';
+    }
+  } else {
+    const cards = document.getElementById('tx-summary-cards');
+    if (cards) cards.style.display = 'none';
+  }
 
   if (error) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--red)">Erro: ${error.message}</td></tr>`;
