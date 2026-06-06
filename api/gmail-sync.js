@@ -198,10 +198,12 @@ export default async function handler(req, res) {
     const btgAccountId = await getAccountId('btg');
     if (btgAccountId) {
       const btgMsgs = await searchMessages(accessToken,
-        `has:attachment filename:pdf (EQI OR BTG OR fatura) newer_than:${days}d`, 20);
+        `has:attachment filename:pdf (EQI OR BTG OR fatura) newer_than:${days}d`, 5);
       log.push(`Encontrados ${btgMsgs.length} e-mail(s) EQI/BTG`);
 
+      let pdfCount = 0;
       for (const { id: msgId } of btgMsgs) {
+        if (pdfCount >= 3) { log.push('⏸ Limite de PDFs por chamada atingido (3). Clique novamente para continuar.'); break; }
         const msg  = await getMessage(accessToken, msgId);
         const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
 
@@ -232,6 +234,7 @@ export default async function handler(req, res) {
             if (result === 'dup') totalDuplicates++;
           }
 
+          pdfCount++;
           log.push(`✓ EQI/BTG (${date}): ${msgImported} transações importadas de ${txs.length} encontradas`);
         } catch (err) {
           log.push(`⚠ Erro ao processar e-mail BTG ${msgId}: ${err.message}`);
@@ -243,10 +246,11 @@ export default async function handler(req, res) {
     const xpAccountId = await getAccountId('xp');
     if (xpAccountId) {
       const xpMsgs = await searchMessages(accessToken,
-        `has:attachment filename:pdf (XP OR "xp investimentos" OR fatura) newer_than:${days}d`, 20);
+        `has:attachment filename:pdf (XP OR "xp investimentos" OR fatura) newer_than:${days}d`, 5);
       log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
 
       for (const { id: msgId } of xpMsgs) {
+        if (pdfCount >= 3) { log.push('⏸ Limite de PDFs por chamada atingido. Clique novamente para continuar.'); break; }
         const msg     = await getMessage(accessToken, msgId);
         const date    = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
         const parts   = msg.payload?.parts || [];
@@ -276,6 +280,7 @@ export default async function handler(req, res) {
             if (result === 'dup') totalDuplicates++;
           }
 
+          pdfCount++;
           log.push(`✓ XP (${date}): ${msgImported} transações importadas de ${txs.length} encontradas`);
         } catch (err) {
           log.push(`⚠ Erro ao processar e-mail XP ${msgId}: ${err.message}`);
@@ -288,7 +293,7 @@ export default async function handler(req, res) {
     if (nubankAccountId) {
       // Busca e-mails dos últimos 2 dias (cron roda diariamente)
       const nubankMsgs = await searchMessages(accessToken,
-        `from:@nubank.com.br newer_than:${Math.max(days, 2)}d`, 100);
+        `from:@nubank.com.br newer_than:${Math.max(days, 2)}d`, 15);
       log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank`);
 
       for (const { id: msgId } of nubankMsgs) {
