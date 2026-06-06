@@ -100,7 +100,7 @@ export default async function handler(req, res) {
       `(filename:EQI OR filename:BTG) filename:Fatura has:attachment newer_than:${days}d`, 5);
     log.push(`Encontrados ${btgMsgs.length} e-mail(s) BTG/EQI`);
 
-    for (const { id: msgId } of btgMsgs.slice(0, 1)) {
+    for (const { id: msgId } of btgMsgs.slice(0, 3)) {
       const msg  = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
@@ -117,7 +117,7 @@ export default async function handler(req, res) {
       `filename:XP has:attachment newer_than:${days}d`, 5);
     log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
 
-    for (const { id: msgId } of xpMsgs.slice(0, 1)) {
+    for (const { id: msgId } of xpMsgs.slice(0, 3)) {
       const msg  = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
@@ -134,7 +134,7 @@ export default async function handler(req, res) {
       `from:nubank.com.br newer_than:${Math.max(days, 2)}d`, 10);
     log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank`);
 
-    for (const { id: msgId } of nubankMsgs.slice(0, 2)) {
+    for (const { id: msgId } of nubankMsgs.slice(0, 5)) {
       const msg  = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
