@@ -1528,12 +1528,12 @@ function refreshCatSelect(type, selId = null) {
 }
 
 async function saveTx() {
-  const date     = document.getElementById('tx-date').value;
-  const amount   = parseFloat(document.getElementById('tx-amount').value);
-  const desc     = document.getElementById('tx-desc').value.trim();
-  const acc_id   = document.getElementById('tx-account').value;
-  const cat_id   = document.getElementById('tx-cat').value || null;
-  const notes    = document.getElementById('tx-notes').value.trim() || null;
+  const date   = document.getElementById('tx-date').value;
+  const amount = parseFloat(document.getElementById('tx-amount').value);
+  const desc   = document.getElementById('tx-desc').value.trim();
+  const acc_id = document.getElementById('tx-account').value;
+  const cat_id = document.getElementById('tx-cat').value || null;
+  const notes  = document.getElementById('tx-notes').value.trim() || null;
 
   if (!date || !amount || amount <= 0 || !desc || !acc_id) {
     toast('Preencha data, valor, descrição e conta', 'error'); return;
@@ -1547,25 +1547,39 @@ async function saveTx() {
 
   if (error) { toast('Erro ao salvar: ' + error.message, 'error'); return; }
 
-  // Save category rule for future auto-categorization
-  if (category_id && desc) {
-    saveCatRule(desc, category_id);
+  // Salvar regra de categoria para auto-categorização futura
+  if (cat_id && desc) saveCatRule(desc, cat_id);
 
-    // On edit: offer to apply category to all similar uncategorized transactions
-    if (editingTxId) {
-      const count = await applyRuleToAll(desc, category_id);
-      toast(count > 0
-        ? `Categoria salva e aplicada a mais ${count} lançamento(s) similar(es)!`
-        : 'Lançamento atualizado!');
-    } else {
-      toast('Lançamento criado!');
-    }
-  } else {
-    toast(editingTxId ? 'Lançamento atualizado!' : 'Lançamento criado!');
-  }
+  // Fechar modal e recarregar imediatamente
   closeModal('modal-tx');
+  toast(editingTxId ? 'Lançamento atualizado!' : 'Lançamento criado!');
   if (currentPage === 'dashboard')    loadDashboard();
   if (currentPage === 'transactions') loadTxPage();
+
+  // Após fechar, verificar se há lançamentos similares sem categoria
+  if (editingTxId && cat_id && desc) {
+    const keyword = desc.toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+    const { data: uncategorized } = await db.from('transactions')
+      .select('id, description').is('category_id', null);
+    const similar = (uncategorized || []).filter(t =>
+      t.description.toLowerCase().includes(keyword)
+    );
+    if (similar.length > 0) {
+      const catName = categories.find(c => c.id === cat_id)?.name || 'esta categoria';
+      showConfirm(
+        'Aplicar categoria em massa?',
+        `Há ${similar.length} lançamento(s) de "${keyword.trim()}" sem categoria. Aplicar "${catName}" a todos?`,
+        async () => {
+          for (const t of similar) {
+            await db.from('transactions').update({ category_id: cat_id }).eq('id', t.id);
+          }
+          toast(`Categoria aplicada a ${similar.length} lançamento(s)!`);
+          if (currentPage === 'transactions') loadTxPage();
+          if (currentPage === 'dashboard')    loadDashboard();
+        }
+      );
+    }
+  }
 }
 
 function confirmDeleteTx(id, desc) {
