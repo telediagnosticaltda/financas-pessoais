@@ -2,7 +2,7 @@
 // Roda automaticamente todo dia às 9h (configurado no vercel.json)
 // Também pode ser disparado manualmente pelo app
 
-import pdf from 'pdf-parse/lib/pdf-parse.js';
+import pdfParse from 'pdf-parse';
 
 export const config = { api: { bodyParser: true } };
 
@@ -82,10 +82,19 @@ async function getAttachment(accessToken, msgId, attId) {
 
 // ── PDF helpers ───────────────────────────────────────────────
 async function extractPDFText(base64Data, password = '') {
-  const buffer  = Buffer.from(base64Data, 'base64');
-  const options = password ? { password } : {};
-  const data    = await pdf(buffer, options);
-  return data.text || '';
+  const buffer = Buffer.from(base64Data, 'base64');
+  // Try with password first, fall back without if no password needed
+  const options = { max: 0 }; // max:0 = extract all pages
+  if (password) options.password = password;
+  try {
+    const data = await pdfParse(buffer, options);
+    return data.text || '';
+  } catch (err) {
+    if (err.message?.includes('password') || err.message?.includes('Password')) {
+      throw new Error(`Senha incorreta ou ausente para este PDF (${err.message})`);
+    }
+    throw err;
+  }
 }
 
 // ── Claude helpers ────────────────────────────────────────────
