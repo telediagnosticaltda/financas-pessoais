@@ -1700,68 +1700,79 @@ async function runGmailSync(days = 50) {
 
     let totalImported = 0, totalDuplicates = 0, totalErrors = 0;
 
-    // 2. Browser processa PDFs — pula os já importados e avança para os próximos
-    const { pdfs = [], emailTexts = [] } = data;
+    // 2. Verificar quais já foram importados e processar o primeiro pendente
+    const { emails = [] } = data; // Lista ordenada do mais antigo ao mais recente
 
-    if (!pdfs.length && !emailTexts.length) {
-      toast('Gmail: nenhum arquivo novo encontrado ✓');
+    if (!emails.length) {
+      toast('Gmail: nenhum arquivo encontrado no período ✓');
       return;
     }
 
-    let processedThisCall = 0;
+    // Verificar em paralelo quais já foram importados
+    const processed = await Promise.all(emails.map(async em => {
+      const { data: ex } = await db.from('transactions')
+        .select('id').like('external_id', `gmail_${em.msgId}_%`).limit(1);
+      return { ...em, done: !!(ex?.length) };
+    }));
 
-    for (const pdf of pdfs) {
-      // Verifica se este e-mail já foi totalmente processado
-      const { data: existingTxs } = await db.from('transactions')
-        .select('id').like('external_id', `gmail_${pdf.msgId}_%`).limit(1);
+    const pending = processed.filter(e => !e.done);
+    const doneCount = processed.length - pending.length;
+    console.log(`[Gmail] ${doneCount} já importados, ${pending.length} pendentes`);
 
-      if (existingTxs?.length) {
-        console.log(`[Gmail] Pulando ${pdf.bank} (${pdf.date}) — já importado`);
-        continue; // Pula para o próximo e-mail
-      }
-
-      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${pdf.filename || pdf.bank}...`;
-
-      try {
-        const binary = atob(pdf.base64);
-        const bytes  = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-        const text = await extractTextFromBuffer(bytes.buffer, pdf.password);
-
-        const parseRes = await fetch('/api/parse-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
-        });
-        const { transactions: txs = [] } = await parseRes.json();
-
-        const accId = await getAccountIdByBank(pdf.bank);
-        if (!accId) { console.warn(`Conta não encontrada: ${pdf.bank}`); continue; }
-
-        for (const [i, tx] of txs.entries()) {
-          const extId = `gmail_${pdf.msgId}_${i}`;
-          const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
-          if (ex?.length) { totalDuplicates++; continue; }
-          const { error } = await db.from('transactions').insert({
-            date: tx.date, description: tx.description, amount: tx.amount,
-            type: tx.type, account_id: accId, source: 'manual', external_id: extId,
-            category_id: getCategoryForDesc(tx.description) || null
-          });
-          if (error) totalErrors++;
-          else totalImported++;
-        }
-
-        processedThisCall++;
-        console.log(`✓ ${pdf.bank} (${pdf.date}): ${txs.length} transações processadas, ${totalImported} importadas`);
-
-        // Processa apenas 1 PDF por vez para não travar o browser
-        if (processedThisCall >= 1) break;
-
-      } catch (err) {
-        console.warn(`⚠ Erro ${pdf.bank} (${pdf.date}):`, err.message);
-      }
+    if (!pending.length) {
+      toast(`Gmail: todos os ${emails.length} arquivos já foram importados ✓`);
+      return;
     }
+
+    // Processar o primeiro pendente
+    const next = pending[0];
+    if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Baixando ${next.filename || next.bank}...`;
+
+    // Baixar o PDF via endpoint dedicado
+    const pdfRes = await fetch('/api/gmail-get-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msgId: next.msgId, attId: next.attId })
+    });
+    const { base64, error: pdfErr } = await pdfRes.json();
+    if (pdfErr) throw new Error('Erro ao baixar PDF: ' + pdfErr);
+
+    if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${next.bank} (${next.date})...`;
+
+    // Converter e extrair texto com PDF.js
+    const binary = atob(base64);
+    const bytes  = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const text = await extractTextFromBuffer(bytes.buffer, next.password);
+
+    // Claude extrai as transações
+    const parseRes = await fetch('/api/parse-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const { transactions: txs = [] } = await parseRes.json();
+
+    // Importar para Supabase
+    const accId = await getAccountIdByBank(next.bank);
+    if (!accId) throw new Error(`Conta não encontrada para ${next.bank}`);
+
+    for (const [i, tx] of txs.entries()) {
+      const extId = `gmail_${next.msgId}_${i}`;
+      const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
+      if (ex?.length) { totalDuplicates++; continue; }
+      const { error } = await db.from('transactions').insert({
+        date: tx.date, description: tx.description, amount: tx.amount,
+        type: tx.type, account_id: accId, source: 'manual', external_id: extId,
+        category_id: getCategoryForDesc(tx.description) || null
+      });
+      if (error) totalErrors++;
+      else totalImported++;
+    }
+
+    const remaining = pending.length - 1;
+    toast(`Gmail: ${totalImported} importadas${remaining > 0 ? ` — ${remaining} arquivo(s) restantes, clique para continuar` : ' ✓ tudo importado'}`);
+    if (totalImported > 0) loadDashboard();
 
     // 3. Processar e-mails de texto do Nubank (sem PDF)
     for (const em of emailTexts) {
