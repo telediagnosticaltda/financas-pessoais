@@ -1952,7 +1952,7 @@ function handleFileSelect(file) {
       const inst = a.institution.toLowerCase();
       if ((fname.includes('eqi') || fname.includes('btg')) && inst.includes('btg')) return true;
       if (fname.includes('xp') && inst.includes('xp')) return true;
-      if (fname.includes('nubank') && inst.includes('nubank')) return true;
+      if ((fname.includes('nubank') || fname.startsWith('nu_') || fname.includes('_nu_')) && inst.includes('nubank')) return true;
       return false;
     });
     if (detected) accSel.value = detected.id;
