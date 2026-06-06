@@ -1708,11 +1708,13 @@ async function runGmailSync(days = 50) {
       return;
     }
 
-    // Verificar em paralelo quais já foram importados
+    // Verificar em paralelo quais já foram importados (transações ou marcador de processado)
     const processed = await Promise.all(emails.map(async em => {
-      const { data: ex } = await db.from('transactions')
-        .select('id').like('external_id', `gmail_${em.msgId}_%`).limit(1);
-      return { ...em, done: !!(ex?.length) };
+      const [{ data: ex }, { data: marker }] = await Promise.all([
+        db.from('transactions').select('id').like('external_id', `gmail_${em.msgId}_%`).limit(1),
+        db.from('app_tokens').select('key').eq('key', `gmail_proc_${em.msgId}`).limit(1)
+      ]);
+      return { ...em, done: !!(ex?.length) || !!(marker?.length) };
     }));
 
     const pending = processed.filter(e => !e.done);
@@ -1771,6 +1773,10 @@ async function runGmailSync(days = 50) {
     }
 
     const remaining = pending.length - 1;
+
+    // Marcar e-mail como processado mesmo que 0 transações (evita loop infinito)
+    await db.from('app_tokens').upsert({ key: `gmail_proc_${next.msgId}`, value: '1' });
+
     toast(`Gmail: ${totalImported} importadas${remaining > 0 ? ` — ${remaining} arquivo(s) restantes, clique para continuar` : ' ✓ tudo importado'}`);
     if (totalImported > 0) loadDashboard();
 
