@@ -4,6 +4,9 @@
 
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 
+// Desativa worker para ambiente Node.js (serverless)
+pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+
 export const config = { api: { bodyParser: true } };
 
 const SB_URL = process.env.SUPABASE_URL;
@@ -86,7 +89,10 @@ async function extractPDFText(base64Data, password = '') {
   const data = new Uint8Array(Buffer.from(base64Data, 'base64'));
   const loadingTask = pdfjsLib.getDocument({
     data,
-    password: password || undefined
+    password:                    password || undefined,
+    useWorkerFetch:              false,
+    isEvalSupported:             false,
+    isOffscreenCanvasSupported:  false
   });
 
   let pdfDoc;
