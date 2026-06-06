@@ -1823,7 +1823,18 @@ function saveSettings() {
   if (cpf && cpf.length !== 11) { toast('CPF deve ter 11 dígitos', 'error'); return; }
   if (cpf) localStorage.setItem('fp_cpf', cpf);
   else     localStorage.removeItem('fp_cpf');
-  toast(cpf ? 'CPF salvo! Importação automática ativada.' : 'CPF removido.');
+
+  // Também salva no Supabase para uso pelo gmail-sync (servidor)
+  if (cpf) {
+    db.from('app_tokens').upsert({ key: 'user_cpf', value: cpf }).then(({ error }) => {
+      if (error) toast('CPF salvo localmente, mas falhou no servidor: ' + error.message, 'error');
+      else toast('CPF salvo! Importação automática ativada.');
+    });
+  } else {
+    db.from('app_tokens').delete().eq('key', 'user_cpf').then(() => {
+      toast('CPF removido.');
+    });
+  }
   loadSettingsPage();
 }
 
