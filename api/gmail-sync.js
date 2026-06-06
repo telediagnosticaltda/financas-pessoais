@@ -1,17 +1,13 @@
 // api/gmail-sync.js
-// Busca e-mails no Gmail e retorna os PDFs brutos para o BROWSER processar
-// O browser já sabe descriptografar PDFs com senha (PDF.js) — sem worker issues
+// Retorna APENAS metadados dos e-mails (sem baixar PDFs ainda)
+// Browser verifica quais já foram importados e solicita apenas o necessário
 
 export const config = { api: { bodyParser: true } };
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_KEY;
 
-const sbH = {
-  'apikey':        SB_KEY,
-  'Authorization': `Bearer ${SB_KEY}`,
-  'Content-Type':  'application/json'
-};
+const sbH = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' };
 
 async function sbGet(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: sbH });
@@ -25,10 +21,10 @@ async function getAccessToken() {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      refresh_token:  token.value,
-      client_id:      process.env.GOOGLE_CLIENT_ID,
-      client_secret:  process.env.GOOGLE_CLIENT_SECRET,
-      grant_type:     'refresh_token'
+      refresh_token: token.value,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      grant_type: 'refresh_token'
     })
   });
   const data = await r.json();
@@ -36,7 +32,7 @@ async function getAccessToken() {
   return data.access_token;
 }
 
-async function searchMessages(accessToken, query, max = 10) {
+async function searchMessages(accessToken, query, max) {
   const r = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${max}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -47,42 +43,18 @@ async function searchMessages(accessToken, query, max = 10) {
 
 async function getMessage(accessToken, id) {
   const r = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Date`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   return r.json();
 }
 
-async function getAttachment(accessToken, msgId, attId) {
-  const r = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${attId}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  const data = await r.json();
-  return (data.data || '').replace(/-/g, '+').replace(/_/g, '/');
-}
-
-function extractEmailBody(payload) {
-  if (!payload) return '';
-  if (payload.body?.data) {
-    return Buffer.from(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
-  }
-  if (payload.parts) {
-    for (const part of payload.parts) {
-      const t = extractEmailBody(part);
-      if (t) return t;
-    }
-  }
-  return '';
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   const log = [];
-
   try {
     const accessToken = await getAccessToken();
     const days = req.body?.days || 50;
@@ -92,67 +64,52 @@ export default async function handler(req, res) {
     log.push(cpf ? `✓ CPF configurado (${cpf.length} dígitos)` : '⚠ CPF não configurado');
     log.push(`✓ Gmail autorizado — buscando últimos ${days} dias`);
 
-    const pdfs = [];
-    const emailTexts = [];
+    const emails = []; // Apenas metadados, sem baixar PDFs
 
     // ── BTG/EQI ────────────────────────────────────────────────
     const btgMsgs = await searchMessages(accessToken,
-      `(filename:EQI OR filename:BTG) filename:Fatura has:attachment newer_than:${days}d`, 5);
+      `(filename:EQI OR filename:BTG) filename:Fatura has:attachment newer_than:${days}d`, 20);
     log.push(`Encontrados ${btgMsgs.length} e-mail(s) BTG/EQI`);
-
-    for (const { id: msgId } of btgMsgs.slice(0, 3)) {
-      const msg  = await getMessage(accessToken, msgId);
+    for (const { id: msgId } of btgMsgs) {
+      const msg = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
-        p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf')
-      );
+        p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf'));
       if (!pdfPart?.body?.attachmentId) continue;
-      const b64 = await getAttachment(accessToken, msgId, pdfPart.body.attachmentId);
-      pdfs.push({ msgId, bank: 'btg', filename: pdfPart.filename, date, base64: b64, password: cpf });
-      log.push(`✓ BTG/EQI: ${pdfPart.filename} (${date})`);
+      emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'btg', date, password: cpf });
     }
 
     // ── XP ─────────────────────────────────────────────────────
     const xpMsgs = await searchMessages(accessToken,
-      `filename:XP has:attachment newer_than:${days}d`, 5);
+      `filename:XP has:attachment newer_than:${days}d`, 20);
     log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
-
-    for (const { id: msgId } of xpMsgs.slice(0, 3)) {
-      const msg  = await getMessage(accessToken, msgId);
+    for (const { id: msgId } of xpMsgs) {
+      const msg = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
-        p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf')
-      );
+        p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf'));
       if (!pdfPart?.body?.attachmentId) continue;
-      const b64 = await getAttachment(accessToken, msgId, pdfPart.body.attachmentId);
-      pdfs.push({ msgId, bank: 'xp', filename: pdfPart.filename, date, base64: b64, password: cpf.slice(0, 5) });
-      log.push(`✓ XP: ${pdfPart.filename} (${date})`);
+      emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'xp', date, password: cpf.slice(0, 5) });
     }
 
     // ── Nubank ─────────────────────────────────────────────────
     const nubankMsgs = await searchMessages(accessToken,
-      `from:nubank.com.br newer_than:${Math.max(days, 2)}d`, 10);
-    log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank`);
-
-    for (const { id: msgId } of nubankMsgs.slice(0, 5)) {
-      const msg  = await getMessage(accessToken, msgId);
+      `from:nubank.com.br has:attachment newer_than:${days}d`, 20);
+    log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank com anexo`);
+    for (const { id: msgId } of nubankMsgs) {
+      const msg = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
-        p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf')
-      );
-      if (pdfPart?.body?.attachmentId) {
-        const b64 = await getAttachment(accessToken, msgId, pdfPart.body.attachmentId);
-        pdfs.push({ msgId, bank: 'nubank', filename: pdfPart.filename, date, base64: b64, password: '' });
-        log.push(`✓ Nubank PDF: ${pdfPart.filename} (${date})`);
-      } else {
-        const body = extractEmailBody(msg.payload);
-        if (body) emailTexts.push({ msgId, bank: 'nubank', date, text: body });
-      }
+        p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf'));
+      if (!pdfPart?.body?.attachmentId) continue;
+      emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'nubank', date, password: '' });
     }
 
-    if (!pdfs.length && !emailTexts.length) log.push('Nenhum novo arquivo encontrado');
+    // Ordenar do mais antigo para o mais recente (assim o browser processa em ordem cronológica)
+    emails.sort((a, b) => a.date.localeCompare(b.date));
 
-    return res.status(200).json({ success: true, pdfs, emailTexts, log });
+    log.push(`Total: ${emails.length} e-mail(s) com PDF encontrados`);
+    return res.status(200).json({ success: true, emails, log });
 
   } catch (err) {
     console.error('[gmail-sync]', err);
