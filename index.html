@@ -958,6 +958,14 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
     <div id="page-charts" class="page">
       <div class="page-header">
         <h1 class="page-title">Gráficos</h1>
+        <div class="period-tabs">
+          <button class="ptab active" id="chart-type-expense" onclick="setChartType('expense',this)">
+            <i class="ti ti-arrow-up-circle"></i> Saídas
+          </button>
+          <button class="ptab" id="chart-type-income" onclick="setChartType('income',this)">
+            <i class="ti ti-arrow-down-circle"></i> Entradas
+          </button>
+        </div>
       </div>
 
       <!-- Filtro período -->
@@ -992,7 +1000,7 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
       <!-- Pizza + Detalhes da categoria -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem" id="charts-top-grid">
         <div class="card" style="padding:1.25rem">
-          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)">Despesas por categoria</div>
+          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)" id="pie-chart-title">Despesas por categoria</div>
           <div style="position:relative;max-width:320px;margin:0 auto">
             <canvas id="pie-chart" height="300"></canvas>
             <div id="pie-center" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
@@ -1009,7 +1017,7 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 
       <!-- Gráfico evolutivo -->
       <div class="card" style="padding:1.25rem">
-        <div style="font-weight:600;margin-bottom:1rem;color:var(--text)">Evolução por categoria <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">(últimos 12 meses)</span></div>
+        <div style="font-weight:600;margin-bottom:1rem;color:var(--text)"><span id="evo-chart-title">Evolução de despesas</span> <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">(últimos 12 meses)</span></div>
         <canvas id="evo-chart" height="120"></canvas>
       </div>
     </div>
@@ -2648,8 +2656,19 @@ async function confirmImport() {
 let chartPeriod     = 'month';
 let chartMonth      = new Date().getMonth() + 1;
 let chartYear       = new Date().getFullYear();
+let chartType       = 'expense'; // 'expense' | 'income'
 let pieChartInst    = null;
 let evoChartInst    = null;
+
+function setChartType(type, el) {
+  chartType = type;
+  document.querySelectorAll('#page-charts .page-header .ptab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const isExpense = type === 'expense';
+  document.getElementById('pie-chart-title').textContent = isExpense ? 'Despesas por categoria' : 'Receitas por categoria';
+  document.getElementById('evo-chart-title').textContent = isExpense ? 'Evolução de despesas' : 'Evolução de receitas';
+  loadChartPage();
+}
 
 function chartPeriodRange() {
   if (chartPeriod === 'all') return null;
@@ -2706,7 +2725,7 @@ function initChartNav() {
 
 async function loadChartPage() {
   // ── 1. Fetch expenses for selected period ──────────────────
-  let q = db.from('transactions').select('*').eq('type', 'expense');
+  let q = db.from('transactions').select('*').eq('type', chartType);
   const range = chartPeriodRange();
   if (range) q = q.gte('date', range.start).lte('date', range.end);
   const { data: txs } = await q;
@@ -2725,6 +2744,7 @@ async function loadChartPage() {
 
   const total = sorted.reduce((s, [, v]) => s + v.total, 0);
   document.getElementById('pie-total').textContent = R(total);
+  document.querySelector('#pie-center div:first-child').textContent = chartType === 'expense' ? 'Total saídas' : 'Total entradas';
 
   // ── 3. Render pie chart ────────────────────────────────────
   const labels  = sorted.map(([cid]) => getCatName(cid));
@@ -2797,7 +2817,7 @@ async function renderEvoChart() {
   const endDate   = new Date();
   const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1);
   const { data: txs } = await db.from('transactions').select('*')
-    .eq('type', 'expense')
+    .eq('type', chartType)
     .gte('date', startDate.toISOString().slice(0,10))
     .lte('date', endDate.toISOString().slice(0,10));
 
