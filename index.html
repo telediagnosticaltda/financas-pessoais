@@ -730,6 +730,9 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 .confirm-footer { display: flex; justify-content: flex-end; gap: 8px; }
 .btn-delete { background: var(--red-l); color: var(--red); border: 1px solid #F5B4AB; }
 .btn-delete:hover { background: #FAD5D0; }
+@media (max-width: 700px) {
+  #charts-top-grid { grid-template-columns: 1fr !important; }
+}
 </style>
 </head>
 <body>
@@ -747,6 +750,9 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
     </button>
     <button class="nav-item" data-page="transactions" onclick="navigate('transactions')">
       <i class="ti ti-arrows-exchange"></i> Lançamentos
+    </button>
+    <button class="nav-item" data-page="charts" onclick="navigate('charts')">
+      <i class="ti ti-chart-pie"></i> Gráficos
     </button>
     <div class="nav-label" style="margin-top:auto">Configurações</div>
     <button class="nav-item" data-page="categories" onclick="navigate('categories')">
@@ -946,6 +952,66 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
       <div class="cat-grid" id="cat-income-grid"><div class="loading-msg">Carregando...</div></div>
       <div class="cat-section-title">Saídas</div>
       <div class="cat-grid" id="cat-expense-grid"><div class="loading-msg">Carregando...</div></div>
+    </div>
+
+    <!-- PAGE: CHARTS -->
+    <div id="page-charts" class="page">
+      <div class="page-header">
+        <h1 class="page-title">Gráficos</h1>
+      </div>
+
+      <!-- Filtro período -->
+      <div class="filters-bar" style="margin-bottom:.75rem">
+        <div class="period-tabs">
+          <button class="ptab active" onclick="setChartPeriod('month',this)">Mês</button>
+          <button class="ptab"        onclick="setChartPeriod('quarter',this)">Trimestre</button>
+          <button class="ptab"        onclick="setChartPeriod('year',this)">Ano</button>
+          <button class="ptab"        onclick="setChartPeriod('all',this)">Tudo</button>
+        </div>
+      </div>
+
+      <!-- Navegação mês/ano -->
+      <div id="chart-month-nav" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:.875rem">
+        <div class="period-tabs" id="chart-month-tabs" style="gap:2px">
+          <button class="ptab" onclick="setChartMonth(1,this)">Jan</button>
+          <button class="ptab" onclick="setChartMonth(2,this)">Fev</button>
+          <button class="ptab" onclick="setChartMonth(3,this)">Mar</button>
+          <button class="ptab" onclick="setChartMonth(4,this)">Abr</button>
+          <button class="ptab" onclick="setChartMonth(5,this)">Mai</button>
+          <button class="ptab" onclick="setChartMonth(6,this)">Jun</button>
+          <button class="ptab" onclick="setChartMonth(7,this)">Jul</button>
+          <button class="ptab" onclick="setChartMonth(8,this)">Ago</button>
+          <button class="ptab" onclick="setChartMonth(9,this)">Set</button>
+          <button class="ptab" onclick="setChartMonth(10,this)">Out</button>
+          <button class="ptab" onclick="setChartMonth(11,this)">Nov</button>
+          <button class="ptab" onclick="setChartMonth(12,this)">Dez</button>
+        </div>
+        <select class="filter-select" id="chart-year-sel" onchange="setChartYear(this.value)" style="font-weight:700;color:var(--primary)"></select>
+      </div>
+
+      <!-- Pizza + Detalhes da categoria -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem" id="charts-top-grid">
+        <div class="card" style="padding:1.25rem">
+          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)">Despesas por categoria</div>
+          <div style="position:relative;max-width:320px;margin:0 auto">
+            <canvas id="pie-chart" height="300"></canvas>
+            <div id="pie-center" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
+              <div style="font-size:.75rem;color:var(--text-muted)">Total</div>
+              <div id="pie-total" style="font-size:1.1rem;font-weight:700;color:var(--text)">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="padding:1.25rem;overflow:auto" id="cat-detail-card">
+          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)">Detalhes por categoria</div>
+          <div id="cat-detail-content"><div class="loading-msg">Selecione uma categoria no gráfico</div></div>
+        </div>
+      </div>
+
+      <!-- Gráfico evolutivo -->
+      <div class="card" style="padding:1.25rem">
+        <div style="font-weight:600;margin-bottom:1rem;color:var(--text)">Evolução por categoria <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">(últimos 12 meses)</span></div>
+        <canvas id="evo-chart" height="120"></canvas>
+      </div>
     </div>
 
     <!-- PAGE: SETTINGS -->
@@ -1223,6 +1289,7 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 </script>
@@ -1355,6 +1422,7 @@ function navigate(page) {
     if (s) s.value = '';
     populateFilterSelects(); initMonthNav(); loadTxPage();
   }
+  if (page === 'charts') { initChartNav(); loadChartPage(); }
   if (page === 'categories')   loadCatPage();
   if (page === 'settings')     loadSettingsPage();
 }
@@ -2574,6 +2642,222 @@ async function confirmImport() {
 
 // ─────────────────────────────────────────────────────────────
 // INIT
+// ─────────────────────────────────────────────────────────────
+// PAGE: CHARTS
+// ─────────────────────────────────────────────────────────────
+let chartPeriod     = 'month';
+let chartMonth      = new Date().getMonth() + 1;
+let chartYear       = new Date().getFullYear();
+let pieChartInst    = null;
+let evoChartInst    = null;
+
+function chartPeriodRange() {
+  if (chartPeriod === 'all') return null;
+  const now = new Date();
+  let s, e;
+  if (chartPeriod === 'month') {
+    s = new Date(chartYear, chartMonth - 1, 1);
+    e = new Date(chartYear, chartMonth, 0);
+  } else if (chartPeriod === 'quarter') {
+    const q = Math.floor(now.getMonth() / 3);
+    s = new Date(now.getFullYear(), q * 3, 1);
+    e = new Date(now.getFullYear(), q * 3 + 3, 0);
+  } else {
+    s = new Date(chartYear, 0, 1);
+    e = new Date(chartYear, 11, 31);
+  }
+  return { start: s.toISOString().slice(0,10), end: e.toISOString().slice(0,10) };
+}
+
+function setChartPeriod(p, el) {
+  chartPeriod = p;
+  document.querySelectorAll('#page-charts .ptab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('chart-month-nav').style.display = p === 'month' ? 'flex' : 'none';
+  loadChartPage();
+}
+
+function setChartMonth(m, el) {
+  chartMonth = m;
+  document.querySelectorAll('#chart-month-tabs .ptab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadChartPage();
+}
+
+function setChartYear(y) {
+  chartYear = parseInt(y);
+  loadChartPage();
+}
+
+function initChartNav() {
+  document.querySelectorAll('#chart-month-tabs .ptab').forEach((t, i) => {
+    t.classList.toggle('active', i + 1 === chartMonth);
+  });
+  const sel = document.getElementById('chart-year-sel');
+  const now = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = now; y >= now - 3; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    if (y === chartYear) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+async function loadChartPage() {
+  // ── 1. Fetch expenses for selected period ──────────────────
+  let q = db.from('transactions').select('*').eq('type', 'expense');
+  const range = chartPeriodRange();
+  if (range) q = q.gte('date', range.start).lte('date', range.end);
+  const { data: txs } = await q;
+
+  // ── 2. Group by category ───────────────────────────────────
+  const byCategory = {};
+  (txs || []).forEach(t => {
+    const cid = t.category_id || '__none__';
+    if (!byCategory[cid]) byCategory[cid] = { total: 0, items: [] };
+    byCategory[cid].total += +t.amount;
+    byCategory[cid].items.push(t);
+  });
+
+  const sorted = Object.entries(byCategory)
+    .sort((a, b) => b[1].total - a[1].total);
+
+  const total = sorted.reduce((s, [, v]) => s + v.total, 0);
+  document.getElementById('pie-total').textContent = R(total);
+
+  // ── 3. Render pie chart ────────────────────────────────────
+  const labels  = sorted.map(([cid]) => getCatName(cid));
+  const values  = sorted.map(([, v]) => v.total);
+  const colors  = sorted.map(([cid], i) => getCatColor(cid, i));
+
+  if (pieChartInst) pieChartInst.destroy();
+  const pieCtx = document.getElementById('pie-chart').getContext('2d');
+  pieChartInst = new Chart(pieCtx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }] },
+    options: {
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12, usePointStyle: true } },
+        tooltip: { callbacks: { label: ctx => ` ${R(ctx.parsed)} (${((ctx.parsed/total)*100).toFixed(1)}%)` } }
+      },
+      onClick: (_, els) => {
+        if (!els.length) return;
+        const [cid, data] = sorted[els[0].index];
+        renderCatDetail(cid, data, getCatColor(cid, els[0].index));
+      }
+    }
+  });
+
+  // Auto-show largest category
+  if (sorted.length) {
+    const [cid, data] = sorted[0];
+    renderCatDetail(cid, data, getCatColor(cid, 0));
+  }
+
+  // ── 4. Evolution chart (last 12 months) ───────────────────
+  await renderEvoChart();
+}
+
+function getCatName(cid) {
+  if (cid === '__none__') return 'Sem categoria';
+  return categories.find(c => c.id === cid)?.name || 'Sem categoria';
+}
+
+function getCatColor(cid, idx) {
+  if (cid === '__none__') return '#9CA3AF';
+  const cat = categories.find(c => c.id === cid);
+  if (cat?.color) return cat.color;
+  return PALETTE[idx % PALETTE.length];
+}
+
+function renderCatDetail(cid, data, color) {
+  const name  = getCatName(cid);
+  const items = data.items.sort((a, b) => b.amount - a.amount).slice(0, 8);
+  document.getElementById('cat-detail-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:.875rem">
+      <span style="width:12px;height:12px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <span style="font-weight:700;font-size:.95rem">${name}</span>
+      <span style="margin-left:auto;font-weight:700;color:var(--expense)">${R(data.total)}</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${items.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:8px;background:var(--bg);gap:8px">
+          <div style="font-size:.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${t.description}</div>
+          <div style="font-size:.82rem;font-weight:600;color:var(--expense);white-space:nowrap">${R(+t.amount)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function renderEvoChart() {
+  // Busca últimos 12 meses de despesas por categoria
+  const endDate   = new Date();
+  const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1);
+  const { data: txs } = await db.from('transactions').select('*')
+    .eq('type', 'expense')
+    .gte('date', startDate.toISOString().slice(0,10))
+    .lte('date', endDate.toISOString().slice(0,10));
+
+  // Build month labels
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
+    months.push({ key: d.toISOString().slice(0,7), label: d.toLocaleDateString('pt-BR', { month:'short', year:'2-digit' }) });
+  }
+
+  // Top 6 categories by total volume
+  const catTotals = {};
+  (txs || []).forEach(t => {
+    const cid = t.category_id || '__none__';
+    catTotals[cid] = (catTotals[cid] || 0) + +t.amount;
+  });
+  const topCats = Object.entries(catTotals)
+    .sort((a, b) => b[1] - a[1]).slice(0, 6).map(([cid]) => cid);
+
+  // Build datasets
+  const datasets = topCats.map((cid, i) => {
+    const data = months.map(({ key }) => {
+      return (txs || [])
+        .filter(t => (t.category_id || '__none__') === cid && t.date.slice(0,7) === key)
+        .reduce((s, t) => s + +t.amount, 0);
+    });
+    return {
+      label: getCatName(cid),
+      data,
+      backgroundColor: getCatColor(cid, i) + '99',
+      borderColor:     getCatColor(cid, i),
+      borderWidth: 2,
+      fill: false,
+      tension: 0.35,
+      pointRadius: 3
+    };
+  });
+
+  if (evoChartInst) evoChartInst.destroy();
+  const ctx = document.getElementById('evo-chart').getContext('2d');
+  evoChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels: months.map(m => m.label), datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12, usePointStyle: true } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${R(ctx.parsed.y)}` } }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: v => 'R$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
+        }
+      }
+    }
+  });
+}
+
 // ─────────────────────────────────────────────────────────────
 (async () => {
   await loadBase();
