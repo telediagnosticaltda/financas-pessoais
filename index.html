@@ -886,6 +886,20 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
         </div>
       </div>
 
+      <!-- Barra de busca -->
+      <div style="position:relative;margin-bottom:.75rem">
+        <i class="ti ti-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:1rem"></i>
+        <input
+          id="tx-search"
+          type="text"
+          placeholder="Buscar por descrição..."
+          oninput="debouncedSearch()"
+          style="width:100%;padding:.65rem 1rem .65rem 2.5rem;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;background:var(--surface);color:var(--text);outline:none;box-sizing:border-box;transition:border-color .2s"
+          onfocus="this.style.borderColor='var(--primary)'"
+          onblur="this.style.borderColor='var(--border)'"
+        />
+      </div>
+
       <!-- Filtros de tipo/conta/categoria -->
       <div class="filters-bar">
         <select class="filter-select" id="f-type" onchange="loadTxPage()">
@@ -1336,7 +1350,11 @@ function navigate(page) {
   document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
   currentPage = page;
   if (page === 'dashboard')    loadDashboard();
-  if (page === 'transactions') { populateFilterSelects(); initMonthNav(); loadTxPage(); }
+  if (page === 'transactions') {
+    const s = document.getElementById('tx-search');
+    if (s) s.value = '';
+    populateFilterSelects(); initMonthNav(); loadTxPage();
+  }
   if (page === 'categories')   loadCatPage();
   if (page === 'settings')     loadSettingsPage();
 }
@@ -1442,6 +1460,13 @@ async function loadDashboard() {
 // ─────────────────────────────────────────────────────────────
 // TRANSACTIONS PAGE
 // ─────────────────────────────────────────────────────────────
+// Debounce para busca em tempo real (300ms)
+let _searchTimer = null;
+function debouncedSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => loadTxPage(), 300);
+}
+
 function setTxPeriod(p, el) {
   txPeriod = p;
   document.querySelectorAll('#page-transactions .ptab').forEach(t => t.classList.remove('active'));
@@ -1506,12 +1531,14 @@ async function loadTxPage() {
   const range = periodRange(txPeriod);
   if (range) q = q.gte('date', range.start).lte('date', range.end);
 
-  const typeV = document.getElementById('f-type')?.value;
-  const accV  = document.getElementById('f-account')?.value;
-  const catV  = document.getElementById('f-category')?.value;
-  if (typeV) q = q.eq('type', typeV);
-  if (accV)  q = q.eq('account_id', accV);
-  if (catV)  q = q.eq('category_id', catV);
+  const typeV   = document.getElementById('f-type')?.value;
+  const accV    = document.getElementById('f-account')?.value;
+  const catV    = document.getElementById('f-category')?.value;
+  const searchV = document.getElementById('tx-search')?.value?.trim();
+  if (typeV)   q = q.eq('type', typeV);
+  if (accV)    q = q.eq('account_id', accV);
+  if (catV)    q = q.eq('category_id', catV);
+  if (searchV) q = q.ilike('description', `%${searchV}%`);
 
   const { data, error } = await q;
 
