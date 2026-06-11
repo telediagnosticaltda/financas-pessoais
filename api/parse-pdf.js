@@ -30,13 +30,17 @@ PARA FATURA DE CARTÃO (EQI, BTG, XP, Nubank Crédito):
 - Inclua parcelamentos (cada parcela = uma linha separada)
 - NÃO inclua: total da fatura, pagamento de fatura, encargos, IOF, limite disponível
 
-PARA NOTIFICAÇÃO DE TRANSAÇÃO AVULSA (e-mail do Nubank sobre Pix, transferência, etc.):
-- Extraia APENAS a transação descrita neste e-mail (1 transação por e-mail)
-- "Transferência enviada", "Pix enviado", "Pagamento realizado" = "expense"
-- "Transferência recebida", "Pix recebido", "Dinheiro recebido" = "income"
-- Use o nome do destinatário/remetente como descrição
-- A data é a data do e-mail ou a informada no corpo
-- Se não houver transação financeira (e-mail de marketing, notificação sem valor), retorne []
+PARA NOTIFICAÇÃO DE TRANSAÇÃO AVULSA DO NUBANK (e-mail com assunto):
+O campo "Assunto:" contém a informação principal. Exemplos de como interpretar:
+- "Você recebeu R$ 1.000,00 de João Silva" → income, description="João Silva", amount=1000.00
+- "Transferência realizada com sucesso" + corpo "para Sette Capital Holding... R$ 1.000,00" → expense, description="Sette Capital Holding", amount=1000.00
+- "Pix enviado de R$ 500,00 para Maria" → expense, description="Maria", amount=500.00
+- "Pix recebido de R$ 300,00 de Carlos" → income, description="Carlos", amount=300.00
+- "Compra aprovada: R$ 89,90 no Mercado Livre" → expense, description="Mercado Livre", amount=89.90
+- "Pagamento de boleto realizado: R$ 450,00" → expense, description=nome do beneficiário no corpo, amount=450.00
+- "Sua fatura está disponível" → NÃO é transação → retorne []
+- E-mails de marketing ou informativos sem valor → retorne []
+Use a data do campo "Data:" como data da transação.
 
 PARA EXTRATO DE CONTA CORRENTE (Nubank conta, etc):
 - "Transferência recebida", "Pix recebido", "Depósito", "Salário" = "income" → sempre inclua
