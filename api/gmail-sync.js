@@ -49,7 +49,7 @@ async function getMessage(accessToken, id) {
   return r.json();
 }
 
-// Busca recursiva por anexo PDF em qualquer nível da estrutura MIME
+// Busca recursiva por anexo PDF
 function findPDFPart(payload) {
   if (!payload) return null;
   const isPdf = payload.mimeType === 'application/pdf' ||
@@ -62,6 +62,28 @@ function findPDFPart(payload) {
     }
   }
   return null;
+}
+
+// Extrai texto limpo do corpo do e-mail (HTML → texto)
+function extractTextFromPayload(payload) {
+  if (!payload) return '';
+  // Procura part de texto ou HTML
+  const findText = (p) => {
+    if (!p) return '';
+    if ((p.mimeType === 'text/plain' || p.mimeType === 'text/html') && p.body?.data) {
+      const raw = Buffer.from(p.body.data.replace(/-/g,'+').replace(/_/g,'/'), 'base64').toString('utf-8');
+      // Remove tags HTML e normaliza espaços
+      return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    if (p.parts) {
+      for (const sub of p.parts) {
+        const t = findText(sub);
+        if (t) return t;
+      }
+    }
+    return '';
+  };
+  return findText(payload);
 }
 
 export default async function handler(req, res) {
@@ -107,24 +129,39 @@ export default async function handler(req, res) {
       emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'xp', date, password: cpf.slice(0, 5) });
     }
 
-    // ── Nubank ─────────────────────────────────────────────────
+    // ── Nubank PDFs (extrato mensal) ───────────────────────────
     const nubankMsgs = await searchMessages(accessToken,
       `from:nubank.com.br has:attachment newer_than:${days}d`, 20);
-    log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank com anexo`);
+    log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank com PDF`);
     for (const { id: msgId } of nubankMsgs) {
       const msg = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
-      const pdfPart = (msg.payload?.parts || []).find(p =>
-        p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf'));
+      const pdfPart = findPDFPart(msg.payload);
       if (!pdfPart?.body?.attachmentId) continue;
       emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'nubank', date, password: '' });
     }
 
-    // Ordenar do mais antigo para o mais recente (assim o browser processa em ordem cronológica)
-    emails.sort((a, b) => a.date.localeCompare(b.date));
+    // ── Nubank notificações (sem anexo — Pix, transferências, etc.) ──
+    const nubankNotifs = await searchMessages(accessToken,
+      `from:nubank.com.br -has:attachment newer_than:${days}d`, 50);
+    log.push(`Encontrados ${nubankNotifs.length} e-mail(s) Nubank de notificação`);
 
-    log.push(`Total: ${emails.length} e-mail(s) com PDF encontrados`);
-    return res.status(200).json({ success: true, emails, log });
+    const emailTexts = [];
+    for (const { id: msgId } of nubankNotifs) {
+      const msg  = await getMessage(accessToken, msgId);
+      const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
+      const text = extractTextFromPayload(msg.payload);
+      if (!text || text.length < 30) continue;
+      emailTexts.push({ msgId, bank: 'nubank', date, text });
+    }
+
+    log.push(`Total: ${emails.length} PDF(s), ${emailTexts.length} notificação(ões) encontrados`);
+
+    // Ordenar do mais antigo para o mais recente
+    emails.sort((a, b) => a.date.localeCompare(b.date));
+    emailTexts.sort((a, b) => a.date.localeCompare(b.date));
+
+    return res.status(200).json({ success: true, emails, emailTexts, log });
 
   } catch (err) {
     console.error('[gmail-sync]', err);
