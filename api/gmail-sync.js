@@ -64,21 +64,26 @@ function findPDFPart(payload) {
   return null;
 }
 
-// Extrai texto limpo do corpo do e-mail (HTML → texto)
+// Extrai texto limpo do corpo do e-mail (HTML → texto limpo)
 function extractTextFromPayload(payload) {
   if (!payload) return '';
-  // Procura part de texto ou HTML
   const findText = (p) => {
     if (!p) return '';
     if ((p.mimeType === 'text/plain' || p.mimeType === 'text/html') && p.body?.data) {
       const raw = Buffer.from(p.body.data.replace(/-/g,'+').replace(/_/g,'/'), 'base64').toString('utf-8');
-      // Remove tags HTML e normaliza espaços
-      return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return raw
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')  // remove JS
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')    // remove CSS
+        .replace(/<[^>]+>/g, ' ')                            // remove tags HTML
+        .replace(/https?:\/\/\S+/g, ' ')                    // remove URLs
+        .replace(/[^\w\sÀ-ÿR$.,\-:]/g, ' ')                // remove chars especiais
+        .replace(/\s+/g, ' ')
+        .trim();
     }
     if (p.parts) {
       for (const sub of p.parts) {
         const t = findText(sub);
-        if (t) return t;
+        if (t && t.length > 30) return t;
       }
     }
     return '';
@@ -150,10 +155,18 @@ export default async function handler(req, res) {
     for (const { id: msgId } of nubankNotifs.slice(0, 20)) {
       const msg  = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
-      const text = extractTextFromPayload(msg.payload);
-      if (!text || text.length < 30) continue;
-      // Truncar para reduzir tamanho do payload (Claude só precisa do início)
-      emailTexts.push({ msgId, bank: 'nubank', date, text: text.slice(0, 1500) });
+
+      // Pegar o assunto do e-mail (contém a informação essencial do Nubank)
+      const headers = msg.payload?.headers || [];
+      const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
+
+      // Texto limpo do corpo
+      const body = extractTextFromPayload(msg.payload);
+      if (!body && !subject) continue;
+
+      // Combinar assunto + trecho do corpo (assunto é o mais importante)
+      const content = `Assunto: ${subject}\nData: ${date}\n\n${body.slice(0, 600)}`;
+      emailTexts.push({ msgId, bank: 'nubank', date, text: content });
     }
 
     log.push(`Total: ${emails.length} PDF(s), ${emailTexts.length} notificação(ões) encontrados`);
