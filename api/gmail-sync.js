@@ -97,17 +97,18 @@ function parseNubankNotification(payload, subject, date) {
   const amount = parseFloat(amtMatch[1].replace(/\./g,'').replace(',','.'));
   if (!amount || amount <= 0) return null;
 
-  // Extrai nome do destinatário/remetente
-  const toMatch   = src.match(/para\s+([A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^.\n<R]{3,50}?)(?:\s+foi|\s+com|\.|\n|R\$)/i);
-  const fromMatch = src.match(/de\s+([A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^.\n<R]{3,50}?)(?:\s+foi|\s+com|\.|\n|R\$)/i);
-  // Também tenta pegar do assunto (ex: "Você recebeu R$ X de NOME")
+  // Extrai nome: tenta "Conta destino [Nome]" primeiro, depois "para [Nome maiúsculo]"
+  const destMatch   = src.match(/conta\s+destino\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^.\n<R\d]{3,60}?)(?:\s+Valor|\s+R\$|\s+Chave|\.|\n)/i);
+  const toMatch     = src.match(/para\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{3,60}?)(?:\s+foi|\s+com|\s+Valor|\.|\n|R\$)/i);
+  const fromMatch   = src.match(/(?:de|remetente|origem)\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{3,60}?)(?:\s+foi|\s+com|\s+Valor|\.|\n|R\$)/i);
   const subjectFrom = subject.match(/de\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.]+)$/i);
   const subjectTo   = subject.match(/para\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.]+)$/i);
 
   const description = (
-    (isExpense ? (toMatch?.[1] || subjectTo?.[1]) : (fromMatch?.[1] || subjectFrom?.[1]))
-    || subject
-  ).trim().slice(0, 80);
+    isExpense
+      ? (destMatch?.[1] || toMatch?.[1] || subjectTo?.[1])
+      : (fromMatch?.[1] || subjectFrom?.[1])
+  )?.trim().slice(0, 80) || subject;
 
   return { date, description, amount, type: isExpense ? 'expense' : 'income' };
 }
