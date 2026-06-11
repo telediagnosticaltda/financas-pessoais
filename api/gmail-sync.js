@@ -49,6 +49,15 @@ async function getMessage(accessToken, id) {
   return r.json();
 }
 
+async function getMessageMinimal(accessToken, id) {
+  const r = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=minimal`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  return r.json();
+}
+
+
 // Busca recursiva por anexo PDF
 function findPDFPart(payload) {
   if (!payload) return null;
@@ -156,16 +165,14 @@ export default async function handler(req, res) {
       const msg  = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
 
-      // Pegar o assunto do e-mail (contém a informação essencial do Nubank)
       const headers = msg.payload?.headers || [];
       const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
 
-      // Texto limpo do corpo
-      const body = extractTextFromPayload(msg.payload);
-      if (!body && !subject) continue;
+      // Usa o snippet do Gmail — já é texto limpo extraído pelo Google, sem HTML
+      const snippet = msg.snippet || '';
+      if (!snippet && !subject) continue;
 
-      // Combinar assunto + trecho do corpo (assunto é o mais importante)
-      const content = `Assunto: ${subject}\nData: ${date}\n\n${body.slice(0, 600)}`;
+      const content = `Assunto: ${subject}\nData: ${date}\nConteúdo: ${snippet}`;
       emailTexts.push({ msgId, bank: 'nubank', date, text: content });
     }
 
