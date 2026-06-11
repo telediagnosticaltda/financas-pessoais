@@ -97,10 +97,10 @@ function parseNubankNotification(payload, subject, date) {
   const amount = parseFloat(amtMatch[1].replace(/\./g,'').replace(',','.'));
   if (!amount || amount <= 0) return null;
 
-  // Extrai nome: tenta "Conta destino [Nome]" primeiro, depois "para [Nome maiúsculo]"
-  const destMatch   = src.match(/conta\s+destino\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^.\n<R\d]{3,60}?)(?:\s+Valor|\s+R\$|\s+Chave|\.|\n)/i);
-  const toMatch     = src.match(/para\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{3,60}?)(?:\s+foi|\s+com|\s+Valor|\.|\n|R\$)/i);
-  const fromMatch   = src.match(/(?:de|remetente|origem)\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{3,60}?)(?:\s+foi|\s+com|\s+Valor|\.|\n|R\$)/i);
+  // Extrai nome: sem flag /i para garantir inicial maiúscula (exclui "a conta destino" etc)
+  const destMatch   = src.match(/[Cc]onta\s+[Dd]estino\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^.\n<]{3,60}?)(?=\s+[Vv]alor|\s+R\$|\.|\n)/);
+  const toMatch     = src.match(/[Pp]ara\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{2,60}?)(?=\s+foi|\s+com|\s+[Vv]alor|\.|\n|R\$)/);
+  const fromMatch   = src.match(/(?:[Dd]e|[Rr]emetente)\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{2,60}?)(?=\s+foi|\s+com|\s+[Vv]alor|\.|\n|R\$)/);
   const subjectFrom = subject.match(/de\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.]+)$/i);
   const subjectTo   = subject.match(/para\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.]+)$/i);
 
