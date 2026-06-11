@@ -1948,15 +1948,21 @@ async function runGmailSync(days = 50) {
     let totalImported = 0, totalDuplicates = 0, totalErrors = 0;
 
     // 2. Verificar quais já foram importados e processar o primeiro pendente
-    const { emails = [] } = data; // Lista ordenada do mais antigo ao mais recente
+    const { emails = [], emailTexts = [] } = data;
 
-    if (!emails.length) {
-      toast('Gmail: nenhum arquivo encontrado no período ✓');
+    // Combinar PDFs e notificações em uma única lista de pendentes
+    const allItems = [
+      ...emails.map(e => ({ ...e, kind: 'pdf' })),
+      ...emailTexts.map(e => ({ ...e, kind: 'text' }))
+    ];
+
+    if (!allItems.length) {
+      toast('Gmail: nenhum e-mail novo encontrado no período ✓');
       return;
     }
 
-    // Verificar em paralelo quais já foram importados (transações ou marcador de processado)
-    const processed = await Promise.all(emails.map(async em => {
+    // Verificar em paralelo quais já foram importados
+    const processed = await Promise.all(allItems.map(async em => {
       const [{ data: ex }, { data: marker }] = await Promise.all([
         db.from('transactions').select('id').like('external_id', `gmail_${em.msgId}_%`).limit(1),
         db.from('app_tokens').select('key').eq('key', `gmail_proc_${em.msgId}`).limit(1)
@@ -1966,33 +1972,40 @@ async function runGmailSync(days = 50) {
 
     const pending = processed.filter(e => !e.done);
     const doneCount = processed.length - pending.length;
-    console.log(`[Gmail] ${doneCount} já importados, ${pending.length} pendentes`);
+    console.log(`[Gmail] ${doneCount} já importados, ${pending.length} pendentes (${emails.length} PDFs + ${emailTexts.length} notificações)`);
 
     if (!pending.length) {
-      toast(`Gmail: todos os ${emails.length} arquivos já foram importados ✓`);
+      toast(`Gmail: todos os ${allItems.length} e-mails já foram importados ✓`);
       return;
     }
 
     // Processar o primeiro pendente
     const next = pending[0];
-    if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Baixando ${next.filename || next.bank}...`;
+    if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> ${next.kind === 'pdf' ? 'Baixando' : 'Processando'} ${next.filename || next.bank}...`;
 
-    // Baixar o PDF via endpoint dedicado
-    const pdfRes = await fetch('/api/gmail-get-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ msgId: next.msgId, attId: next.attId })
-    });
-    const { base64, error: pdfErr } = await pdfRes.json();
-    if (pdfErr) throw new Error('Erro ao baixar PDF: ' + pdfErr);
+    // Processar conforme o tipo: PDF ou notificação de texto
+    let text;
+    if (next.kind === 'pdf') {
+      // Baixar o PDF via endpoint dedicado
+      const pdfRes = await fetch('/api/gmail-get-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msgId: next.msgId, attId: next.attId })
+      });
+      const { base64, error: pdfErr } = await pdfRes.json();
+      if (pdfErr) throw new Error('Erro ao baixar PDF: ' + pdfErr);
 
-    if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${next.bank} (${next.date})...`;
+      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${next.bank} (${next.date})...`;
 
-    // Converter e extrair texto com PDF.js
-    const binary = atob(base64);
-    const bytes  = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const text = await extractTextFromBuffer(bytes.buffer, next.password);
+      const binary = atob(base64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      text = await extractTextFromBuffer(bytes.buffer, next.password);
+    } else {
+      // Notificação de texto — já temos o conteúdo
+      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando notificação ${next.bank} (${next.date})...`;
+      text = next.text;
+    }
 
     // Claude extrai as transações
     const parseRes = await fetch('/api/parse-pdf', {
