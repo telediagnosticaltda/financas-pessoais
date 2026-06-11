@@ -1590,6 +1590,7 @@ function populateFilterSelects() {
   accSel.innerHTML = '<option value="">Todas as contas</option>' +
     accounts.map(a => `<option value="${a.id}" ${accV===a.id?'selected':''}>${a.name}</option>`).join('');
   catSel.innerHTML = '<option value="">Todas as categorias</option>' +
+    '<option value="__none__">— Sem categoria</option>' +
     categories.map(c => `<option value="${c.id}" ${catV===c.id?'selected':''}>${c.icon} ${c.name}</option>`).join('');
 }
 
@@ -1612,10 +1613,11 @@ async function loadTxPage() {
   const accV    = document.getElementById('f-account')?.value;
   const catV    = document.getElementById('f-category')?.value;
   const searchV = document.getElementById('tx-search')?.value?.trim();
-  if (typeV)   q = q.eq('type', typeV);
-  if (accV)    q = q.eq('account_id', accV);
-  if (catV)    q = q.eq('category_id', catV);
-  if (searchV) q = q.ilike('description', `%${searchV}%`);
+  if (typeV)              q = q.eq('type', typeV);
+  if (accV)               q = q.eq('account_id', accV);
+  if (catV === '__none__') q = q.is('category_id', null);
+  else if (catV)          q = q.eq('category_id', catV);
+  if (searchV)            q = q.ilike('description', `%${searchV}%`);
 
   const { data, error } = await q;
 
@@ -1663,7 +1665,9 @@ async function loadTxPage() {
           ${t.notes ? `<div style="font-size:11px;color:var(--text-3);margin-top:1px">${t.notes}</div>` : ''}
         </td>
         <td>
-          ${cat ? `<span class="cat-tag">${cat.icon} ${cat.name}</span>` : '<span style="color:var(--text-3)">—</span>'}
+          <div class="cat-cell" onclick="quickCatPicker('${t.id}','${t.type}',this)" title="Clique para alterar categoria" style="cursor:pointer;display:inline-block">
+            ${cat ? `<span class="cat-tag">${cat.icon} ${cat.name}</span>` : '<span style="color:var(--text-3);padding:2px 6px">— atribuir</span>'}
+          </div>
         </td>
         <td>
           ${acc ? `<span class="badge" style="background:${acc.color}20;color:${acc.color}">${acc.name}</span>` : '—'}
@@ -2297,7 +2301,83 @@ function getCategoryForDesc(description) {
   return best;
 }
 
-async function applyRuleToAll(description, categoryId) {
+// Seletor rápido de categoria — abre ao clicar na coluna de categoria
+function quickCatPicker(txId, txType, cell) {
+  // Remove qualquer picker existente
+  document.querySelectorAll('.quick-cat-picker').forEach(el => el.remove());
+
+  const filtered = categories.filter(c => !c.type || c.type === txType);
+  const picker = document.createElement('div');
+  picker.className = 'quick-cat-picker';
+  picker.style.cssText = `
+    position:absolute;z-index:9999;background:var(--surface);border:1px solid var(--border);
+    border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:6px;min-width:200px;max-height:260px;overflow-y:auto
+  `;
+
+  // Opção para remover categoria
+  const removeItem = document.createElement('div');
+  removeItem.className = 'qcp-item';
+  removeItem.innerHTML = '<span style="color:var(--text-muted)">✕ Remover categoria</span>';
+  removeItem.style.cssText = 'padding:6px 10px;border-radius:6px;cursor:pointer;font-size:.85rem';
+  removeItem.onmouseenter = () => removeItem.style.background = 'var(--bg)';
+  removeItem.onmouseleave = () => removeItem.style.background = '';
+  removeItem.onclick = () => applyQuickCat(txId, null, picker);
+  picker.appendChild(removeItem);
+
+  filtered.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'qcp-item';
+    item.innerHTML = `${c.icon} <span>${c.name}</span>`;
+    item.style.cssText = 'padding:6px 10px;border-radius:6px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:6px';
+    item.onmouseenter = () => item.style.background = 'var(--bg)';
+    item.onmouseleave = () => item.style.background = '';
+    item.onclick = () => applyQuickCat(txId, c.id, picker);
+    picker.appendChild(item);
+  });
+
+  // Posiciona abaixo da célula
+  document.body.appendChild(picker);
+  const rect = cell.getBoundingClientRect();
+  picker.style.top  = `${rect.bottom + window.scrollY + 4}px`;
+  picker.style.left = `${Math.min(rect.left + window.scrollX, window.innerWidth - 220)}px`;
+
+  // Fecha ao clicar fora
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', close); }
+    });
+  }, 0);
+}
+
+async function applyQuickCat(txId, catId, picker) {
+  picker.remove();
+  await db.from('transactions').update({ category_id: catId }).eq('id', txId);
+
+  // Se atribuiu uma categoria, verificar se há similares sem categoria
+  if (catId) {
+    const { data: tx } = await db.from('transactions').select('description').eq('id', txId).single();
+    if (tx?.description) {
+      const keyword = tx.description.toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+      await saveCatRule(tx.description, catId);
+      const { data: similar } = await db.from('transactions')
+        .select('id').is('category_id', null).ilike('description', `%${keyword}%`);
+      if (similar?.length > 0) {
+        const catName = categories.find(c => c.id === catId)?.name || 'esta categoria';
+        showConfirm(
+          'Aplicar a lançamentos similares?',
+          `Há ${similar.length} lançamento(s) de "${keyword}" sem categoria. Aplicar "${catName}" a todos?`,
+          async () => {
+            for (const s of similar) await db.from('transactions').update({ category_id: catId }).eq('id', s.id);
+            toast(`Categoria aplicada a ${similar.length} lançamento(s)!`);
+            loadTxPage();
+          }, 'Aplicar a todos', 'btn-primary',
+          () => {}, 'Apenas este'
+        );
+      }
+    }
+  }
+  loadTxPage();
+}
   // Update all uncategorized transactions with similar description
   const keyword = description.toLowerCase().split(/\s+/).slice(0, 3).join(' ');
   const { data: matches } = await db.from('transactions')
