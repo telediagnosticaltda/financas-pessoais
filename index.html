@@ -1955,6 +1955,7 @@ async function runGmailSync(days = 50) {
       ...emails.map(e => ({ ...e, kind: 'pdf' })),
       ...emailTexts.map(e => ({ ...e, kind: 'text' }))
     ];
+    console.log(`[Gmail] Recebido: ${emails.length} PDFs + ${emailTexts.length} notificações = ${allItems.length} total`);
 
     if (!allItems.length) {
       toast('Gmail: nenhum e-mail novo encontrado no período ✓');
