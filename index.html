@@ -1989,27 +1989,29 @@ async function runGmailSync(days = 50) {
 
       for (const notif of textPending) {
         try {
-          const parseRes = await fetch('/api/parse-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: notif.text })
-          });
-          const { transactions: txsRaw = [] } = await parseRes.json();
-          const hoje = new Date().toISOString().slice(0, 10);
-          const txs  = txsRaw.filter(t => t.date <= hoje);
+          // Servidor já parseou com regex — sem Claude, sem ambiguidade
+          const tx = notif.parsed;
+          if (!tx || !tx.amount || tx.amount <= 0) {
+            await db.from('app_tokens').upsert({ key: `gmail_proc_${notif.msgId}`, value: '1' });
+            continue;
+          }
+          const hoje  = new Date().toISOString().slice(0, 10);
+          if (tx.date > hoje) {
+            await db.from('app_tokens').upsert({ key: `gmail_proc_${notif.msgId}`, value: '1' });
+            continue;
+          }
           const accId = await getAccountIdByBank(notif.bank);
           if (accId) {
-            for (const [i, tx] of txs.entries()) {
-              const extId = `gmail_${notif.msgId}_${i}`;
-              const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
-              if (ex?.length) { totalDuplicates++; continue; }
+            const extId = `gmail_${notif.msgId}_0`;
+            const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
+            if (!ex?.length) {
               const { error } = await db.from('transactions').insert({
                 date: tx.date, description: tx.description, amount: tx.amount,
                 type: tx.type, account_id: accId, source: 'manual', external_id: extId,
                 category_id: getCategoryForDesc(tx.description) || null
               });
               if (error) totalErrors++; else totalImported++;
-            }
+            } else { totalDuplicates++; }
           }
           await db.from('app_tokens').upsert({ key: `gmail_proc_${notif.msgId}`, value: '1' });
         } catch (err) {
