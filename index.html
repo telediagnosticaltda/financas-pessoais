@@ -2378,6 +2378,8 @@ async function applyQuickCat(txId, catId, picker) {
   }
   loadTxPage();
 }
+
+async function applyRuleToAll(description, categoryId) {
   // Update all uncategorized transactions with similar description
   const keyword = description.toLowerCase().split(/\s+/).slice(0, 3).join(' ');
   const { data: matches } = await db.from('transactions')
