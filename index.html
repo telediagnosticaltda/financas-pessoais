@@ -1980,14 +1980,51 @@ async function runGmailSync(days = 50) {
       return;
     }
 
-    // Processar o primeiro pendente
-    const next = pending[0];
-    if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> ${next.kind === 'pdf' ? 'Baixando' : 'Processando'} ${next.filename || next.bank}...`;
+    const textPending = pending.filter(e => e.kind === 'text');
+    const pdfPending  = pending.filter(e => e.kind === 'pdf');
 
-    // Processar conforme o tipo: PDF ou notificação de texto
-    let text;
-    if (next.kind === 'pdf') {
-      // Baixar o PDF via endpoint dedicado
+    // ── Processar TODAS as notificações de texto de uma vez (são rápidas) ──
+    if (textPending.length > 0) {
+      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${textPending.length} notificação(ões)...`;
+
+      for (const notif of textPending) {
+        try {
+          const parseRes = await fetch('/api/parse-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: notif.text })
+          });
+          const { transactions: txsRaw = [] } = await parseRes.json();
+          const hoje = new Date().toISOString().slice(0, 10);
+          const txs  = txsRaw.filter(t => t.date <= hoje);
+          const accId = await getAccountIdByBank(notif.bank);
+          if (accId) {
+            for (const [i, tx] of txs.entries()) {
+              const extId = `gmail_${notif.msgId}_${i}`;
+              const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
+              if (ex?.length) { totalDuplicates++; continue; }
+              const { error } = await db.from('transactions').insert({
+                date: tx.date, description: tx.description, amount: tx.amount,
+                type: tx.type, account_id: accId, source: 'manual', external_id: extId,
+                category_id: getCategoryForDesc(tx.description) || null
+              });
+              if (error) totalErrors++; else totalImported++;
+            }
+          }
+          await db.from('app_tokens').upsert({ key: `gmail_proc_${notif.msgId}`, value: '1' });
+        } catch (err) {
+          console.warn(`⚠ Notificação ${notif.msgId}:`, err.message);
+          await db.from('app_tokens').upsert({ key: `gmail_proc_${notif.msgId}`, value: '1' });
+        }
+      }
+      console.log(`✓ ${textPending.length} notificações processadas, ${totalImported} importadas`);
+    }
+
+    // ── Processar 1 PDF por clique (são grandes, demoram mais) ──
+    if (pdfPending.length > 0) {
+      const next = pdfPending[0];
+      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Baixando PDF ${next.bank} (${next.date})...`;
+
       const pdfRes = await fetch('/api/gmail-get-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1996,48 +2033,39 @@ async function runGmailSync(days = 50) {
       const { base64, error: pdfErr } = await pdfRes.json();
       if (pdfErr) throw new Error('Erro ao baixar PDF: ' + pdfErr);
 
-      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando ${next.bank} (${next.date})...`;
-
+      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando PDF ${next.bank} (${next.date})...`;
       const binary = atob(base64);
       const bytes  = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      text = await extractTextFromBuffer(bytes.buffer, next.password);
-    } else {
-      // Notificação de texto — já temos o conteúdo
-      if (btn) btn.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Processando notificação ${next.bank} (${next.date})...`;
-      text = next.text;
-    }
+      const text = await extractTextFromBuffer(bytes.buffer, next.password);
 
-    // Claude extrai as transações
-    const parseRes = await fetch('/api/parse-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
-    const { transactions: txsRaw = [] } = await parseRes.json();
-
-    // Filtrar parcelamentos com datas futuras ainda não vencidos
-    const hoje = new Date().toISOString().slice(0, 10);
-    const txs = txsRaw.filter(t => t.date <= hoje);
-
-    // Importar para Supabase
-    const accId = await getAccountIdByBank(next.bank);
-    if (!accId) throw new Error(`Conta não encontrada para ${next.bank}`);
-
-    for (const [i, tx] of txs.entries()) {
-      const extId = `gmail_${next.msgId}_${i}`;
-      const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
-      if (ex?.length) { totalDuplicates++; continue; }
-      const { error } = await db.from('transactions').insert({
-        date: tx.date, description: tx.description, amount: tx.amount,
-        type: tx.type, account_id: accId, source: 'manual', external_id: extId,
-        category_id: getCategoryForDesc(tx.description) || null
+      const parseRes = await fetch('/api/parse-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
       });
-      if (error) totalErrors++;
-      else totalImported++;
+      const { transactions: txsRaw = [] } = await parseRes.json();
+      const hoje = new Date().toISOString().slice(0, 10);
+      const txs  = txsRaw.filter(t => t.date <= hoje);
+      const accId = await getAccountIdByBank(next.bank);
+      if (!accId) throw new Error(`Conta não encontrada para ${next.bank}`);
+      for (const [i, tx] of txs.entries()) {
+        const extId = `gmail_${next.msgId}_${i}`;
+        const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
+        if (ex?.length) { totalDuplicates++; continue; }
+        const { error } = await db.from('transactions').insert({
+          date: tx.date, description: tx.description, amount: tx.amount,
+          type: tx.type, account_id: accId, source: 'manual', external_id: extId,
+          category_id: getCategoryForDesc(tx.description) || null
+        });
+        if (error) totalErrors++; else totalImported++;
+      }
+      await db.from('app_tokens').upsert({ key: `gmail_proc_${next.msgId}`, value: '1' });
+      console.log(`✓ PDF ${next.bank} (${next.date}): ${txs.length} transações`);
     }
 
-    const remaining = pending.length - 1;
+    const pdfRestantes = pdfPending.length - (pdfPending.length > 0 ? 1 : 0);
+    const remaining = pdfRestantes;
 
     // Marcar e-mail como processado mesmo que 0 transações (evita loop infinito)
     await db.from('app_tokens').upsert({ key: `gmail_proc_${next.msgId}`, value: '1' });
