@@ -141,9 +141,9 @@ export default async function handler(req, res) {
       emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'nubank', date, password: '' });
     }
 
-    // ── Nubank notificações (sem anexo — Pix, transferências, etc.) ──
+    // ── Nubank notificações (sem anexo — só últimos 35 dias, filtra marketing) ──
     const nubankNotifs = await searchMessages(accessToken,
-      `from:nubank.com.br -has:attachment newer_than:${days}d`, 50);
+      `from:todomundo@nubank.com.br -has:attachment newer_than:35d`, 50);
     log.push(`Encontrados ${nubankNotifs.length} e-mail(s) Nubank de notificação`);
 
     const emailTexts = [];
