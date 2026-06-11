@@ -73,6 +73,23 @@ function findPDFPart(payload) {
   return null;
 }
 
+// Extrai text/plain do e-mail (sem HTML — tem o valor limpo)
+function extractPlainText(payload) {
+  if (!payload) return '';
+  const find = (p) => {
+    if (!p) return '';
+    if (p.mimeType === 'text/plain' && p.body?.data) {
+      return Buffer.from(p.body.data.replace(/-/g,'+').replace(/_/g,'/'), 'base64')
+        .toString('utf-8').replace(/\s+/g, ' ').trim();
+    }
+    if (p.parts) {
+      for (const sub of p.parts) { const t = find(sub); if (t && t.length > 20) return t; }
+    }
+    return '';
+  };
+  return find(payload);
+}
+
 // Extrai texto limpo do corpo do e-mail (HTML → texto limpo)
 function extractTextFromPayload(payload) {
   if (!payload) return '';
@@ -164,15 +181,16 @@ export default async function handler(req, res) {
     for (const { id: msgId } of nubankNotifs.slice(0, 20)) {
       const msg  = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
-
       const headers = msg.payload?.headers || [];
       const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
 
-      // Usa o snippet do Gmail — já é texto limpo extraído pelo Google, sem HTML
-      const snippet = msg.snippet || '';
-      if (!snippet && !subject) continue;
+      // text/plain tem o conteúdo limpo com o valor; snippet é o fallback (mas curto demais)
+      const plainText = extractPlainText(msg.payload);
+      const snippet   = msg.snippet || '';
+      const body      = plainText || snippet;
 
-      const content = `Assunto: ${subject}\nData: ${date}\nConteúdo: ${snippet}`;
+      if (!body && !subject) continue;
+      const content = `Assunto: ${subject}\nData: ${date}\n${body.slice(0, 800)}`;
       emailTexts.push({ msgId, bank: 'nubank', date, text: content });
     }
 
