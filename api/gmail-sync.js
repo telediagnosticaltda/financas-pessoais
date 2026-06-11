@@ -147,12 +147,13 @@ export default async function handler(req, res) {
     log.push(`Encontrados ${nubankNotifs.length} e-mail(s) Nubank de notificação`);
 
     const emailTexts = [];
-    for (const { id: msgId } of nubankNotifs) {
+    for (const { id: msgId } of nubankNotifs.slice(0, 20)) {
       const msg  = await getMessage(accessToken, msgId);
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const text = extractTextFromPayload(msg.payload);
       if (!text || text.length < 30) continue;
-      emailTexts.push({ msgId, bank: 'nubank', date, text });
+      // Truncar para reduzir tamanho do payload (Claude só precisa do início)
+      emailTexts.push({ msgId, bank: 'nubank', date, text: text.slice(0, 1500) });
     }
 
     log.push(`Total: ${emails.length} PDF(s), ${emailTexts.length} notificação(ões) encontrados`);
