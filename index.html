@@ -2069,10 +2069,7 @@ async function runGmailSync(days = 50) {
     const pdfRestantes = pdfPending.length - (pdfPending.length > 0 ? 1 : 0);
     const remaining = pdfRestantes;
 
-    // Marcar e-mail como processado mesmo que 0 transações (evita loop infinito)
-    await db.from('app_tokens').upsert({ key: `gmail_proc_${next.msgId}`, value: '1' });
-
-    toast(`Gmail: ${totalImported} importadas${remaining > 0 ? ` — ${remaining} arquivo(s) restantes, clique para continuar` : ' ✓ tudo importado'}`);
+    toast(`Gmail: ${totalImported} importadas${remaining > 0 ? ` — ${remaining} PDF(s) restantes, clique para continuar` : ' ✓ tudo importado'}`);
     if (totalImported > 0) loadDashboard();
 
   } catch (err) {
