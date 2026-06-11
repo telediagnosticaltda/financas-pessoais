@@ -30,6 +30,14 @@ PARA FATURA DE CARTÃO (EQI, BTG, XP, Nubank Crédito):
 - Inclua parcelamentos (cada parcela = uma linha separada)
 - NÃO inclua: total da fatura, pagamento de fatura, encargos, IOF, limite disponível
 
+PARA NOTIFICAÇÃO DE TRANSAÇÃO AVULSA (e-mail do Nubank sobre Pix, transferência, etc.):
+- Extraia APENAS a transação descrita neste e-mail (1 transação por e-mail)
+- "Transferência enviada", "Pix enviado", "Pagamento realizado" = "expense"
+- "Transferência recebida", "Pix recebido", "Dinheiro recebido" = "income"
+- Use o nome do destinatário/remetente como descrição
+- A data é a data do e-mail ou a informada no corpo
+- Se não houver transação financeira (e-mail de marketing, notificação sem valor), retorne []
+
 PARA EXTRATO DE CONTA CORRENTE (Nubank conta, etc):
 - "Transferência recebida", "Pix recebido", "Depósito", "Salário" = "income" → sempre inclua
 - "Transferência enviada", "Pix enviado" para pessoas/empresas = "expense" → inclua
