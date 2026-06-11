@@ -1445,6 +1445,7 @@ async function loadBase() {
   ]);
   accounts   = ra.data || [];
   categories = rc.data || [];
+  await loadCatRules();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1777,7 +1778,7 @@ async function saveTx() {
   if (error) { toast('Erro ao salvar: ' + error.message, 'error'); return; }
 
   // Salvar regra de categoria para auto-categorização futura
-  if (cat_id && desc) saveCatRule(desc, cat_id);
+  if (cat_id && desc) await saveCatRule(desc, cat_id);
 
   // Fechar modal e recarregar imediatamente
   closeModal('modal-tx');
@@ -2242,22 +2243,45 @@ function getSavedCPF() { return localStorage.getItem('fp_cpf') || ''; }
 // ─────────────────────────────────────────────────────────────
 // CATEGORY RULES (auto-categorization)
 // ─────────────────────────────────────────────────────────────
-function getCatRules() {
-  try { return JSON.parse(localStorage.getItem('fp_cat_rules') || '{}'); }
-  catch { return {}; }
+// CATEGORY RULES — salvas no Supabase (funciona em qualquer browser e no cron)
+// ─────────────────────────────────────────────────────────────
+let catRulesCache = null; // cache em memória para performance
+
+async function loadCatRules() {
+  const { data } = await db.from('category_rules').select('keyword, category_id');
+  catRulesCache = {};
+  (data || []).forEach(r => { catRulesCache[r.keyword] = r.category_id; });
+
+  // Migra regras antigas do localStorage para o Supabase (roda só uma vez)
+  try {
+    const local = JSON.parse(localStorage.getItem('fp_cat_rules') || '{}');
+    if (Object.keys(local).length > 0) {
+      for (const [keyword, category_id] of Object.entries(local)) {
+        if (!catRulesCache[keyword]) {
+          await db.from('category_rules').upsert({ keyword, category_id });
+          catRulesCache[keyword] = category_id;
+        }
+      }
+      localStorage.removeItem('fp_cat_rules');
+      console.log(`✓ ${Object.keys(local).length} regras migradas do localStorage para Supabase`);
+    }
+  } catch { /* ignora erros de migração */ }
 }
 
-function saveCatRule(description, categoryId) {
+function getCatRules() {
+  return catRulesCache || {};
+}
+
+async function saveCatRule(description, categoryId) {
   if (!description || !categoryId) return;
-  const rules = getCatRules();
-  // Use first 3 significant words as key
-  const key = description.toLowerCase()
-    .replace(/\s*\(\d+\/\d+\)\s*/g, '') // remove parcel notation like (2/6)
+  const keyword = description.toLowerCase()
+    .replace(/\s*\(\d+\/\d+\)\s*/g, '')
     .trim()
     .split(/\s+/).slice(0, 3).join(' ');
-  if (key.length < 3) return;
-  rules[key] = categoryId;
-  localStorage.setItem('fp_cat_rules', JSON.stringify(rules));
+  if (keyword.length < 3) return;
+  if (!catRulesCache) catRulesCache = {};
+  catRulesCache[keyword] = categoryId; // atualiza cache imediatamente
+  await db.from('category_rules').upsert({ keyword, category_id: categoryId, updated_at: new Date().toISOString() });
 }
 
 function getCategoryForDesc(description) {
