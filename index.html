@@ -733,6 +733,116 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 @media (max-width: 700px) {
   #charts-top-grid { grid-template-columns: 1fr !important; }
 }
+
+/* ── FUNCIONÁRIAS ── */
+.emp-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.emp-card-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding-bottom: .875rem;
+  border-bottom: 1.5px solid var(--border);
+}
+.emp-avatar {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  background: var(--primary-l);
+  flex-shrink: 0;
+}
+.emp-name { font-size: 16px; font-weight: 700; }
+.emp-month-label { font-size: 12px; color: var(--text-3); }
+.emp-field-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+.emp-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--green);
+}
+.emp-value.empty { font-size: 15px; font-weight: 400; color: var(--text-3); }
+.emp-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: .45rem .875rem;
+  border-radius: 8px;
+  border: 1.5px dashed var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.emp-upload-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-l);
+}
+.emp-upload-btn.loaded {
+  border-style: solid;
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-l);
+}
+.emp-qr-wrap {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+}
+.emp-qr-wrap canvas, .emp-qr-wrap img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+.emp-paid-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .875rem 1rem;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all .15s;
+}
+.emp-paid-row.paid {
+  background: var(--green-l);
+  border-color: var(--green);
+}
+.emp-paid-row input[type="checkbox"] {
+  width: 18px; height: 18px;
+  accent-color: var(--green);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.emp-paid-label { font-size: 13px; font-weight: 600; }
+.emp-paid-date { font-size: 11px; color: var(--text-3); margin-left: auto; }
+
+/* ── DUPLICATAS ── */
+tr.duplicate-row { background: #FFFBEA; }
+tr.duplicate-row:hover { background: #FFF6D6; }
+#btn-duplicates.active { background: #FFFBEA; color: #B45309; border-color: #D97706; }
 </style>
 </head>
 <body>
@@ -753,6 +863,9 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
     </button>
     <button class="nav-item" data-page="charts" onclick="navigate('charts')">
       <i class="ti ti-chart-pie"></i> Gráficos
+    </button>
+    <button class="nav-item" data-page="employees" onclick="navigate('employees')">
+      <i class="ti ti-users"></i> Funcionárias
     </button>
     <div class="nav-label" style="margin-top:auto">Configurações</div>
     <button class="nav-item" data-page="categories" onclick="navigate('categories')">
@@ -834,6 +947,9 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
       <div class="page-header">
         <h1 class="page-title">Lançamentos</h1>
         <div class="header-right">
+          <button class="btn btn-ghost" id="btn-duplicates" onclick="toggleDuplicates()" title="Mostrar lançamentos com data, conta e valor iguais">
+            <i class="ti ti-copy"></i> Ver duplicatas
+          </button>
           <button class="btn btn-ghost" onclick="openImportModal()">
             <i class="ti ti-upload"></i> Importar arquivo
           </button>
@@ -1051,6 +1167,37 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
             <i class="ti ti-device-floppy"></i> Salvar CPF
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- PAGE: EMPLOYEES -->
+    <div id="page-employees" class="page">
+      <div class="page-header">
+        <h1 class="page-title">Funcionárias</h1>
+      </div>
+
+      <!-- Navegação mês/ano -->
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:1rem">
+        <div class="period-tabs" style="gap:2px">
+          <button class="ptab" onclick="setEmpMonth(1,this)">Jan</button>
+          <button class="ptab" onclick="setEmpMonth(2,this)">Fev</button>
+          <button class="ptab" onclick="setEmpMonth(3,this)">Mar</button>
+          <button class="ptab" onclick="setEmpMonth(4,this)">Abr</button>
+          <button class="ptab" onclick="setEmpMonth(5,this)">Mai</button>
+          <button class="ptab" onclick="setEmpMonth(6,this)">Jun</button>
+          <button class="ptab" onclick="setEmpMonth(7,this)">Jul</button>
+          <button class="ptab" onclick="setEmpMonth(8,this)">Ago</button>
+          <button class="ptab" onclick="setEmpMonth(9,this)">Set</button>
+          <button class="ptab" onclick="setEmpMonth(10,this)">Out</button>
+          <button class="ptab" onclick="setEmpMonth(11,this)">Nov</button>
+          <button class="ptab" onclick="setEmpMonth(12,this)">Dez</button>
+        </div>
+        <select class="filter-select" id="emp-year-sel" onchange="setEmpYear(this.value)" style="font-weight:700;color:var(--primary)"></select>
+      </div>
+
+      <!-- Cards das funcionárias -->
+      <div id="emp-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1.25rem">
+        <div class="loading-msg">Carregando...</div>
       </div>
     </div>
 
@@ -1326,6 +1473,9 @@ let accounts   = [];
 let categories = [];
 let confirmCallback    = null;
 let confirmAltCallback = null;
+let showDuplicates = false;
+let empMonth = new Date().getMonth() + 1;
+let empYear  = new Date().getFullYear();
 
 const PALETTE = [
   '#4A57CC','#16A376','#D94F3A','#BA7517','#993556',
@@ -1433,6 +1583,7 @@ function navigate(page) {
   if (page === 'charts') { initChartNav(); loadChartPage(); }
   if (page === 'categories')   loadCatPage();
   if (page === 'settings')     loadSettingsPage();
+  if (page === 'employees')    initEmpNav();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1613,13 +1764,28 @@ async function loadTxPage() {
   const accV    = document.getElementById('f-account')?.value;
   const catV    = document.getElementById('f-category')?.value;
   const searchV = document.getElementById('tx-search')?.value?.trim();
-  if (typeV)              q = q.eq('type', typeV);
-  if (accV)               q = q.eq('account_id', accV);
-  if (catV === '__none__') q = q.is('category_id', null);
-  else if (catV)          q = q.eq('category_id', catV);
-  if (searchV)            q = q.ilike('description', `%${searchV}%`);
+  if (!showDuplicates) {
+    // Normal filters only when not in duplicates mode
+    if (typeV)               q = q.eq('type', typeV);
+    if (accV)                q = q.eq('account_id', accV);
+    if (catV === '__none__') q = q.is('category_id', null);
+    else if (catV)           q = q.eq('category_id', catV);
+    if (searchV)             q = q.ilike('description', `%${searchV}%`);
+  }
 
-  const { data, error } = await q;
+  const { data: allData, error } = await q;
+  let data = allData;
+
+  // ── MODO DUPLICATAS ──────────────────────────────────────────
+  if (showDuplicates && allData) {
+    // Group by date + account_id + amount (rounded to 2 decimal places)
+    const key = t => `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}`;
+    const groups = {};
+    allData.forEach(t => { const k = key(t); (groups[k] = groups[k] || []).push(t); });
+    // Keep only transactions that have at least one duplicate
+    data = allData.filter(t => groups[key(t)].length > 1);
+  }
+  // ────────────────────────────────────────────────────────────
 
   // Update summary cards
   if (txPeriod !== 'all') {
@@ -1650,18 +1816,29 @@ async function loadTxPage() {
   }
 
   if (!data?.length) {
-    tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><i class="ti ti-inbox"></i><p>Nenhum lançamento encontrado</p></div></td></tr>';
+    const msg = showDuplicates
+      ? '<i class="ti ti-circle-check" style="color:var(--green)"></i><p>Nenhuma duplicata encontrada no período ✓</p>'
+      : '<i class="ti ti-inbox"></i><p>Nenhum lançamento encontrado</p>';
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty">${msg}</div></td></tr>`;
     return;
+  }
+
+  // Build duplicate key set for row highlighting
+  const dupKeySet = new Set();
+  if (showDuplicates && data) {
+    const keyFn = t => `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}`;
+    data.forEach(t => dupKeySet.add(keyFn(t)));
   }
 
   tbody.innerHTML = data.map(t => {
     const cat = categories.find(c => c.id === t.category_id);
     const acc = accounts.find(a => a.id === t.account_id);
+    const isDup = dupKeySet.has(`${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}`);
     return `
-      <tr>
+      <tr class="${isDup ? 'duplicate-row' : ''}">
         <td style="white-space:nowrap;color:var(--text-2);font-size:12px">${fmtDate(t.date)}</td>
         <td>
-          <div style="font-weight:600">${t.description}</div>
+          <div style="font-weight:600">${isDup ? '<span title="Possível duplicata" style="color:#B45309;margin-right:4px">⚠</span>' : ''}${t.description}</div>
           ${t.notes ? `<div style="font-size:11px;color:var(--text-3);margin-top:1px">${t.notes}</div>` : ''}
         </td>
         <td>
@@ -3097,6 +3274,241 @@ async function renderEvoChart() {
       }
     }
   });
+}
+
+// ─────────────────────────────────────────────────────────────
+// DUPLICATAS
+// ─────────────────────────────────────────────────────────────
+function toggleDuplicates() {
+  showDuplicates = !showDuplicates;
+  const btn = document.getElementById('btn-duplicates');
+  if (btn) {
+    if (showDuplicates) {
+      btn.classList.add('active');
+      btn.innerHTML = '<i class="ti ti-copy"></i> Ocultar duplicatas';
+    } else {
+      btn.classList.remove('active');
+      btn.innerHTML = '<i class="ti ti-copy"></i> Ver duplicatas';
+    }
+  }
+  loadTxPage();
+}
+
+// ─────────────────────────────────────────────────────────────
+// FUNCIONÁRIAS
+// ─────────────────────────────────────────────────────────────
+const EMPLOYEES = ['Andresa', 'Maria Lucia'];
+const EMP_MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+function initEmpNav() {
+  // Highlight current month
+  const tabs = document.querySelectorAll('#page-employees .period-tabs .ptab');
+  tabs.forEach((t, i) => { t.classList.toggle('active', i + 1 === empMonth); });
+
+  // Build year dropdown
+  const sel = document.getElementById('emp-year-sel');
+  const now = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = now; y >= now - 2; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === empYear) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  loadEmpPage();
+}
+
+function setEmpMonth(month, el) {
+  empMonth = month;
+  document.querySelectorAll('#page-employees .period-tabs .ptab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadEmpPage();
+}
+
+function setEmpYear(year) {
+  empYear = parseInt(year);
+  loadEmpPage();
+}
+
+async function loadEmpPage() {
+  const container = document.getElementById('emp-cards');
+  container.innerHTML = '<div class="loading-msg">Carregando...</div>';
+
+  const { data: payments } = await db.from('employee_payments')
+    .select('*')
+    .eq('month', empMonth)
+    .eq('year', empYear);
+
+  const monthLabel = `${EMP_MONTHS[empMonth - 1]}/${empYear}`;
+
+  container.innerHTML = EMPLOYEES.map(name => {
+    const p = (payments || []).find(x => x.employee_name === name);
+    const hasRecibo = p?.net_salary != null;
+    const hasDarf   = p?.darf_amount != null;
+    const isPaid    = p?.paid === true;
+    const paidDate  = p?.paid_at ? new Date(p.paid_at).toLocaleDateString('pt-BR') : '';
+    const qrHtml    = p?.darf_qrcode
+      ? `<img src="${p.darf_qrcode}" alt="QR Code DARF" style="max-width:180px;display:block;margin:0 auto;border-radius:8px">`
+      : `<div style="color:var(--text-3);font-size:12px;text-align:center;padding:.5rem">QR code não carregado</div>`;
+
+    return `
+    <div class="emp-card" id="emp-card-${name.replace(' ','-')}">
+      <div class="emp-card-header">
+        <div class="emp-avatar">👩</div>
+        <div>
+          <div class="emp-name">${name}</div>
+          <div class="emp-month-label">${monthLabel}</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="emp-field-label">Salário líquido a pagar</div>
+        ${hasRecibo
+          ? `<div class="emp-value">${R(p.net_salary)}</div>`
+          : `<div class="emp-value empty">Recibo não carregado</div>`}
+      </div>
+
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <label class="emp-upload-btn ${hasRecibo ? 'loaded' : ''}" title="Carregar PDF do recibo de salário">
+          <i class="ti ti-file-text"></i> ${hasRecibo ? '✓ Recibo carregado' : 'Carregar recibo'}
+          <input type="file" accept="application/pdf" style="display:none" onchange="handleReciboUpload('${name}',this.files[0])">
+        </label>
+        <label class="emp-upload-btn ${hasDarf ? 'loaded' : ''}" title="Carregar PDF da DARF para extrair QR code">
+          <i class="ti ti-qrcode"></i> ${hasDarf ? '✓ DARF carregada' : 'Carregar DARF'}
+          <input type="file" accept="application/pdf" style="display:none" onchange="handleDarfUpload('${name}',this.files[0])">
+        </label>
+      </div>
+
+      <div class="emp-qr-wrap">
+        <div class="emp-field-label" style="width:100%;text-align:center">QR Code da DARF ${hasDarf ? '— ' + R(p.darf_amount) : ''}</div>
+        ${qrHtml}
+      </div>
+
+      <div class="emp-paid-row ${isPaid ? 'paid' : ''}" onclick="toggleEmpPaid('${name}', ${!isPaid})">
+        <input type="checkbox" ${isPaid ? 'checked' : ''} onclick="event.stopPropagation();toggleEmpPaid('${name}',this.checked)">
+        <span class="emp-paid-label">${isPaid ? '✓ Pago' : 'Marcar como pago'}</span>
+        ${paidDate ? `<span class="emp-paid-date">${paidDate}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function handleReciboUpload(employeeName, file) {
+  if (!file) return;
+  toast('Lendo recibo...');
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      fullText += content.items.map(item => item.str).join(' ') + '\n';
+    }
+
+    // Busca o total líquido no texto
+    const match = fullText.match(/TOTAL\s+L[IÍ]QUIDO[:\s]*R?\$?\s*([\d.,]+)/i);
+    if (!match) {
+      toast('Não encontrei "TOTAL LIQUIDO" no PDF. Verifique se é o arquivo correto.', true);
+      return;
+    }
+    // Converte para número (ex: "1.385,60" → 1385.60)
+    const raw = match[1].replace(/\./g, '').replace(',', '.');
+    const netSalary = parseFloat(raw);
+    if (isNaN(netSalary)) {
+      toast('Não consegui ler o valor do salário líquido.', true);
+      return;
+    }
+
+    await upsertEmpPayment(employeeName, { net_salary: netSalary });
+    toast(`Recibo de ${employeeName} carregado: ${R(netSalary)}`);
+    loadEmpPage();
+  } catch (err) {
+    console.error(err);
+    toast('Erro ao ler o recibo PDF: ' + err.message, true);
+  }
+}
+
+async function handleDarfUpload(employeeName, file) {
+  if (!file) return;
+  toast('Lendo DARF...');
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    // Extrai valor total da DARF do texto
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      fullText += content.items.map(item => item.str).join(' ') + '\n';
+    }
+    const matchValor = fullText.match(/Valor\s+Total\s+do\s+Documento[:\s]*R?\$?\s*([\d.,]+)/i)
+      || fullText.match(/Valor[:\s]*R?\$?\s*([\d.,]+)/i);
+    const darfAmount = matchValor
+      ? parseFloat(matchValor[1].replace(/\./g,'').replace(',','.'))
+      : null;
+
+    // Renderiza a última página para extrair o QR code
+    const lastPage = await pdf.getPage(pdf.numPages);
+    const scale = 3.0; // alta resolução para o QR ser legível
+    const viewport = lastPage.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    await lastPage.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+    // Recorta apenas a parte inferior da página onde fica o QR code
+    // (últimos ~38% da altura, lado direito)
+    const qrCanvas = document.createElement('canvas');
+    const qrY = Math.floor(canvas.height * 0.62);
+    const qrX = Math.floor(canvas.width  * 0.55);
+    qrCanvas.width  = canvas.width  - qrX;
+    qrCanvas.height = canvas.height - qrY;
+    qrCanvas.getContext('2d').drawImage(
+      canvas, qrX, qrY, qrCanvas.width, qrCanvas.height,
+      0, 0, qrCanvas.width, qrCanvas.height
+    );
+    const qrDataUrl = qrCanvas.toDataURL('image/png');
+
+    await upsertEmpPayment(employeeName, {
+      darf_amount: darfAmount,
+      darf_qrcode: qrDataUrl
+    });
+    toast(`DARF de ${employeeName} carregada${darfAmount ? ': ' + R(darfAmount) : ''}`);
+    loadEmpPage();
+  } catch (err) {
+    console.error(err);
+    toast('Erro ao ler a DARF: ' + err.message, true);
+  }
+}
+
+async function toggleEmpPaid(employeeName, paid) {
+  await upsertEmpPayment(employeeName, {
+    paid,
+    paid_at: paid ? new Date().toISOString() : null
+  });
+  toast(paid ? `${employeeName} marcada como paga ✓` : `${employeeName} desmarcada`);
+  loadEmpPage();
+}
+
+async function upsertEmpPayment(employeeName, fields) {
+  // Busca registro existente
+  const { data: existing } = await db.from('employee_payments')
+    .select('id')
+    .eq('employee_name', employeeName)
+    .eq('month', empMonth)
+    .eq('year', empYear)
+    .maybeSingle();
+
+  if (existing) {
+    await db.from('employee_payments')
+      .update(fields)
+      .eq('id', existing.id);
+  } else {
+    await db.from('employee_payments')
+      .insert({ employee_name: employeeName, month: empMonth, year: empYear, ...fields });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
