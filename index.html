@@ -2247,8 +2247,82 @@ function getSavedCPF() { return localStorage.getItem('fp_cpf') || ''; }
 // ─────────────────────────────────────────────────────────────
 // CATEGORY RULES (auto-categorization)
 // ─────────────────────────────────────────────────────────────
-// CATEGORY RULES — salvas no Supabase (funciona em qualquer browser e no cron)
+// FILA GMAIL — browser processa itens enfileirados pelo cron
 // ─────────────────────────────────────────────────────────────
+async function processGmailQueue(silent = false) {
+  const { data: items } = await db.from('gmail_queue')
+    .select('*').eq('status', 'pending').order('email_date').limit(5);
+  if (!items?.length) return 0;
+
+  let totalImported = 0;
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  for (const item of items) {
+    // Marca como processando
+    await db.from('gmail_queue').update({ status: 'processing' }).eq('id', item.id);
+    try {
+      let txs = [];
+
+      if (item.kind === 'notification') {
+        // Dados já parseados no servidor
+        const p = item.parsed;
+        if (p && p.amount > 0 && p.date <= hoje) txs = [p];
+
+      } else {
+        // PDF — baixar e processar no browser
+        const pdfRes = await fetch('/api/gmail-get-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ msgId: item.msg_id, attId: item.att_id })
+        });
+        const { base64 } = await pdfRes.json();
+        const binary = atob(base64);
+        const bytes  = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const text = await extractTextFromBuffer(bytes.buffer, item.password || '');
+        const parseRes = await fetch('/api/parse-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const { transactions: raw = [] } = await parseRes.json();
+        txs = raw.filter(t => t.date <= hoje);
+      }
+
+      // Importar transações
+      const accId = await getAccountIdByBank(item.bank);
+      if (accId) {
+        for (const [i, tx] of txs.entries()) {
+          const extId = `gmail_${item.msg_id}_${i}`;
+          const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
+          if (ex?.length) continue;
+          await db.from('transactions').insert({
+            date: tx.date, description: tx.description, amount: tx.amount,
+            type: tx.type, account_id: accId, source: 'manual', external_id: extId,
+            category_id: getCategoryForDesc(tx.description) || null
+          });
+          totalImported++;
+        }
+      }
+
+      await db.from('gmail_queue').update({ status: 'done' }).eq('id', item.id);
+      await db.from('app_tokens').upsert({ key: `gmail_proc_${item.msg_id}`, value: '1' });
+
+    } catch (err) {
+      console.warn('[Queue]', item.bank, err.message);
+      await db.from('gmail_queue').update({ status: 'error' }).eq('id', item.id);
+    }
+  }
+
+  const remaining = (await db.from('gmail_queue').select('id', { count: 'exact' }).eq('status', 'pending')).count || 0;
+  if (!silent && totalImported > 0) {
+    toast(`${totalImported} novos lançamentos importados automaticamente${remaining > 0 ? ` (${remaining} pendentes)` : ' ✓'}`);
+    loadDashboard();
+  }
+  return totalImported;
+}
+// ─────────────────────────────────────────────────────────────
+// CATEGORY RULES — salvas no Supabase (funciona em qualquer browser e no cron)
 let catRulesCache = null; // cache em memória para performance
 
 async function loadCatRules() {
@@ -3029,6 +3103,10 @@ async function renderEvoChart() {
 (async () => {
   await loadBase();
   loadDashboard();
+  // Processa fila do cron automaticamente ao abrir o app
+  setTimeout(() => processGmailQueue(true).then(n => {
+    if (n > 0) { toast(`${n} novos lançamentos importados ✓`); loadDashboard(); }
+  }), 3000);
 })();
 </script>
 </body>
