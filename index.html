@@ -1778,12 +1778,13 @@ async function loadTxPage() {
 
   // ── MODO DUPLICATAS ──────────────────────────────────────────
   if (showDuplicates && allData) {
-    // Group by date + account_id + amount (rounded to 2 decimal places)
-    const key = t => `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}`;
+    // Group by data + conta + valor — só considera duplicata se tiver conta atribuída
+    const key = t => t.account_id
+      ? `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`
+      : null; // sem conta = nunca duplicata
     const groups = {};
-    allData.forEach(t => { const k = key(t); (groups[k] = groups[k] || []).push(t); });
-    // Keep only transactions that have at least one duplicate
-    data = allData.filter(t => groups[key(t)].length > 1);
+    allData.forEach(t => { const k = key(t); if (k) (groups[k] = groups[k] || []).push(t); });
+    data = allData.filter(t => key(t) && groups[key(t)].length > 1);
   }
   // ────────────────────────────────────────────────────────────
 
@@ -1826,14 +1827,14 @@ async function loadTxPage() {
   // Build duplicate key set for row highlighting
   const dupKeySet = new Set();
   if (showDuplicates && data) {
-    const keyFn = t => `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}`;
-    data.forEach(t => dupKeySet.add(keyFn(t)));
+    const keyFn = t => t.account_id ? `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}` : null;
+    data.forEach(t => { const k = keyFn(t); if (k) dupKeySet.add(k); });
   }
 
   tbody.innerHTML = data.map(t => {
     const cat = categories.find(c => c.id === t.category_id);
     const acc = accounts.find(a => a.id === t.account_id);
-    const isDup = dupKeySet.has(`${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}`);
+    const isDup = t.account_id && dupKeySet.has(`${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`);
     return `
       <tr class="${isDup ? 'duplicate-row' : ''}">
         <td style="white-space:nowrap;color:var(--text-2);font-size:12px">${fmtDate(t.date)}</td>
