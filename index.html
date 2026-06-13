@@ -1778,13 +1778,15 @@ async function loadTxPage() {
 
   // ── MODO DUPLICATAS ──────────────────────────────────────────
   if (showDuplicates && allData) {
-    // Group by data + conta + valor — só considera duplicata se tiver conta atribuída
+    // Group by data + conta + valor + descrição — só considera duplicata se tiver conta atribuída
     const key = t => t.account_id
       ? `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`
       : null; // sem conta = nunca duplicata
     const groups = {};
     allData.forEach(t => { const k = key(t); if (k) (groups[k] = groups[k] || []).push(t); });
-    data = allData.filter(t => key(t) && groups[key(t)].length > 1);
+    data = allData
+      .filter(t => key(t) && groups[key(t)].length > 1)
+      .sort((a, b) => key(a).localeCompare(key(b))); // agrupa pares lado a lado
   }
   // ────────────────────────────────────────────────────────────
 
