@@ -1780,8 +1780,8 @@ async function loadTxPage() {
   if (showDuplicates && allData) {
     // Group by data + conta + valor + descrição — só considera duplicata se tiver conta atribuída
     const key = t => t.account_id
-      ? `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`
-      : null; // sem conta = nunca duplicata
+      ? `${t.type}__${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`
+      : null;
     const groups = {};
     allData.forEach(t => { const k = key(t); if (k) (groups[k] = groups[k] || []).push(t); });
     data = allData
@@ -1829,14 +1829,14 @@ async function loadTxPage() {
   // Build duplicate key set for row highlighting
   const dupKeySet = new Set();
   if (showDuplicates && data) {
-    const keyFn = t => t.account_id ? `${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}` : null;
+    const keyFn = t => t.account_id ? `${t.type}__${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}` : null;
     data.forEach(t => { const k = keyFn(t); if (k) dupKeySet.add(k); });
   }
 
   tbody.innerHTML = data.map(t => {
     const cat = categories.find(c => c.id === t.category_id);
     const acc = accounts.find(a => a.id === t.account_id);
-    const isDup = t.account_id && dupKeySet.has(`${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`);
+    const isDup = t.account_id && dupKeySet.has(`${t.type}__${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`);
     return `
       <tr class="${isDup ? 'duplicate-row' : ''}">
         <td style="white-space:nowrap;color:var(--text-2);font-size:12px">${fmtDate(t.date)}</td>
