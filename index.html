@@ -1167,6 +1167,20 @@ tr.duplicate-row:hover { background: #FFF6D6; }
             <i class="ti ti-device-floppy"></i> Salvar CPF
           </button>
         </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Autorização do Gmail</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
+            Conecte sua conta Google para que o app possa buscar faturas automaticamente.
+            Caso o botão "Sincronizar Gmail" esteja retornando erro, clique aqui para renovar a autorização.
+          </p>
+          <div id="gmail-auth-status" style="margin-bottom:.875rem;font-size:13px"></div>
+          <button class="btn btn-primary" onclick="window.location.href='/api/gmail-auth'">
+            <i class="ti ti-brand-google"></i> Autorizar Gmail
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2399,6 +2413,20 @@ function loadSettingsPage() {
   if (cpf && status) {
     status.style.display = 'block';
     status.innerHTML = `<span style="color:var(--green)"><i class="ti ti-check"></i> CPF salvo — importação automática ativada</span>`;
+  }
+
+  // Verifica se o token do Gmail está salvo no Supabase
+  const gmailStatus = document.getElementById('gmail-auth-status');
+  if (gmailStatus) {
+    gmailStatus.innerHTML = '<span style="color:var(--text-3)">Verificando...</span>';
+    db.from('app_tokens').select('value').eq('key', 'gmail_refresh_token').maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) {
+          gmailStatus.innerHTML = `<span style="color:var(--green)"><i class="ti ti-check"></i> Gmail autorizado</span>`;
+        } else {
+          gmailStatus.innerHTML = `<span style="color:var(--red)"><i class="ti ti-alert-triangle"></i> Gmail não autorizado — clique no botão abaixo</span>`;
+        }
+      });
   }
 }
 
