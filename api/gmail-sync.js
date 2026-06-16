@@ -75,9 +75,9 @@ function findPDFPart(payload) {
 
 // Parseia notificação do Nubank diretamente com regex (sem Claude)
 function parseNubankNotification(payload, subject, date) {
-  // Determina tipo pela linha de assunto
-  const isExpense = /transfer|pix enviado|pagamento|boleto|compra aprovada/i.test(subject);
+  // isIncome tem prioridade — "recebeu" + "transfer" no mesmo assunto = receita
   const isIncome  = /recebeu|recebido|pix recebido|reembolso|estorno/i.test(subject);
+  const isExpense = !isIncome && /transfer|pix enviado|pagamento|boleto|compra aprovada/i.test(subject);
   if (!isExpense && !isIncome) return null; // não é transação
 
   // Tenta text/plain primeiro, depois HTML
@@ -97,20 +97,24 @@ function parseNubankNotification(payload, subject, date) {
   const amount = parseFloat(amtMatch[1].replace(/\./g,'').replace(',','.'));
   if (!amount || amount <= 0) return null;
 
-  // Extrai nome: sem flag /i para garantir inicial maiúscula (exclui "a conta destino" etc)
-  const destMatch   = src.match(/[Cc]onta\s+[Dd]estino\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^.\n<]{3,60}?)(?=\s+[Vv]alor|\s+R\$|\.|\n)/);
-  const toMatch     = src.match(/[Pp]ara\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{2,60}?)(?=\s+foi|\s+com|\s+[Vv]alor|\.|\n|R\$)/);
-  const fromMatch   = src.match(/(?:[Dd]e|[Rr]emetente)\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][A-Za-záàãâéêèíìîóòõôúùûçÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ\s]{2,60}?)(?=\s+foi|\s+com|\s+[Vv]alor|\.|\n|R\$)/);
-  const subjectFrom = subject.match(/de\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.]+)$/i);
-  const subjectTo   = subject.match(/para\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.]+)$/i);
+  // Receita: "pelo Pix de NOME e o valor" / "de NOME foi" / "de NOME,"
+  const fromMatch = src.match(
+    /(?:[Pp]elo\s+[Pp]ix\s+de|[Rr]emetente[:\s]+|recebida\s+de|[Dd]e)\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^,.<>\n]{2,70}?)(?=\s+e\s+o\s+|\s+foi|\s+com|\s+[Vv]alor|[,.<>\n]|R\$)/
+  );
+  // Despesa: "para NOME," / "para NOME foi" / "para NOME também"
+  const toMatch = src.match(
+    /[Pp]ara\s+([A-ZÁÀÃÂÉÊÈÍÌÎÓÒÕÔÚÙÛÇ][^,.<>\n]{2,70}?)(?=[,.<>\n]|\s+foi|\s+com|\s+[Vv]alor|\s+tamb|R\$)/
+  );
+  const subjectFrom = subject.match(/de\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.!?]+)/i);
+  const subjectTo   = subject.match(/para\s+([A-Za-záàãâéêèíìîóòõôúùûç][^.!?]+)/i);
 
   const description = (
-    isExpense
-      ? (destMatch?.[1] || toMatch?.[1] || subjectTo?.[1])
-      : (fromMatch?.[1] || subjectFrom?.[1])
+    isIncome
+      ? (fromMatch?.[1] || subjectFrom?.[1])
+      : (toMatch?.[1]   || subjectTo?.[1])
   )?.trim().slice(0, 80) || subject;
 
-  return { date, description, amount, type: isExpense ? 'expense' : 'income' };
+  return { date, description, amount, type: isIncome ? 'income' : 'expense' };
 }
 
 // Extrai text/plain do e-mail (sem HTML — tem o valor limpo)
