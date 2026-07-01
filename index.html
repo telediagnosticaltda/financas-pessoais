@@ -515,6 +515,28 @@ tbody td { padding: 10px 16px; font-size: 13px; }
 }
 .modal-close:hover { background: var(--border); }
 
+/* ── FONTE (análise ao longo do tempo) ── */
+.fonte-link {
+  cursor: pointer;
+  border-bottom: 1px dotted transparent;
+  transition: color .12s, border-color .12s;
+}
+.fonte-link:hover { color: var(--primary); border-bottom-color: var(--primary); }
+.fonte-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .625rem; margin-bottom: 1.125rem; }
+.fonte-stat {
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  padding: .75rem .875rem;
+}
+.fonte-stat-label { font-size: 11px; font-weight: 600; color: var(--text-3); margin-bottom: 3px; letter-spacing: .01em; }
+.fonte-stat-value { font-size: 18px; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
+.fonte-stat-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.fonte-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--border-2); border-radius: var(--radius); }
+.fonte-list-row { display: flex; align-items: center; gap: .625rem; padding: .5rem .75rem; border-bottom: 1px solid var(--border-2); font-size: 12.5px; }
+.fonte-list-row:last-child { border-bottom: none; }
+.fonte-list-row:hover { background: var(--surface-2); }
+
 /* ── FORM ── */
 .form-row { margin-bottom: .875rem; }
 .form-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: .875rem; }
@@ -1008,18 +1030,25 @@ tr.duplicate-row:hover { background: #FFF6D6; }
         </div>
       </div>
 
-      <!-- Barra de busca -->
-      <div style="position:relative;margin-bottom:.75rem">
-        <i class="ti ti-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:1rem"></i>
-        <input
-          id="tx-search"
-          type="text"
-          placeholder="Buscar por descrição..."
-          oninput="debouncedSearch()"
-          style="width:100%;padding:.65rem 1rem .65rem 2.5rem;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;background:var(--surface);color:var(--text);outline:none;box-sizing:border-box;transition:border-color .2s"
-          onfocus="this.style.borderColor='var(--primary)'"
-          onblur="this.style.borderColor='var(--border)'"
-        />
+      <!-- Barra de busca + análise da fonte -->
+      <div style="display:flex;gap:.5rem;margin-bottom:.75rem;align-items:stretch">
+        <div style="position:relative;flex:1">
+          <i class="ti ti-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:1rem"></i>
+          <input
+            id="tx-search"
+            type="text"
+            placeholder="Buscar por descrição..."
+            oninput="debouncedSearch();toggleFonteBtn()"
+            style="width:100%;padding:.65rem 1rem .65rem 2.5rem;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;background:var(--surface);color:var(--text);outline:none;box-sizing:border-box;transition:border-color .2s"
+            onfocus="this.style.borderColor='var(--primary)'"
+            onblur="this.style.borderColor='var(--border)'"
+          />
+        </div>
+        <button id="btn-fonte" onclick="openFonteModalFromSearch()"
+          title="Ver quanto você já gastou com esse termo ao longo do tempo"
+          style="display:none;align-items:center;gap:6px;white-space:nowrap;padding:.65rem .9rem;border:1.5px solid var(--primary);background:var(--primary-l);color:var(--primary);border-radius:10px;font-weight:600;font-size:.85rem;cursor:pointer;font-family:var(--font);transition:background .15s">
+          <i class="ti ti-chart-histogram"></i> Ao longo do tempo
+        </button>
       </div>
 
       <!-- Filtros de tipo/conta/categoria -->
@@ -1453,6 +1482,29 @@ tr.duplicate-row:hover { background: #FFF6D6; }
   </div>
 </div>
 
+<!-- MODAL: Análise da fonte ao longo do tempo -->
+<div class="modal-backdrop" id="modal-fonte">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-chart-histogram" style="color:var(--primary)"></i> Análise da fonte</span>
+      <button class="modal-close" onclick="closeModal('modal-fonte')"><i class="ti ti-x"></i></button>
+    </div>
+
+    <div class="form-row">
+      <label>Fonte (texto da descrição)</label>
+      <input type="text" id="fonte-term" placeholder="ex: iFood, Uber, mercado..."
+        oninput="debouncedFonte()" autocomplete="off">
+      <div style="font-size:11px;color:var(--text-3);margin-top:4px">
+        Considera todos os lançamentos cuja descrição contém esse texto, em todo o histórico (ignora o filtro de período).
+      </div>
+    </div>
+
+    <div id="fonte-body">
+      <div style="text-align:center;padding:2rem 0;color:var(--text-3);font-size:13px">Digite uma fonte acima.</div>
+    </div>
+  </div>
+</div>
+
 <!-- Toasts -->
 <div class="toast-wrap" id="toasts"></div>
 
@@ -1855,7 +1907,7 @@ async function loadTxPage() {
       <tr class="${isDup ? 'duplicate-row' : ''}">
         <td style="white-space:nowrap;color:var(--text-2);font-size:12px">${fmtDate(t.date)}</td>
         <td>
-          <div style="font-weight:600">${isDup ? '<span title="Possível duplicata" style="color:#B45309;margin-right:4px">⚠</span>' : ''}${t.description}</div>
+          <div style="font-weight:600">${isDup ? '<span title="Possível duplicata" style="color:#B45309;margin-right:4px">⚠</span>' : ''}<span class="fonte-link" onclick="openFonteModal(decodeURIComponent('${encodeURIComponent(t.description)}'))" title="Ver quanto você já gastou com essa fonte ao longo do tempo">${t.description}</span></div>
           ${t.notes ? `<div style="font-size:11px;color:var(--text-3);margin-top:1px">${t.notes}</div>` : ''}
         </td>
         <td>
@@ -1879,6 +1931,168 @@ async function loadTxPage() {
         </td>
       </tr>`;
   }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────
+// ANÁLISE DA FONTE (quanto já gastei com X ao longo do tempo)
+// ─────────────────────────────────────────────────────────────
+let fonteChartInst = null;
+let _fonteTimer = null;
+
+// Mostra/esconde o botão "Ao longo do tempo" ao lado da busca
+function toggleFonteBtn() {
+  const btn = document.getElementById('btn-fonte');
+  const term = document.getElementById('tx-search')?.value?.trim();
+  if (btn) btn.style.display = term ? 'inline-flex' : 'none';
+}
+
+function openFonteModalFromSearch() {
+  const term = document.getElementById('tx-search')?.value?.trim() || '';
+  openFonteModal(term);
+}
+
+function openFonteModal(term) {
+  const input = document.getElementById('fonte-term');
+  input.value = term || '';
+  document.getElementById('modal-fonte').classList.add('open');
+  runFonteAnalysis();
+  // foca no fim do texto pra facilitar o ajuste
+  setTimeout(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 50);
+}
+
+function debouncedFonte() {
+  clearTimeout(_fonteTimer);
+  _fonteTimer = setTimeout(runFonteAnalysis, 300);
+}
+
+async function runFonteAnalysis() {
+  const body = document.getElementById('fonte-body');
+  const term = document.getElementById('fonte-term')?.value?.trim() || '';
+
+  if (term.length < 2) {
+    if (fonteChartInst) { fonteChartInst.destroy(); fonteChartInst = null; }
+    body.innerHTML = '<div style="text-align:center;padding:2rem 0;color:var(--text-3);font-size:13px">Digite ao menos 2 caracteres.</div>';
+    return;
+  }
+
+  body.innerHTML = '<div style="text-align:center;padding:2rem 0;color:var(--text-3);font-size:13px">Calculando...</div>';
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const { data, error } = await db.from('transactions')
+    .select('*')
+    .ilike('description', `%${term}%`)
+    .lte('date', hoje)                 // só o que já aconteceu ("já gastei")
+    .order('date', { ascending: false });
+
+  if (error) {
+    body.innerHTML = `<div style="text-align:center;padding:2rem 0;color:var(--red);font-size:13px">Erro: ${error.message}</div>`;
+    return;
+  }
+  if (!data?.length) {
+    if (fonteChartInst) { fonteChartInst.destroy(); fonteChartInst = null; }
+    body.innerHTML = `<div style="text-align:center;padding:2rem 0;color:var(--text-3);font-size:13px">Nenhum lançamento com “${term}” na descrição.</div>`;
+    return;
+  }
+
+  // Separa por tipo
+  const expenses = data.filter(t => t.type === 'expense');
+  const incomes  = data.filter(t => t.type === 'income');
+  const sum = arr => arr.reduce((s, t) => s + +t.amount, 0);
+  const totalExp = sum(expenses), totalInc = sum(incomes);
+
+  // Tipo principal: gasto se houver despesas, senão entrada
+  const primary = expenses.length ? { arr: expenses, total: totalExp, label: 'Total gasto',    color: getComputedStyle(document.documentElement).getPropertyValue('--red').trim()   || '#D94F3A' }
+                                  : { arr: incomes,  total: totalInc, label: 'Total recebido', color: getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#16A376' };
+
+  // Datas e span em meses
+  const dates = data.map(t => t.date).sort();
+  const first = dates[0], last = dates[dates.length - 1];
+  const fD = new Date(first + 'T00:00:00'), lD = new Date(last + 'T00:00:00');
+  const monthsSpan = (lD.getFullYear() - fD.getFullYear()) * 12 + (lD.getMonth() - fD.getMonth()) + 1;
+  const media = primary.total / Math.max(1, monthsSpan);
+
+  // Buckets por mês (do primeiro ao último mês com atividade)
+  const buckets = [];
+  const cursor = new Date(fD.getFullYear(), fD.getMonth(), 1);
+  const endM   = new Date(lD.getFullYear(), lD.getMonth(), 1);
+  while (cursor <= endM) {
+    buckets.push({
+      key: cursor.toISOString().slice(0, 7),
+      label: cursor.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  const perMonth = buckets.map(b => primary.arr.filter(t => t.date.slice(0, 7) === b.key).reduce((s, t) => s + +t.amount, 0));
+
+  // Card secundário (o outro tipo), se existir
+  const secondary = (expenses.length && incomes.length)
+    ? { label: 'Também recebido', total: totalInc }
+    : null;
+
+  // ── Render ──
+  body.innerHTML = `
+    <div class="fonte-stats">
+      <div class="fonte-stat" style="grid-column:1 / -1;background:var(--primary-l);border-color:transparent">
+        <div class="fonte-stat-label" style="color:var(--primary)">${primary.label} · “${term}”</div>
+        <div class="fonte-stat-value" style="color:var(--primary);font-size:22px">${R(primary.total)}</div>
+        <div class="fonte-stat-sub">${primary.arr.length} lançamento${primary.arr.length > 1 ? 's' : ''}${secondary ? ` · ${secondary.label}: ${R(secondary.total)}` : ''}</div>
+      </div>
+      <div class="fonte-stat">
+        <div class="fonte-stat-label">Média por mês</div>
+        <div class="fonte-stat-value">${R(media)}</div>
+        <div class="fonte-stat-sub">ao longo de ${monthsSpan} ${monthsSpan > 1 ? 'meses' : 'mês'}</div>
+      </div>
+      <div class="fonte-stat">
+        <div class="fonte-stat-label">Período</div>
+        <div class="fonte-stat-value" style="font-size:14px">${fmtDate(first)} → ${fmtDate(last)}</div>
+        <div class="fonte-stat-sub">primeiro e último lançamento</div>
+      </div>
+    </div>
+
+    <div style="font-weight:600;font-size:13px;color:var(--text-2);margin-bottom:.5rem">Por mês</div>
+    <div style="margin-bottom:1.125rem"><canvas id="fonte-chart" height="140"></canvas></div>
+
+    <div style="font-weight:600;font-size:13px;color:var(--text-2);margin-bottom:.5rem">Lançamentos (${data.length})</div>
+    <div class="fonte-list">
+      ${data.map(t => {
+        const acc = accounts.find(a => a.id === t.account_id);
+        return `<div class="fonte-list-row">
+          <span style="color:var(--text-3);white-space:nowrap;font-size:11.5px">${fmtDate(t.date)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description}</span>
+          ${acc ? `<span class="badge" style="background:${acc.color}20;color:${acc.color};font-size:10px">${acc.name}</span>` : ''}
+          <span class="tx-amount ${t.type}" style="white-space:nowrap;font-size:12.5px">${t.type === 'income' ? '+' : '-'} ${R(t.amount)}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+
+  // Gráfico de barras por mês
+  if (fonteChartInst) fonteChartInst.destroy();
+  const ctx = document.getElementById('fonte-chart').getContext('2d');
+  fonteChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: buckets.map(b => b.label),
+      datasets: [{
+        label: primary.label,
+        data: perMonth,
+        backgroundColor: primary.color + 'cc',
+        borderRadius: 4,
+        maxBarThickness: 46
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ' ' + R(c.parsed.y) } }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: v => 'R$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v) } },
+        x: { ticks: { font: { size: 10 }, maxRotation: 90, minRotation: 0 } }
+      }
+    }
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
