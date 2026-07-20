@@ -30,6 +30,13 @@ PARA FATURA DE CARTÃO (EQI, BTG, XP, Nubank Crédito):
 - Inclua parcelamentos (cada parcela = uma linha separada)
 - NÃO inclua: total da fatura, pagamento de fatura, encargos, IOF, limite disponível
 
+CARTÃO ADICIONAL:
+- Se a fatura tiver uma seção de cartão adicional (ex: "Lançamentos do cartão adicional | Daniela Junqueira | Final 5244"),
+  adicione o campo "additional_holder" com o nome do titular adicional em CADA transação dessa seção
+  (ex: "additional_holder":"Daniela Junqueira")
+- Transações do cartão principal NÃO devem ter esse campo
+- A seção do cartão adicional termina quando começar outra seção (ex: "Taxas e encargos")
+
 PARA NOTIFICAÇÃO DE TRANSAÇÃO AVULSA DO NUBANK (e-mail com assunto):
 O campo "Assunto:" contém a informação principal. Exemplos de como interpretar:
 - "Você recebeu R$ 1.000,00 de João Silva" → income, description="João Silva", amount=1000.00
@@ -65,6 +72,7 @@ Regras:
 - amount: sempre número positivo
 - date: YYYY-MM-DD com o ano correto (para extratos de conta, use a data da movimentação)
 - type: "expense" para saídas/pagamentos/transferências enviadas, "income" para entradas/recebimentos
+- "additional_holder": incluir SOMENTE nas transações da seção de cartão adicional
 - Retorne SOMENTE o JSON, nada mais
 
 TEXTO DO DOCUMENTO:
