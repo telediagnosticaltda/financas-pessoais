@@ -2502,11 +2502,12 @@ async function runGmailSync(days = 50) {
         const extId = `gmail_${next.msgId}_${i}`;
         const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
         if (ex?.length) { totalDuplicates++; continue; }
-        if (await isContentDuplicate(tx, accId)) { totalDuplicates++; continue; }
+        const routed = applyAdditionalCard(tx, accId);
+        if (await isContentDuplicate({ ...tx, description: routed.description }, routed.accId)) { totalDuplicates++; continue; }
         const { error } = await db.from('transactions').insert({
-          date: tx.date, description: tx.description, amount: tx.amount,
-          type: tx.type, account_id: accId, source: 'manual', external_id: extId,
-          category_id: getCategoryForDesc(tx.description) || null
+          date: tx.date, description: routed.description, amount: tx.amount,
+          type: tx.type, account_id: routed.accId, source: 'manual', external_id: extId,
+          category_id: getCategoryForDesc(routed.description) || null
         });
         if (error) totalErrors++; else totalImported++;
       }
@@ -2753,11 +2754,12 @@ async function processGmailQueue(silent = false) {
           const extId = `gmail_${item.msg_id}_${i}`;
           const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
           if (ex?.length) continue;
-          if (await isContentDuplicate(tx, accId)) continue;
+          const routed = applyAdditionalCard(tx, accId);
+          if (await isContentDuplicate({ ...tx, description: routed.description }, routed.accId)) continue;
           await db.from('transactions').insert({
-            date: tx.date, description: tx.description, amount: tx.amount,
-            type: tx.type, account_id: accId, source: 'manual', external_id: extId,
-            category_id: getCategoryForDesc(tx.description) || null
+            date: tx.date, description: routed.description, amount: tx.amount,
+            type: tx.type, account_id: routed.accId, source: 'manual', external_id: extId,
+            category_id: getCategoryForDesc(routed.description) || null
           });
           totalImported++;
         }
@@ -3289,12 +3291,13 @@ async function confirmImport() {
       .select('id').eq('external_id', tx._extId);
     if (existing?.length) { duplicates++; continue; }
 
+    const routed = applyAdditionalCard(tx, accId);
     const { error } = await db.from('transactions').insert({
       date:        tx.date,
-      description: tx.description,
+      description: routed.description,
       amount:      tx.amount,
       type:        tx.type,
-      account_id:  accId,
+      account_id:  routed.accId,
       category_id: tx.category_id || null,
       source:      'manual',
       external_id: tx._extId
@@ -3588,6 +3591,27 @@ async function isContentDuplicate(tx, accId) {
     const n = normDesc(tx.description);
     return (data || []).some(r => descMatch(n, normDesc(r.description)));
   } catch { return false; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// CARTÃO ADICIONAL — roteia transações marcadas pelo parser
+// ─────────────────────────────────────────────────────────────
+// Encontra a conta do cartão adicional (nome ou instituição contendo "adicional")
+function getAdditionalCardAccountId() {
+  const acc = accounts.find(a =>
+    `${a.name || ''} ${a.institution || ''}`.toLowerCase().includes('adicional'));
+  return acc?.id || null;
+}
+
+// Se a transação veio da seção de cartão adicional, redireciona para a conta
+// "adicional" e adiciona o primeiro nome do titular como prefixo na descrição
+function applyAdditionalCard(tx, defaultAccId) {
+  if (!tx.additional_holder) return { accId: defaultAccId, description: tx.description };
+  const firstName = String(tx.additional_holder).trim().split(/\s+/)[0];
+  return {
+    accId: getAdditionalCardAccountId() || defaultAccId,
+    description: `${firstName} — ${tx.description}`
+  };
 }
 
 function toggleDuplicates() {
