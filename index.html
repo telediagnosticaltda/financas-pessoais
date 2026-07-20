@@ -969,8 +969,11 @@ tr.duplicate-row:hover { background: #FFF6D6; }
       <div class="page-header">
         <h1 class="page-title">Lançamentos</h1>
         <div class="header-right">
-          <button class="btn btn-ghost" id="btn-duplicates" onclick="toggleDuplicates()" title="Mostrar lançamentos com data, conta e valor iguais">
+          <button class="btn btn-ghost" id="btn-duplicates" onclick="toggleDuplicates()" title="Mostrar lançamentos com data, conta, valor iguais e descrição semelhante">
             <i class="ti ti-copy"></i> Ver duplicatas
+          </button>
+          <button class="btn btn-ghost" id="btn-del-duplicates" onclick="deleteAllDuplicates()" style="display:none;color:var(--red);border-color:var(--red)" title="Exclui todas as duplicatas, mantendo o lançamento mais antigo de cada grupo">
+            <i class="ti ti-trash"></i> Excluir todas
           </button>
           <button class="btn btn-ghost" onclick="openImportModal()">
             <i class="ti ti-upload"></i> Importar arquivo
@@ -1844,15 +1847,52 @@ async function loadTxPage() {
 
   // ── MODO DUPLICATAS ──────────────────────────────────────────
   if (showDuplicates && allData) {
-    // Group by data + conta + valor + descrição — só considera duplicata se tiver conta atribuída
-    const key = t => t.account_id
-      ? `${t.type}__${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`
+    // 1) Agrupa por data + conta + valor + tipo (só com conta atribuída)
+    // 2) Dentro do grupo, compara descrições NORMALIZADAS (sem acento, sem "Ltda" etc.)
+    //    e considera duplicata quando uma descrição é prefixo da outra
+    const baseKey = t => t.account_id
+      ? `${t.type}__${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}`
       : null;
     const groups = {};
-    allData.forEach(t => { const k = key(t); if (k) (groups[k] = groups[k] || []).push(t); });
+    allData.forEach(t => { const k = baseKey(t); if (k) (groups[k] = groups[k] || []).push(t); });
+
+    const dupIds  = new Set();
+    const groupOf = {};   // tx.id → rótulo do grupo (para ordenar pares lado a lado)
+    const delIds  = [];   // ids a excluir no "Excluir todas" (mantém o mais antigo)
+
+    for (const [k, arr] of Object.entries(groups)) {
+      if (arr.length < 2) continue;
+      // Clusteriza por descrição semelhante
+      const clusters = [];
+      for (const t of arr) {
+        const n = normDesc(t.description);
+        let placed = false;
+        for (const c of clusters) {
+          if (c.some(x => descMatch(n, normDesc(x.description)))) { c.push(t); placed = true; break; }
+        }
+        if (!placed) clusters.push([t]);
+      }
+      clusters.forEach((c, ci) => {
+        if (c.length < 2) return;
+        c.forEach(t => { dupIds.add(t.id); groupOf[t.id] = `${k}__${ci}`; });
+        const sorted = [...c].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+        sorted.slice(1).forEach(t => delIds.push(t.id)); // mantém o mais antigo
+      });
+    }
+
     data = allData
-      .filter(t => key(t) && groups[key(t)].length > 1)
-      .sort((a, b) => key(a).localeCompare(key(b))); // agrupa pares lado a lado
+      .filter(t => dupIds.has(t.id))
+      .sort((a, b) => groupOf[a.id].localeCompare(groupOf[b.id]));
+    dupDeleteIds = delIds;
+
+    const delBtn = document.getElementById('btn-del-duplicates');
+    if (delBtn) {
+      delBtn.style.display = delIds.length ? '' : 'none';
+      delBtn.innerHTML = `<i class="ti ti-trash"></i> Excluir todas (${delIds.length})`;
+    }
+  } else {
+    const delBtn = document.getElementById('btn-del-duplicates');
+    if (delBtn) delBtn.style.display = 'none';
   }
   // ────────────────────────────────────────────────────────────
 
@@ -1892,17 +1932,10 @@ async function loadTxPage() {
     return;
   }
 
-  // Build duplicate key set for row highlighting
-  const dupKeySet = new Set();
-  if (showDuplicates && data) {
-    const keyFn = t => t.account_id ? `${t.type}__${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}` : null;
-    data.forEach(t => { const k = keyFn(t); if (k) dupKeySet.add(k); });
-  }
-
   tbody.innerHTML = data.map(t => {
     const cat = categories.find(c => c.id === t.category_id);
     const acc = accounts.find(a => a.id === t.account_id);
-    const isDup = t.account_id && dupKeySet.has(`${t.type}__${t.date}__${t.account_id}__${(+t.amount).toFixed(2)}__${t.description?.trim().toLowerCase()}`);
+    const isDup = showDuplicates; // no modo duplicatas, só duplicatas são exibidas
     return `
       <tr class="${isDup ? 'duplicate-row' : ''}">
         <td style="white-space:nowrap;color:var(--text-2);font-size:12px">${fmtDate(t.date)}</td>
@@ -2417,7 +2450,8 @@ async function runGmailSync(days = 50) {
           if (accId) {
             const extId = `gmail_${notif.msgId}_0`;
             const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
-            if (!ex?.length) {
+            if (!ex?.length && await isContentDuplicate(tx, accId)) { totalDuplicates++; }
+            else if (!ex?.length) {
               const { error } = await db.from('transactions').insert({
                 date: tx.date, description: tx.description, amount: tx.amount,
                 type: tx.type, account_id: accId, source: 'manual', external_id: extId,
@@ -2468,6 +2502,7 @@ async function runGmailSync(days = 50) {
         const extId = `gmail_${next.msgId}_${i}`;
         const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
         if (ex?.length) { totalDuplicates++; continue; }
+        if (await isContentDuplicate(tx, accId)) { totalDuplicates++; continue; }
         const { error } = await db.from('transactions').insert({
           date: tx.date, description: tx.description, amount: tx.amount,
           type: tx.type, account_id: accId, source: 'manual', external_id: extId,
@@ -2718,6 +2753,7 @@ async function processGmailQueue(silent = false) {
           const extId = `gmail_${item.msg_id}_${i}`;
           const { data: ex } = await db.from('transactions').select('id').eq('external_id', extId);
           if (ex?.length) continue;
+          if (await isContentDuplicate(tx, accId)) continue;
           await db.from('transactions').insert({
             date: tx.date, description: tx.description, amount: tx.amount,
             type: tx.type, account_id: accId, source: 'manual', external_id: extId,
@@ -3524,6 +3560,36 @@ async function renderEvoChart() {
 // ─────────────────────────────────────────────────────────────
 // DUPLICATAS
 // ─────────────────────────────────────────────────────────────
+let dupDeleteIds = []; // preenchido pelo modo duplicatas (mantém o mais antigo de cada grupo)
+
+// Normaliza descrição: minúsculas, sem acentos, sem sufixos de empresa, sem pontuação
+function normDesc(s) {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')       // remove acentos
+    .replace(/[^a-z0-9 ]/g, ' ')                            // remove pontuação
+    .replace(/\b(ltda|sa|s a|me|epp|eireli|cia)\b/g, ' ')   // remove sufixos de empresa
+    .replace(/\s+/g, ' ').trim();
+}
+
+// Duas descrições normalizadas "batem" se uma é prefixo da outra
+function descMatch(a, b) {
+  if (!a || !b || a.length < 4 || b.length < 4) return a === b && a.length > 0;
+  return a.startsWith(b) || b.startsWith(a);
+}
+
+// Verifica se já existe transação com mesma data + conta + valor + tipo e descrição semelhante
+async function isContentDuplicate(tx, accId) {
+  try {
+    const { data } = await db.from('transactions')
+      .select('id, description')
+      .eq('date', tx.date).eq('account_id', accId)
+      .eq('type', tx.type).eq('amount', tx.amount);
+    const n = normDesc(tx.description);
+    return (data || []).some(r => descMatch(n, normDesc(r.description)));
+  } catch { return false; }
+}
+
 function toggleDuplicates() {
   showDuplicates = !showDuplicates;
   const btn = document.getElementById('btn-duplicates');
@@ -3536,7 +3602,37 @@ function toggleDuplicates() {
       btn.innerHTML = '<i class="ti ti-copy"></i> Ver duplicatas';
     }
   }
+  if (!showDuplicates) {
+    dupDeleteIds = [];
+    const delBtn = document.getElementById('btn-del-duplicates');
+    if (delBtn) delBtn.style.display = 'none';
+  }
   loadTxPage();
+}
+
+// Exclui todas as duplicatas do período exibido, mantendo o mais antigo de cada grupo
+async function deleteAllDuplicates() {
+  if (!dupDeleteIds.length) { toast('Nenhuma duplicata para excluir'); return; }
+  const n = dupDeleteIds.length;
+  if (!confirm(`Excluir ${n} lançamento(s) duplicado(s)?\n\nO lançamento mais antigo de cada grupo será mantido. Esta ação não pode ser desfeita.`)) return;
+
+  const btn = document.getElementById('btn-del-duplicates');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Excluindo...'; }
+
+  let deleted = 0, errors = 0;
+  // Exclui em lotes de 50 para não estourar o limite da URL
+  for (let i = 0; i < dupDeleteIds.length; i += 50) {
+    const batch = dupDeleteIds.slice(i, i + 50);
+    const { error } = await db.from('transactions').delete().in('id', batch);
+    if (error) errors += batch.length; else deleted += batch.length;
+  }
+
+  if (btn) btn.disabled = false;
+  toast(errors
+    ? `${deleted} excluída(s), ${errors} com erro`
+    : `${deleted} duplicata(s) excluída(s) ✓`, errors ? 'error' : undefined);
+  loadTxPage();
+  loadDashboard();
 }
 
 // ─────────────────────────────────────────────────────────────
