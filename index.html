@@ -553,6 +553,8 @@ label {
 input[type="text"],
 input[type="date"],
 input[type="number"],
+input[type="email"],
+input[type="password"],
 select,
 textarea {
   width: 100%;
@@ -861,6 +863,53 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 .emp-paid-label { font-size: 13px; font-weight: 600; }
 .emp-paid-date { font-size: 11px; color: var(--text-3); margin-left: auto; }
 
+/* ── LOGIN ── */
+#login-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+#login-gate.hidden { display: none; }
+.login-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  padding: 2rem 2rem 1.75rem;
+  width: 100%;
+  max-width: 360px;
+}
+.login-mark {
+  width: 46px; height: 46px;
+  background: linear-gradient(135deg, var(--primary), #7B8EFF);
+  border-radius: 13px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: #fff;
+  margin-bottom: 1.125rem;
+}
+.login-title { font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.login-sub { font-size: 13px; color: var(--text-2); margin: 3px 0 1.5rem; }
+.login-msg {
+  display: none;
+  background: var(--red-l);
+  border: 1px solid #F5B4AB;
+  color: #B83426;
+  border-radius: var(--radius);
+  padding: .625rem .75rem;
+  font-size: 12.5px;
+  margin-bottom: .875rem;
+}
+.login-msg.show { display: block; }
+#login-btn { width: 100%; justify-content: center; margin-top: .375rem; }
+.app.locked { display: none; }
+.nav-logout { margin-top: 6px; color: #6A7290; }
+.nav-logout:hover { background: rgba(217,79,58,.14); color: #FF9A88; }
+
 /* ── DUPLICATAS ── */
 tr.duplicate-row { background: #FFFBEA; }
 tr.duplicate-row:hover { background: #FFF6D6; }
@@ -868,7 +917,32 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 </style>
 </head>
 <body>
-<div class="app">
+
+<!-- Tela de login — cobre o app até haver sessão válida -->
+<div id="login-gate">
+  <div class="login-box">
+    <div class="login-mark"><i class="ti ti-chart-pie"></i></div>
+    <div class="login-title">Finanças</div>
+    <div class="login-sub">Entre para acessar seus dados.</div>
+
+    <div class="login-msg" id="login-msg"></div>
+
+    <div class="form-row">
+      <label>E-mail</label>
+      <input type="email" id="login-email" autocomplete="username" placeholder="voce@exemplo.com">
+    </div>
+    <div class="form-row">
+      <label>Senha</label>
+      <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••••">
+    </div>
+
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">
+      <i class="ti ti-login"></i> Entrar
+    </button>
+  </div>
+</div>
+
+<div class="app locked">
 
   <!-- Sidebar -->
   <nav class="sidebar">
@@ -895,6 +969,9 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     </button>
     <button class="nav-item" data-page="settings" onclick="navigate('settings')">
       <i class="ti ti-settings"></i> Configurações
+    </button>
+    <button class="nav-item nav-logout" onclick="doLogout()" title="Encerrar a sessão neste navegador">
+      <i class="ti ti-logout"></i> Sair
     </button>
   </nav>
 
@@ -3877,14 +3954,103 @@ async function upsertEmpPayment(employeeName, fields) {
 }
 
 // ─────────────────────────────────────────────────────────────
-(async () => {
+// AUTENTICAÇÃO
+// ─────────────────────────────────────────────────────────────
+let appStarted = false;
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-msg');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function openGate() {
+  document.getElementById('login-gate').classList.remove('hidden');
+  document.querySelector('.app').classList.add('locked');
+  setTimeout(() => document.getElementById('login-email')?.focus(), 80);
+}
+
+function closeGate() {
+  document.getElementById('login-gate').classList.add('hidden');
+  document.querySelector('.app').classList.remove('locked');
+}
+
+// Token da sessão — usado para autenticar as chamadas às funções da Vercel
+async function authHeaders() {
+  const { data } = await db.auth.getSession();
+  const token = data?.session?.access_token;
+  return token
+    ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+    : { 'Content-Type': 'application/json' };
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const btn   = document.getElementById('login-btn');
+  const msg   = document.getElementById('login-msg');
+
+  msg.classList.remove('show');
+  if (!email || !pass) { showLoginError('Informe e-mail e senha.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Entrando...';
+
+  const { error } = await db.auth.signInWithPassword({ email, password: pass });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-login"></i> Entrar';
+
+  if (error) {
+    showLoginError(
+      /invalid/i.test(error.message)
+        ? 'E-mail ou senha incorretos.'
+        : 'Não foi possível entrar: ' + error.message
+    );
+    return;
+  }
+
+  document.getElementById('login-pass').value = '';
+  closeGate();
+  startApp();
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+  location.reload();
+}
+
+// Enter envia o formulário de login
+['login-email', 'login-pass'].forEach(id => {
+  document.getElementById(id)?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────
+async function startApp() {
+  if (appStarted) return;
+  appStarted = true;
   await loadBase();
   loadDashboard();
   // Processa fila do cron automaticamente ao abrir o app
   setTimeout(() => processGmailQueue(true).then(n => {
     if (n > 0) { toast(`${n} novos lançamentos importados ✓`); loadDashboard(); }
   }), 3000);
+}
+
+(async () => {
+  const { data } = await db.auth.getSession();
+  if (data?.session) { closeGate(); startApp(); }
+  else openGate();
 })();
+
+// Se a sessão expirar ou for encerrada em outra aba, volta para o login
+db.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') location.reload();
+});
 </script>
 </body>
 </html>
