@@ -55,7 +55,15 @@ export function requireCronSecret(req, res) {
   }
 
   const url = new URL(req.url, 'http://localhost');
-  const given = req.headers['x-cron-secret'] || url.searchParams.get('secret') || '';
+
+  // A Vercel manda "Authorization: Bearer <CRON_SECRET>" nos crons proprios.
+  const auth = req.headers.authorization || '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+
+  const given = bearer
+    || req.headers['x-cron-secret']
+    || url.searchParams.get('secret')
+    || '';
 
   if (given !== expected) {
     res.status(401).json({ error: 'Nao autorizado' });
