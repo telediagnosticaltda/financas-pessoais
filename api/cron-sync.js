@@ -1,3 +1,5 @@
+import { requireCronSecret } from './_auth.js';
+
 // api/cron-sync.js — Roda às 9h pelo Vercel cron
 // Busca e-mails no Gmail e enfileira PDFs para o browser processar
 // Notificações do Nubank são parseadas aqui mesmo (regex, sem PDF)
@@ -118,6 +120,8 @@ async function isAlreadyQueued(msgId) {
 }
 
 export default async function handler(req, res) {
+  if (!requireCronSecret(req, res)) return;
+
   const log = [];
   let queued = 0, notifImported = 0;
 
