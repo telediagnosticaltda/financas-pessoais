@@ -187,39 +187,42 @@ export default async function handler(req, res) {
     const btgMsgs = await searchMessages(accessToken,
       `(filename:EQI OR filename:BTG) filename:Fatura has:attachment newer_than:${days}d`, 20);
     log.push(`Encontrados ${btgMsgs.length} e-mail(s) BTG/EQI`);
-    for (const { id: msgId } of btgMsgs) {
-      const msg = await getMessage(accessToken, msgId);
+    const btgFull = await Promise.all(btgMsgs.map(m => getMessage(accessToken, m.id)));
+    btgFull.forEach((msg, i) => {
+      const msgId = btgMsgs[i].id;
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
         p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf'));
-      if (!pdfPart?.body?.attachmentId) continue;
+      if (!pdfPart?.body?.attachmentId) return;
       emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'btg', date, password: cpf });
-    }
+    });
 
     // ── XP ─────────────────────────────────────────────────────
     const xpMsgs = await searchMessages(accessToken,
       `filename:XP has:attachment newer_than:${days}d`, 20);
     log.push(`Encontrados ${xpMsgs.length} e-mail(s) XP`);
-    for (const { id: msgId } of xpMsgs) {
-      const msg = await getMessage(accessToken, msgId);
+    const xpFull = await Promise.all(xpMsgs.map(m => getMessage(accessToken, m.id)));
+    xpFull.forEach((msg, i) => {
+      const msgId = xpMsgs[i].id;
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = (msg.payload?.parts || []).find(p =>
         p.mimeType === 'application/pdf' || (p.filename || '').toLowerCase().endsWith('.pdf'));
-      if (!pdfPart?.body?.attachmentId) continue;
+      if (!pdfPart?.body?.attachmentId) return;
       emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'xp', date, password: cpf.slice(0, 5) });
-    }
+    });
 
     // ── Nubank PDFs (extrato mensal) ───────────────────────────
     const nubankMsgs = await searchMessages(accessToken,
       `from:nubank.com.br has:attachment newer_than:${days}d`, 20);
     log.push(`Encontrados ${nubankMsgs.length} e-mail(s) Nubank com PDF`);
-    for (const { id: msgId } of nubankMsgs) {
-      const msg = await getMessage(accessToken, msgId);
+    const nubankFull = await Promise.all(nubankMsgs.map(m => getMessage(accessToken, m.id)));
+    nubankFull.forEach((msg, i) => {
+      const msgId = nubankMsgs[i].id;
       const date = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
       const pdfPart = findPDFPart(msg.payload);
-      if (!pdfPart?.body?.attachmentId) continue;
+      if (!pdfPart?.body?.attachmentId) return;
       emails.push({ msgId, attId: pdfPart.body.attachmentId, filename: pdfPart.filename, bank: 'nubank', date, password: '' });
-    }
+    });
 
     // ── Nubank notificações (sem anexo — só últimos 35 dias, filtra marketing) ──
     const nubankNotifs = await searchMessages(accessToken,
@@ -229,19 +232,24 @@ export default async function handler(req, res) {
     // Notificações: parsear com regex direto no servidor (sem Claude, mais confiável)
     const emailTexts = [];
     let skippedNotif = 0;
-    for (const { id: msgId } of nubankNotifs.slice(0, 8)) {
+    const notifIds  = nubankNotifs.slice(0, 8).map(m => m.id);
+    const notifFull = await Promise.all(
+      notifIds.map(id => getMessage(accessToken, id).catch(() => null))
+    );
+    notifFull.forEach((msg, i) => {
+      const msgId = notifIds[i];
       try {
-        const msg     = await getMessage(accessToken, msgId);
+        if (!msg?.internalDate) { skippedNotif++; return; }
         const date    = new Date(parseInt(msg.internalDate)).toISOString().slice(0, 10);
         const headers = msg.payload?.headers || [];
         const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
         const parsed  = parseNubankNotification(msg.payload, subject, date);
-        if (!parsed) { skippedNotif++; continue; }
+        if (!parsed) { skippedNotif++; return; }
         emailTexts.push({ msgId, bank: 'nubank', date, parsed });
       } catch (e) {
         skippedNotif++;
       }
-    }
+    });
     log.push(`Notificações: ${emailTexts.length} transações + ${skippedNotif} ignoradas`);
 
     log.push(`Total: ${emails.length} PDF(s), ${emailTexts.length} notificação(ões) encontrados`);
