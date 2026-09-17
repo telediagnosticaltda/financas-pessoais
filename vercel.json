@@ -4,5 +4,10 @@
       "path": "/api/cron-sync",
       "schedule": "0 9 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/gmail-sync.js": { "maxDuration": 60 },
+    "api/cron-sync.js":  { "maxDuration": 60 },
+    "api/parse-pdf.js":  { "maxDuration": 60 }
+  }
 }
