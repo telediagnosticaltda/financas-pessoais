@@ -1,3 +1,5 @@
+import { requireAuth } from './_auth.js';
+
 // api/extract-receipt.js
 // Recebe um recibo médico (PDF ou imagem em base64) e devolve os campos
 // necessários para a ficha "Pagamentos Efetuados" da declaracao de IR.
@@ -36,6 +38,8 @@ Regras:
 - confidence "baixa" se a imagem estiver ilegivel ou faltarem campos essenciais.`;
 
 export default async function handler(req, res) {
+  if (!(await requireAuth(req, res))) return;
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Use POST' });
   }
