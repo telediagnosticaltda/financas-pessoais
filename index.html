@@ -3975,14 +3975,39 @@ function closeGate() {
   document.querySelector('.app').classList.remove('locked');
 }
 
-// Token da sessão — usado para autenticar as chamadas às funções da Vercel
+// Token da sessão — usado para autenticar as chamadas às funções da Vercel.
+// Renova de forma antecipada: o token do Supabase vale ~1h e a renovação
+// automática pode não acontecer se a aba ficou suspensa em segundo plano.
 async function authHeaders() {
-  const { data } = await db.auth.getSession();
-  const token = data?.session?.access_token;
+  let { data } = await db.auth.getSession();
+  let session = data?.session;
+
+  // Faltando menos de 2 minutos para vencer (ou já vencido) → renova agora
+  const margem = 120;
+  const agora  = Math.floor(Date.now() / 1000);
+  if (session?.expires_at && session.expires_at - agora < margem) {
+    const { data: novo, error } = await db.auth.refreshSession();
+    if (!error && novo?.session) session = novo.session;
+  }
+
+  const token = session?.access_token;
   return token
     ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
     : { 'Content-Type': 'application/json' };
 }
+
+// Se mesmo assim uma chamada voltar 401, avisa em português e pede novo login
+// em vez de deixar o erro cru no console.
+const _fetchOriginal = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const res = await _fetchOriginal(input, init);
+  const url = typeof input === 'string' ? input : (input?.url || '');
+  if (res.status === 401 && url.includes('/api/')) {
+    toast('Sua sessão expirou. Entre novamente.', 'error');
+    openGate();
+  }
+  return res;
+};
 
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
