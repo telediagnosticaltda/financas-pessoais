@@ -1,3 +1,5 @@
+import { requireAuth } from './_auth.js';
+
 // api/gmail-get-pdf.js
 // Baixa um anexo PDF específico do Gmail e retorna como base64
 
@@ -31,7 +33,10 @@ async function getAccessToken() {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+
+  if (!(await requireAuth(req, res))) return;
 
   const { msgId, attId } = req.body || {};
   if (!msgId || !attId) return res.status(400).json({ error: 'msgId e attId são obrigatórios' });
