@@ -2450,7 +2450,7 @@ async function runGmailSync(days = 50) {
     // 1. Servidor busca e-mails e retorna PDFs brutos
     const res  = await fetch('/api/gmail-sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ days })
     });
 
@@ -2553,7 +2553,7 @@ async function runGmailSync(days = 50) {
 
       const pdfRes = await fetch('/api/gmail-get-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ msgId: next.msgId, attId: next.attId })
       });
       const { base64, error: pdfErr } = await pdfRes.json();
@@ -2567,7 +2567,7 @@ async function runGmailSync(days = 50) {
 
       const parseRes = await fetch('/api/parse-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ text })
       });
       const { transactions: txsRaw = [] } = await parseRes.json();
@@ -2682,7 +2682,7 @@ async function runSync() {
   document.getElementById('sync-running').style.display = 'block';
 
   try {
-    const res  = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const res  = await fetch('/api/sync', { method: 'POST', headers: await authHeaders() });
     const data = await res.json();
 
     document.getElementById('sync-running').style.display = 'none';
@@ -2807,7 +2807,7 @@ async function processGmailQueue(silent = false) {
         // PDF — baixar e processar no browser
         const pdfRes = await fetch('/api/gmail-get-pdf', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await authHeaders(),
           body: JSON.stringify({ msgId: item.msg_id, attId: item.att_id })
         });
         const { base64 } = await pdfRes.json();
@@ -2817,7 +2817,7 @@ async function processGmailQueue(silent = false) {
         const text = await extractTextFromBuffer(bytes.buffer, item.password || '');
         const parseRes = await fetch('/api/parse-pdf', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await authHeaders(),
           body: JSON.stringify({ text })
         });
         const { transactions: raw = [] } = await parseRes.json();
@@ -3269,7 +3269,7 @@ async function parsePDFWithAI(arrayBuffer, password = '') {
   // 3. Send to Vercel function
   const response = await fetch('/api/parse-pdf', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await authHeaders(),
     body: JSON.stringify({ text: fullText })
   });
 
