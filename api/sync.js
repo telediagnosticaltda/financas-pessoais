@@ -1,9 +1,13 @@
+import { requireAuth } from './_auth.js';
+
 export default async function handler(req, res) {
   // CORS — permite que o app HTML chame essa função
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+
+  if (!(await requireAuth(req, res))) return;
   if (req.method !== 'POST')    { res.status(405).json({ error: 'Método não permitido' }); return; }
 
   const CLIENT_ID     = process.env.PLUGGY_CLIENT_ID;
