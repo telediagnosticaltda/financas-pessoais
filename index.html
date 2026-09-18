@@ -963,6 +963,9 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     <button class="nav-item" data-page="employees" onclick="navigate('employees')">
       <i class="ti ti-users"></i> Funcionárias
     </button>
+    <button class="nav-item" data-page="ir" onclick="navigate('ir')">
+      <i class="ti ti-receipt-tax"></i> Imposto de Renda
+    </button>
     <div class="nav-label" style="margin-top:auto">Configurações</div>
     <button class="nav-item" data-page="categories" onclick="navigate('categories')">
       <i class="ti ti-tag"></i> Categorias
@@ -1324,6 +1327,147 @@ tr.duplicate-row:hover { background: #FFF6D6; }
       </div>
     </div>
 
+    <!-- PAGE: IR -->
+    <div id="page-ir" class="page">
+      <div class="page-header">
+        <h1 class="page-title">Imposto de Renda</h1>
+        <div class="header-right">
+          <select class="filter-select" id="ir-year-sel" onchange="setIrYear(this.value)"
+                  style="font-weight:700;color:var(--primary)"></select>
+          <button class="btn btn-ghost" onclick="openIrReport()">
+            <i class="ti ti-file-text"></i> Relatório anual
+          </button>
+          <button class="btn btn-primary" onclick="openReceiptModal()">
+            <i class="ti ti-plus"></i> Adicionar recibo
+          </button>
+        </div>
+      </div>
+
+      <div class="cards-grid" style="margin-bottom:1.25rem">
+        <div class="card card-hero">
+          <div class="card-icon"><i class="ti ti-stethoscope"></i></div>
+          <div class="card-label">Despesas médicas com recibo</div>
+          <div class="card-value" id="ir-total">—</div>
+          <div class="card-sub" id="ir-total-sub">&nbsp;</div>
+        </div>
+        <div class="card card-income">
+          <div class="card-icon"><i class="ti ti-file-check"></i></div>
+          <div class="card-label">Recibos guardados</div>
+          <div class="card-value" id="ir-count">—</div>
+          <div class="card-sub" id="ir-count-sub">&nbsp;</div>
+        </div>
+        <div class="card card-expense">
+          <div class="card-icon"><i class="ti ti-alert-triangle"></i></div>
+          <div class="card-label">Sem comprovante</div>
+          <div class="card-value" id="ir-pending-total">—</div>
+          <div class="card-sub" id="ir-pending-sub">&nbsp;</div>
+        </div>
+      </div>
+
+      <div class="two-col" style="align-items:start">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Recibos por paciente</span>
+          </div>
+          <div id="ir-receipts-list"><div class="loading-msg">Carregando...</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Lançamentos de saúde sem recibo</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-3);margin-bottom:.75rem;line-height:1.5">
+            Gastos da categoria Saúde que ainda não têm comprovante anexado.
+            Use <i class="ti ti-eye-off"></i> para dispensar o que não é dedutível (farmácia, por exemplo).
+          </p>
+          <div id="ir-pending-list"><div class="loading-msg">Carregando...</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: Adicionar recibo médico -->
+<div class="modal-backdrop" id="modal-receipt">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title">Adicionar recibo médico</span>
+      <button class="modal-close" onclick="closeModal('modal-receipt')"><i class="ti ti-x"></i></button>
+    </div>
+
+    <div class="form-row">
+      <div class="drop-zone" id="receipt-drop">
+        <input type="file" id="receipt-file" accept=".pdf,.jpg,.jpeg,.png,.webp"
+               onchange="handleReceiptFile(this.files[0])">
+        <i class="ti ti-cloud-upload"></i>
+        <div class="drop-title" id="receipt-drop-title">Anexe o PDF ou a foto do recibo</div>
+        <div class="drop-sub">A IA vai ler prestador, CNPJ, data e valor automaticamente</div>
+      </div>
+    </div>
+
+    <div id="receipt-warn" style="display:none;background:#FFFBEA;border:1px solid #FCD34D;color:#92400E;border-radius:var(--radius);padding:.625rem .75rem;font-size:12px;margin-bottom:.875rem;line-height:1.5"></div>
+
+    <div class="form-2">
+      <div><label>Data *</label><input type="date" id="rc-date"></div>
+      <div><label>Valor (R$) *</label><input type="number" id="rc-amount" step="0.01" min="0.01" placeholder="0,00"></div>
+    </div>
+
+    <div class="form-row">
+      <label>Prestador *</label>
+      <input type="text" id="rc-provider" placeholder="Clínica, laboratório ou profissional">
+    </div>
+
+    <div class="form-2">
+      <div>
+        <label>CPF/CNPJ do prestador</label>
+        <input type="text" id="rc-doc" placeholder="Somente números"
+               oninput="this.value=this.value.replace(/\D/g,'')">
+      </div>
+      <div>
+        <label>Tipo</label>
+        <select id="rc-type">
+          <option value="consulta">Consulta</option>
+          <option value="exame">Exame</option>
+          <option value="dentista">Dentista</option>
+          <option value="psicologo">Psicólogo</option>
+          <option value="fisioterapia">Fisioterapia</option>
+          <option value="hospital">Hospital</option>
+          <option value="outros">Outros</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Paciente *</label>
+      <select id="rc-patient"></select>
+    </div>
+
+    <div class="form-row">
+      <label>Vincular a um lançamento <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+      <select id="rc-tx"><option value="">Nenhum</option></select>
+      <div style="font-size:11px;color:var(--text-3);margin-top:4px">
+        Lançamentos com valor parecido em datas próximas aparecem aqui.
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-receipt')">Cancelar</button>
+      <button class="btn btn-primary" id="rc-save" onclick="saveReceipt()">
+        <i class="ti ti-device-floppy"></i> Salvar recibo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Relatório anual de IR -->
+<div class="modal-backdrop" id="modal-ir-report">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <span class="modal-title">Relatório anual — Pagamentos Efetuados</span>
+      <button class="modal-close" onclick="closeModal('modal-ir-report')"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="ir-report-body"><div class="loading-msg">Carregando...</div></div>
   </div>
 </div>
 
@@ -1730,6 +1874,7 @@ function navigate(page) {
   if (page === 'categories')   loadCatPage();
   if (page === 'settings')     loadSettingsPage();
   if (page === 'employees')    initEmpNav();
+  if (page === 'ir')           initIrNav();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3951,6 +4096,430 @@ async function upsertEmpPayment(employeeName, fields) {
     await db.from('employee_payments')
       .insert({ employee_name: employeeName, month: empMonth, year: empYear, ...fields });
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPOSTO DE RENDA — recibos médicos
+// ─────────────────────────────────────────────────────────────
+const IR_PACIENTES = ['Francisco', 'Daniela Francisco Junqueira', 'Dante Francisco Junqueira'];
+const IR_BUCKET    = 'ir-recibos';
+
+let irYear        = new Date().getFullYear();
+let receiptFile   = null;   // arquivo escolhido no modal
+let irHealthCatIds = [];    // ids das categorias de saúde
+
+// Remove acentos e baixa a caixa, para comparar nomes de categoria
+function semAcento(t) {
+  return (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function initIrNav() {
+  const sel = document.getElementById('ir-year-sel');
+  const now = new Date().getFullYear();
+  sel.innerHTML = '';
+  // O IR do ano-calendário é declarado no ano seguinte, então o ano anterior importa
+  for (let y = now; y >= now - 4; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    if (y === irYear) o.selected = true;
+    sel.appendChild(o);
+  }
+  loadIrPage();
+}
+
+function setIrYear(y) {
+  irYear = parseInt(y);
+  loadIrPage();
+}
+
+async function loadIrPage() {
+  // Categorias consideradas "saúde" (nome contendo saude/medic/odonto)
+  irHealthCatIds = categories
+    .filter(c => c.type === 'expense' && /saude|medic|odonto|dent/.test(semAcento(c.name)))
+    .map(c => c.id);
+
+  const inicio = `${irYear}-01-01`;
+  const fim    = `${irYear}-12-31`;
+
+  const [rcRes, txRes, dmRes] = await Promise.all([
+    db.from('ir_receipts').select('*').eq('tax_year', irYear).order('date', { ascending: false }),
+    irHealthCatIds.length
+      ? db.from('transactions').select('id,date,description,amount')
+          .eq('type', 'expense').in('category_id', irHealthCatIds)
+          .gte('date', inicio).lte('date', fim).order('date', { ascending: false })
+      : Promise.resolve({ data: [] }),
+    db.from('ir_dismissed').select('transaction_id')
+  ]);
+
+  const recibos    = rcRes.data || [];
+  const txsSaude   = txRes.data || [];
+  const dispensados = new Set((dmRes.data || []).map(d => d.transaction_id));
+  const vinculados  = new Set(recibos.map(r => r.transaction_id).filter(Boolean));
+
+  // ── Cards do topo ──
+  const total = recibos.reduce((sum, r) => sum + +r.amount, 0);
+  document.getElementById('ir-total').textContent     = R(total);
+  document.getElementById('ir-total-sub').textContent = `Ano-calendário ${irYear}`;
+  document.getElementById('ir-count').textContent     = recibos.length;
+  document.getElementById('ir-count-sub').textContent =
+    recibos.length === 1 ? 'comprovante' : 'comprovantes';
+
+  const pendentes = txsSaude.filter(t => !vinculados.has(t.id) && !dispensados.has(t.id));
+  const totalPend = pendentes.reduce((sum, t) => sum + +t.amount, 0);
+  document.getElementById('ir-pending-total').textContent = R(totalPend);
+  document.getElementById('ir-pending-sub').textContent   =
+    `${pendentes.length} lançamento${pendentes.length === 1 ? '' : 's'}`;
+
+  renderIrReceipts(recibos);
+  renderIrPending(pendentes);
+}
+
+function renderIrReceipts(recibos) {
+  const el = document.getElementById('ir-receipts-list');
+
+  if (!recibos.length) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-file-off"></i><p>Nenhum recibo guardado neste ano</p></div>';
+    return;
+  }
+
+  // Agrupa por paciente, na ordem fixa da lista
+  const grupos = {};
+  recibos.forEach(r => { (grupos[r.patient] = grupos[r.patient] || []).push(r); });
+
+  const ordem = [...IR_PACIENTES, ...Object.keys(grupos).filter(p => !IR_PACIENTES.includes(p))];
+
+  el.innerHTML = ordem.filter(p => grupos[p]).map(paciente => {
+    const itens    = grupos[paciente];
+    const subtotal = itens.reduce((s, r) => s + +r.amount, 0);
+    return `
+      <div style="margin-bottom:1.125rem">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:.5rem">
+          <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3)">${paciente}</span>
+          <span style="margin-left:auto;font-size:13px;font-weight:700;color:var(--primary)">${R(subtotal)}</span>
+        </div>
+        ${itens.map(r => `
+          <div class="tx-item" style="cursor:default">
+            <div class="tx-icon" style="background:var(--primary-l);color:var(--primary)">
+              <i class="ti ti-file-text"></i>
+            </div>
+            <div class="tx-info">
+              <div class="tx-desc">${r.provider_name}</div>
+              <div class="tx-meta">${fmtDate(r.date)} · ${r.expense_type}${r.provider_doc ? ' · ' + r.provider_doc : ''}</div>
+            </div>
+            <div class="tx-right" style="display:flex;align-items:center;gap:6px">
+              <span class="tx-amount expense">${R(r.amount)}</span>
+              ${r.file_path ? `<button class="icon-btn icon-btn-edit" title="Abrir arquivo" onclick="openReceiptFile('${r.file_path}')"><i class="ti ti-eye"></i></button>` : ''}
+              <button class="icon-btn icon-btn-del" title="Excluir recibo" onclick="confirmDeleteReceipt('${r.id}','${(r.provider_name||'').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }).join('');
+}
+
+function renderIrPending(pendentes) {
+  const el = document.getElementById('ir-pending-list');
+
+  if (!pendentes.length) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-circle-check" style="color:var(--green)"></i><p>Todo gasto de saúde tem comprovante ✓</p></div>';
+    return;
+  }
+
+  el.innerHTML = pendentes.map(t => `
+    <div class="tx-item" style="cursor:default">
+      <div class="tx-info">
+        <div class="tx-desc">${t.description}</div>
+        <div class="tx-meta">${fmtDate(t.date)}</div>
+      </div>
+      <div class="tx-right" style="display:flex;align-items:center;gap:6px">
+        <span class="tx-amount expense">${R(t.amount)}</span>
+        <button class="icon-btn icon-btn-edit" title="Anexar recibo para este lançamento"
+                onclick="openReceiptModal('${t.id}')"><i class="ti ti-paperclip"></i></button>
+        <button class="icon-btn icon-btn-del" title="Não é dedutível — dispensar"
+                onclick="dismissIrTx('${t.id}')"><i class="ti ti-eye-off"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+async function dismissIrTx(txId) {
+  const { error } = await db.from('ir_dismissed').insert({ transaction_id: txId });
+  if (error) { toast('Erro ao dispensar: ' + error.message, 'error'); return; }
+  toast('Lançamento dispensado');
+  loadIrPage();
+}
+
+async function openReceiptFile(path) {
+  const { data, error } = await db.storage.from(IR_BUCKET).createSignedUrl(path, 60);
+  if (error) { toast('Não consegui abrir o arquivo: ' + error.message, 'error'); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+function confirmDeleteReceipt(id, nome) {
+  showConfirm('Excluir recibo', `O recibo de "${nome}" será removido, junto com o arquivo anexado.`, async () => {
+    const { data: rec } = await db.from('ir_receipts').select('file_path').eq('id', id).single();
+    if (rec?.file_path) await db.storage.from(IR_BUCKET).remove([rec.file_path]);
+    const { error } = await db.from('ir_receipts').delete().eq('id', id);
+    if (error) { toast('Erro ao excluir', 'error'); return; }
+    toast('Recibo excluído');
+    loadIrPage();
+  });
+}
+
+// ── Modal de recibo ───────────────────────────────────────────
+async function openReceiptModal(txId = null) {
+  receiptFile = null;
+
+  document.getElementById('rc-date').value     = '';
+  document.getElementById('rc-amount').value   = '';
+  document.getElementById('rc-provider').value = '';
+  document.getElementById('rc-doc').value      = '';
+  document.getElementById('rc-type').value     = 'consulta';
+  document.getElementById('receipt-file').value = '';
+  document.getElementById('receipt-warn').style.display = 'none';
+
+  const dz = document.getElementById('receipt-drop');
+  dz.classList.remove('has-file');
+  document.getElementById('receipt-drop-title').textContent = 'Anexe o PDF ou a foto do recibo';
+
+  document.getElementById('rc-patient').innerHTML =
+    IR_PACIENTES.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  // Veio do botão de clipe em um lançamento pendente: já preenche a partir dele
+  if (txId) {
+    const { data: t } = await db.from('transactions').select('*').eq('id', txId).single();
+    if (t) {
+      document.getElementById('rc-date').value     = t.date;
+      document.getElementById('rc-amount').value   = t.amount;
+      document.getElementById('rc-provider').value = t.description;
+      await fillReceiptTxOptions(t.date, +t.amount, t.id);
+    }
+  } else {
+    document.getElementById('rc-tx').innerHTML = '<option value="">Nenhum</option>';
+  }
+
+  document.getElementById('modal-receipt').classList.add('open');
+}
+
+// Sugere lançamentos de valor parecido em datas próximas
+async function fillReceiptTxOptions(data, valor, preSel = null) {
+  const sel = document.getElementById('rc-tx');
+  sel.innerHTML = '<option value="">Nenhum</option>';
+  if (!data || !valor) return;
+
+  const d = new Date(data + 'T00:00:00');
+  const ini = new Date(d); ini.setDate(ini.getDate() - 10);
+  const fim = new Date(d); fim.setDate(fim.getDate() + 10);
+
+  const { data: txs } = await db.from('transactions')
+    .select('id,date,description,amount')
+    .eq('type', 'expense')
+    .gte('date', ini.toISOString().slice(0, 10))
+    .lte('date', fim.toISOString().slice(0, 10))
+    .order('date');
+
+  (txs || [])
+    .filter(t => Math.abs(+t.amount - valor) < 0.02)
+    .forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.id;
+      o.textContent = `${fmtDate(t.date)} — ${t.description} — ${R(t.amount)}`;
+      if (t.id === preSel) o.selected = true;
+      sel.appendChild(o);
+    });
+}
+
+async function handleReceiptFile(file) {
+  if (!file) return;
+  receiptFile = file;
+
+  const dz = document.getElementById('receipt-drop');
+  dz.classList.add('has-file');
+  document.getElementById('receipt-drop-title').textContent =
+    `Lendo ${file.name}...`;
+
+  try {
+    const base64 = await new Promise((ok, err) => {
+      const r = new FileReader();
+      r.onload  = () => ok(r.result.split(',')[1]);
+      r.onerror = () => err(new Error('Falha ao ler o arquivo'));
+      r.readAsDataURL(file);
+    });
+
+    const res = await fetch('/api/extract-receipt', {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ fileData: base64, mediaType: file.type })
+    });
+    const info = await res.json();
+
+    if (!res.ok) throw new Error(info.error || 'Erro na leitura');
+
+    if (info.date)          document.getElementById('rc-date').value     = info.date;
+    if (info.amount)        document.getElementById('rc-amount').value   = info.amount;
+    if (info.provider_name) document.getElementById('rc-provider').value = info.provider_name;
+    if (info.provider_doc)  document.getElementById('rc-doc').value      = info.provider_doc;
+    if (info.expense_type)  document.getElementById('rc-type').value     = info.expense_type;
+
+    // Tenta casar o nome do paciente com um dos três
+    if (info.patient_name) {
+      const alvo = semAcento(info.patient_name);
+      const achou = IR_PACIENTES.find(p => {
+        const primeiro = semAcento(p).split(' ')[0];
+        return alvo.includes(primeiro);
+      });
+      if (achou) document.getElementById('rc-patient').value = achou;
+    }
+
+    // Avisos quando a leitura foi duvidosa
+    const avisos = [...(info.warnings || [])];
+    if (info.confidence === 'baixa') avisos.unshift('A leitura ficou incerta — confira tudo antes de salvar.');
+    const warnEl = document.getElementById('receipt-warn');
+    if (avisos.length) {
+      warnEl.innerHTML = '<i class="ti ti-alert-triangle"></i> ' + avisos.join(' ');
+      warnEl.style.display = 'block';
+    } else {
+      warnEl.style.display = 'none';
+    }
+
+    document.getElementById('receipt-drop-title').textContent = `✓ ${file.name}`;
+
+    await fillReceiptTxOptions(
+      document.getElementById('rc-date').value,
+      parseFloat(document.getElementById('rc-amount').value)
+    );
+  } catch (err) {
+    document.getElementById('receipt-drop-title').textContent = `✓ ${file.name} (preencha na mão)`;
+    toast('Não consegui ler o recibo: ' + err.message, 'error');
+  }
+}
+
+async function saveReceipt() {
+  const date     = document.getElementById('rc-date').value;
+  const amount   = parseFloat(document.getElementById('rc-amount').value);
+  const provider = document.getElementById('rc-provider').value.trim();
+  const doc      = document.getElementById('rc-doc').value.trim() || null;
+  const tipo     = document.getElementById('rc-type').value;
+  const paciente = document.getElementById('rc-patient').value;
+  const txId     = document.getElementById('rc-tx').value || null;
+
+  if (!date || !amount || amount <= 0 || !provider) {
+    toast('Preencha data, valor e prestador', 'error'); return;
+  }
+
+  const btn = document.getElementById('rc-save');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Salvando...';
+
+  try {
+    let filePath = null, fileName = null;
+
+    if (receiptFile) {
+      const ext  = (receiptFile.name.split('.').pop() || 'pdf').toLowerCase();
+      const ano  = date.slice(0, 4);
+      const path = `${ano}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await db.storage.from(IR_BUCKET)
+        .upload(path, receiptFile, { contentType: receiptFile.type });
+      if (upErr) throw new Error('Falha ao guardar o arquivo: ' + upErr.message);
+      filePath = path;
+      fileName = receiptFile.name;
+    }
+
+    const { error } = await db.from('ir_receipts').insert({
+      tax_year:       parseInt(date.slice(0, 4)),
+      date, amount,
+      provider_name:  provider,
+      provider_doc:   doc,
+      patient:        paciente,
+      expense_type:   tipo,
+      file_path:      filePath,
+      file_name:      fileName,
+      transaction_id: txId
+    });
+    if (error) throw new Error(error.message);
+
+    closeModal('modal-receipt');
+    toast('Recibo guardado!');
+    // Salvou em outro ano-calendário: pula para ele
+    const ano = parseInt(date.slice(0, 4));
+    if (ano !== irYear) { irYear = ano; initIrNav(); } else { loadIrPage(); }
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Salvar recibo';
+  }
+}
+
+// ── Relatório anual ───────────────────────────────────────────
+async function openIrReport() {
+  document.getElementById('modal-ir-report').classList.add('open');
+  const body = document.getElementById('ir-report-body');
+  body.innerHTML = '<div class="loading-msg">Montando...</div>';
+
+  const { data: recibos } = await db.from('ir_receipts')
+    .select('*').eq('tax_year', irYear).order('provider_name');
+
+  if (!recibos?.length) {
+    body.innerHTML = `<div class="empty"><i class="ti ti-file-off"></i><p>Nenhum recibo em ${irYear}</p></div>`;
+    return;
+  }
+
+  // Agrupa por prestador + documento, que é como a Receita pede
+  const chave = r => `${r.provider_doc || '-'}|${r.provider_name}`;
+  const grupos = {};
+  recibos.forEach(r => {
+    const k = chave(r);
+    if (!grupos[k]) grupos[k] = { nome: r.provider_name, doc: r.provider_doc, total: 0, pacientes: new Set() };
+    grupos[k].total += +r.amount;
+    grupos[k].pacientes.add(r.patient);
+  });
+
+  const linhas = Object.values(grupos).sort((a, b) => b.total - a.total);
+  const total  = linhas.reduce((s, l) => s + l.total, 0);
+
+  body.innerHTML = `
+    <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
+      Valores de ${irYear} agrupados por prestador, na ordem em que a ficha
+      "Pagamentos Efetuados" pede. Confira contra a declaração pré-preenchida
+      antes de digitar — o que a Receita já souber vem preenchido de lá.
+    </p>
+    <div class="table-wrap" style="margin-bottom:1rem">
+      <table>
+        <thead>
+          <tr>
+            <th>Prestador</th>
+            <th>CPF/CNPJ</th>
+            <th>Paciente</th>
+            <th style="text-align:right">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhas.map(l => `
+            <tr>
+              <td style="font-weight:600">${l.nome}</td>
+              <td style="color:var(--text-2);font-size:12px">${l.doc || '—'}</td>
+              <td style="color:var(--text-2);font-size:12px">${[...l.pacientes].join(', ')}</td>
+              <td style="text-align:right;font-weight:700">${R(l.total)}</td>
+            </tr>`).join('')}
+          <tr style="background:var(--surface-2)">
+            <td colspan="3" style="font-weight:700">Total</td>
+            <td style="text-align:right;font-weight:700;color:var(--primary)">${R(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-ghost" onclick="copyIrReport()">
+      <i class="ti ti-copy"></i> Copiar como texto
+    </button>
+    <textarea id="ir-report-text" style="position:absolute;left:-9999px">${
+      linhas.map(l => `${l.nome}\t${l.doc || ''}\t${l.total.toFixed(2)}`).join('\n')
+    }</textarea>`;
+}
+
+function copyIrReport() {
+  const ta = document.getElementById('ir-report-text');
+  ta.select();
+  document.execCommand('copy');
+  toast('Copiado — pode colar numa planilha');
 }
 
 // ─────────────────────────────────────────────────────────────
