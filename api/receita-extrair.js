@@ -1,12 +1,21 @@
 import { requireAuth } from './_auth.js';
 
 // api/receita-extrair.js
-// Recebe um link (YouTube/Instagram), um texto colado ou uma imagem (print/foto)
-// e devolve a receita estruturada em ingredientes + passo a passo.
+// Transforma um video, um link, um texto colado ou uma imagem numa receita
+// estruturada (ingredientes + passo a passo).
 //
-// Variavel de ambiente necessaria: ANTHROPIC_API_KEY
+// Dois motores de IA, cada um no que faz melhor:
+//   - Gemini  -> assiste ao video (audio + imagem). Link do YouTube ou arquivo enviado.
+//   - Claude  -> le texto colado, print de tela e foto de receita.
+//
+// Variaveis de ambiente:
+//   GEMINI_API_KEY     (obrigatoria para video)
+//   ANTHROPIC_API_KEY  (obrigatoria para texto e imagem)
 
-const MODEL = 'claude-sonnet-4-6';
+const MODELOS_GEMINI = ['gemini-3.8-flash', 'gemini-3.7-flash'];
+const MODELO_CLAUDE  = 'claude-sonnet-4-6';
+
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 
 const CATEGORIAS = [
   'Carnes', 'Aves', 'Peixes e frutos do mar', 'Massas',
@@ -18,51 +27,73 @@ const CATEGORIAS = [
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
            '(KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
-const PROMPT = `Voce esta lendo o material de divulgacao de uma receita de culinaria:
-pode ser a descricao de um video do YouTube, a legenda de um post do Instagram,
-o print de uma tela ou a foto de uma receita escrita em papel.
-
-Sua tarefa e transformar isso numa receita organizada.
-
-Responda APENAS com um objeto JSON, sem markdown, sem crases, sem nenhum texto
-antes ou depois.
+// ── Formato de saida, igual para os dois motores ──
+const FORMATO = `Responda APENAS com um objeto JSON, sem markdown, sem crases,
+sem nenhum texto antes ou depois.
 
 Formato exato:
 {
   "found": true | false,
   "title": "nome da receita",
-  "category": uma destas opcoes exatas: ${CATEGORIAS.map(c => `"${c}"`).join(' | ')},
+  "category": ${CATEGORIAS.map(c => `"${c}"`).join(' | ')},
   "tags": ["ate 5 tags curtas em minusculas, ex: rapido, airfryer, sem gluten"],
   "servings": "texto curto, ex: 4 porcoes, ou null",
   "total_time_min": numero total de minutos de preparo, ou null,
   "ingredients": ["1 xicara de farinha de trigo", "2 ovos", "..."],
   "steps": ["Passo completo em uma frase ou duas.", "..."],
-  "notes": "dica relevante do autor que nao cabe nos passos, ou null",
+  "notes": "dica relevante de quem ensinou que nao cabe nos passos, ou null",
   "confidence": "alta" | "media" | "baixa",
-  "warnings": ["avisos curtos sobre o que ficou faltando"]
+  "warnings": ["avisos curtos sobre o que ficou duvidoso ou faltando"]
 }
 
-Regras importantes:
+Regras:
 - NUNCA invente ingredientes, quantidades ou passos. Esta e a regra mais importante:
-  uma receita chutada e pior que nenhuma receita.
-- Se o texto NAO contiver uma receita de fato (so tiver link de afiliado, pedido de
-  inscricao no canal, hashtags, ou apenas o nome do prato sem o preparo), responda
-  com "found": false e deixe ingredients e steps como listas vazias. Explique em
-  warnings o que faltou.
-- Se houver ingredientes mas o modo de preparo estiver ausente, ainda assim use
-  "found": true, preencha o que existe e registre a falta em warnings.
+  uma receita chutada e pior que nenhuma receita. Se uma quantidade nao for dita nem
+  mostrada, escreva o ingrediente sem quantidade e registre isso em warnings.
 - ingredients: uma linha por ingrediente, comecando pela quantidade quando ela existir.
-  Mantenha as unidades como o autor escreveu (xicara, colher de sopa, g, ml).
-- steps: escreva cada passo de forma completa e independente, na ordem.
-  Nao numere os passos, a numeracao e feita pelo aplicativo.
-- total_time_min: some preparo e cozimento. Se o texto disser "40 minutos", use 40.
+  Mantenha as unidades como foram ditas (xicara, colher de sopa, g, ml).
+- steps: cada passo completo e independente, na ordem. Nao numere, o aplicativo numera.
+- total_time_min: some preparo e cozimento apenas se os tempos forem informados.
   Se nao houver informacao de tempo, use null. Nao estime.
-- Responda em portugues do Brasil. Se o material original estiver em outro idioma,
-  traduza os ingredientes e os passos.
-- Ignore completamente: pedidos de like e inscricao, links de cupom e afiliado,
-  nomes de patrocinadores, listas de hashtags e enderecos de redes sociais.`;
+- Responda em portugues do Brasil. Se o material estiver em outro idioma, traduza.
+- Ignore pedidos de like e inscricao, links de cupom e afiliado, nomes de
+  patrocinadores, hashtags e enderecos de redes sociais.`;
 
-// ── Extracao do ID do YouTube em qualquer formato de link ──
+const PROMPT_VIDEO = `Voce esta assistindo a um video de culinaria e sua tarefa e
+transcrever a receita ensinada nele.
+
+Use TUDO o que o video oferece:
+- o que a pessoa fala (a maior parte das quantidades costuma estar na fala);
+- o texto escrito na tela (legendas, cartelas de ingredientes, listas sobrepostas);
+- o que aparece na imagem (embalagens, utensilios, tamanho das panelas e formas,
+  temperatura e tempo mostrados no forno ou no display do aparelho).
+
+Se a fala e a tela discordarem, prefira o que estiver escrito na tela e registre a
+divergencia em warnings.
+
+Se o video NAO ensinar uma receita (for so uma degustacao, uma resenha de restaurante
+ou um comentario), responda com "found": false e listas vazias.
+
+${FORMATO}`;
+
+const PROMPT_TEXTO = `Voce esta lendo o material de divulgacao de uma receita de
+culinaria: pode ser a legenda de um post, a descricao de um video, o print de uma
+tela ou a foto de uma receita escrita em papel.
+
+Sua tarefa e transformar isso numa receita organizada.
+
+Se o material NAO contiver uma receita de fato (so tiver link de afiliado, pedido de
+inscricao no canal, hashtags, ou apenas o nome do prato sem o preparo), responda com
+"found": false e listas vazias, explicando em warnings o que faltou.
+
+Se houver ingredientes mas o modo de preparo estiver ausente, use "found": true,
+preencha o que existe e registre a falta em warnings.
+
+${FORMATO}`;
+
+// ─────────────────────────────────────────────────────────────
+// UTILIDADES
+// ─────────────────────────────────────────────────────────────
 function youtubeId(url) {
   const padroes = [
     /(?:youtube\.com\/watch\?(?:.*&)?v=)([\w-]{11})/,
@@ -78,43 +109,54 @@ function youtubeId(url) {
   return null;
 }
 
-function metaTag(html, prop) {
-  const re = new RegExp(
-    `<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']*)["']`, 'i'
-  );
-  const m = html.match(re);
-  if (m) return decodeHtml(m[1]);
-  // Ordem invertida dos atributos
-  const re2 = new RegExp(
-    `<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'
-  );
-  const m2 = html.match(re2);
-  return m2 ? decodeHtml(m2[1]) : null;
-}
-
 function decodeHtml(s) {
-  return s
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ');
+  return s.replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+          .replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
 }
 
-// ── YouTube: titulo, canal, capa e descricao completa ──
-async function lerYoutube(id) {
+function metaTag(html, prop) {
+  const a = html.match(new RegExp(
+    `<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']*)["']`, 'i'));
+  if (a) return decodeHtml(a[1]);
+  const b = html.match(new RegExp(
+    `<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'));
+  return b ? decodeHtml(b[1]) : null;
+}
+
+function erro(msg, status = 500) {
+  const e = new Error(msg);
+  e.status = status;
+  return e;
+}
+
+function lerJson(texto, ondeErrou) {
+  const limpo = String(texto || '')
+    .replace(/```json/gi, '').replace(/```/g, '').trim();
+  const inicio = limpo.indexOf('{');
+  const fim    = limpo.lastIndexOf('}');
+  const alvo   = inicio >= 0 && fim > inicio ? limpo.slice(inicio, fim + 1) : limpo;
+  try {
+    return JSON.parse(alvo);
+  } catch {
+    console.error(`[${ondeErrou}] resposta nao era JSON:`, limpo.slice(0, 500));
+    throw erro('Nao consegui organizar a receita. Tente o print da tela.', 502);
+  }
+}
+
+// ── Titulo, canal e capa do video (nao depende do Gemini) ──
+async function metadadosYoutube(id) {
   const info = {
     source_type: 'youtube',
     source_url: `https://www.youtube.com/watch?v=${id}`,
     video_id: id,
     thumbnail_url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
     title: null,
-    author: null,
-    texto: ''
+    author: null
   };
-
-  // 1. oEmbed: titulo e canal de forma estavel e oficial
   try {
     const r = await fetch(
-      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`,
+      `${'https://www.youtube.com'}/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`,
       { headers: { 'User-Agent': UA } }
     );
     if (r.ok) {
@@ -126,72 +168,146 @@ async function lerYoutube(id) {
   } catch (err) {
     console.error('[receita] oembed falhou:', err.message);
   }
-
-  // 2. Pagina do video: a descricao completa, que e onde a receita costuma estar
-  try {
-    const r = await fetch(`https://www.youtube.com/watch?v=${id}&hl=pt-BR`, {
-      headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9' }
-    });
-    if (r.ok) {
-      const html = await r.text();
-      let descricao = null;
-
-      const m = html.match(/"shortDescription":"((?:\\.|[^"\\])*)"/);
-      if (m) {
-        try { descricao = JSON.parse(`"${m[1]}"`); } catch { /* ignora */ }
-      }
-      if (!descricao) descricao = metaTag(html, 'og:description');
-      if (!info.title) info.title = metaTag(html, 'og:title');
-
-      if (descricao) info.texto = descricao;
-    }
-  } catch (err) {
-    console.error('[receita] pagina do youtube falhou:', err.message);
-  }
-
-  const cabecalho = [info.title, info.author ? `Canal: ${info.author}` : null]
-    .filter(Boolean).join('\n');
-  info.texto = [cabecalho, info.texto].filter(Boolean).join('\n\n');
-
   return info;
 }
 
-// ── Outros links (Instagram, TikTok, blogs): tenta as meta tags ──
-async function lerLinkGenerico(url) {
-  const ehInsta  = /instagram\.com/i.test(url);
-  const ehTiktok = /tiktok\.com/i.test(url);
+// ─────────────────────────────────────────────────────────────
+// GEMINI
+// ─────────────────────────────────────────────────────────────
+function textoDaInteracao(data) {
+  const inter = data.interaction || data;
+  let saida = '';
 
-  const info = {
-    source_type: ehInsta ? 'instagram' : (ehTiktok ? 'tiktok' : 'link'),
-    source_url: url,
-    video_id: null,
-    thumbnail_url: null,
-    title: null,
-    author: null,
-    texto: ''
-  };
-
-  try {
-    const r = await fetch(url, {
-      headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9' },
-      redirect: 'follow'
-    });
-    if (r.ok) {
-      const html = await r.text();
-      info.title         = metaTag(html, 'og:title');
-      info.thumbnail_url = metaTag(html, 'og:image');
-      const desc         = metaTag(html, 'og:description');
-      info.texto = [info.title, desc].filter(Boolean).join('\n\n');
+  for (const passo of inter.steps || []) {
+    if (passo.type && passo.type !== 'model_output') continue;
+    for (const bloco of passo.content || []) {
+      if (bloco.type === 'text' && bloco.text) saida += bloco.text + '\n';
     }
-  } catch (err) {
-    console.error('[receita] link generico falhou:', err.message);
   }
+  if (!saida && inter.output_text) saida = inter.output_text;
 
-  return info;
+  // Rede de seguranca: formato antigo (generateContent)
+  if (!saida && Array.isArray(inter.candidates)) {
+    saida = (inter.candidates[0]?.content?.parts || [])
+      .map(p => p.text || '').join('\n');
+  }
+  return saida.trim();
 }
 
+async function chamarGemini(apiKey, blocoVideo) {
+  let ultimoErro = null;
+
+  // Sem o ajuste de frames, caso a API recuse esse parametro
+  const semAjuste = { ...blocoVideo };
+  delete semAjuste.processing;
+
+  for (const modelo of MODELOS_GEMINI) {
+    for (const bloco of [blocoVideo, semAjuste]) {
+      const res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          model: modelo,
+          input: [bloco, { type: 'text', text: PROMPT_VIDEO }]
+        })
+      });
+
+      if (res.ok) return lerJson(textoDaInteracao(await res.json()), 'gemini');
+
+      const detalhe = await res.text();
+      console.error(`[gemini ${modelo}]`, res.status, detalhe.slice(0, 400));
+      ultimoErro = { status: res.status, detalhe };
+
+      // 400 pode ser o parametro "processing": tenta de novo sem ele
+      if (res.status === 400 && !/API key/i.test(detalhe) && bloco === blocoVideo) continue;
+      break;
+    }
+
+    // Modelo inexistente ou sem permissao: tenta o proximo da lista
+    if (ultimoErro && (ultimoErro.status === 404 ||
+        /not found|not supported/i.test(ultimoErro.detalhe))) continue;
+    break;
+  }
+
+  if (ultimoErro?.status === 429) {
+    throw erro('O limite gratuito do Gemini foi atingido por hoje. Tente amanha ou use o print da tela.', 429);
+  }
+  if (ultimoErro?.status === 400 && /API key/i.test(ultimoErro.detalhe)) {
+    throw erro('A GEMINI_API_KEY parece invalida. Confira a chave na Vercel.', 400);
+  }
+  throw erro('O Gemini nao conseguiu processar esse video.', 502);
+}
+
+// ── Envia um arquivo de video para a Files API do Gemini ──
+async function subirVideoGemini(apiKey, bytes, mime) {
+  const inicio = await fetch(`${GEMINI_BASE}/upload/v1beta/files`, {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'X-Goog-Upload-Protocol': 'resumable',
+      'X-Goog-Upload-Command': 'start',
+      'X-Goog-Upload-Header-Content-Length': String(bytes.length),
+      'X-Goog-Upload-Header-Content-Type': mime,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ file: { display_name: 'receita' } })
+  });
+
+  const enviarPara = inicio.headers.get('x-goog-upload-url');
+  if (!inicio.ok || !enviarPara) {
+    console.error('[gemini upload start]', inicio.status, await inicio.text());
+    throw erro('Falha ao enviar o video para o Gemini.', 502);
+  }
+
+  const envio = await fetch(enviarPara, {
+    method: 'POST',
+    headers: {
+      'Content-Length': String(bytes.length),
+      'X-Goog-Upload-Offset': '0',
+      'X-Goog-Upload-Command': 'upload, finalize'
+    },
+    body: bytes
+  });
+
+  if (!envio.ok) {
+    console.error('[gemini upload]', envio.status, await envio.text());
+    throw erro('Falha ao enviar o video para o Gemini.', 502);
+  }
+
+  const arquivo = (await envio.json()).file;
+  if (!arquivo?.name) throw erro('O Gemini nao devolveu o arquivo enviado.', 502);
+
+  // Espera o video ficar pronto (ACTIVE)
+  const limite = Date.now() + 40_000;
+  let estado = arquivo.state;
+  while (estado !== 'ACTIVE') {
+    if (estado === 'FAILED') throw erro('O Gemini nao conseguiu processar esse arquivo de video.', 502);
+    if (Date.now() > limite) throw erro('O video demorou demais para ser processado. Tente um trecho menor.', 504);
+    await new Promise(r => setTimeout(r, 2000));
+    const r = await fetch(`${GEMINI_BASE}/v1beta/${arquivo.name}`, {
+      headers: { 'x-goog-api-key': apiKey }
+    });
+    if (!r.ok) break;
+    estado = (await r.json()).state;
+  }
+
+  return { uri: arquivo.uri, name: arquivo.name, mime: arquivo.mimeType || mime };
+}
+
+async function apagarArquivoGemini(apiKey, nome) {
+  try {
+    await fetch(`${GEMINI_BASE}/v1beta/${nome}`, {
+      method: 'DELETE',
+      headers: { 'x-goog-api-key': apiKey }
+    });
+  } catch { /* melhor esforco: os arquivos expiram sozinhos em 48h */ }
+}
+
+// ─────────────────────────────────────────────────────────────
+// CLAUDE (texto colado, print e foto)
+// ─────────────────────────────────────────────────────────────
 async function chamarClaude(apiKey, blocos) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -199,139 +315,176 @@ async function chamarClaude(apiKey, blocos) {
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: MODELO_CLAUDE,
       max_tokens: 2000,
       messages: [{ role: 'user', content: blocos }]
     })
   });
 
-  if (!response.ok) {
-    const detalhe = await response.text();
-    console.error('Erro da Claude API:', response.status, detalhe);
-    const e = new Error('A Claude API recusou a requisicao');
-    e.status = 502;
-    throw e;
+  if (!res.ok) {
+    console.error('[claude]', res.status, (await res.text()).slice(0, 400));
+    throw erro('A Claude API recusou a requisicao.', 502);
   }
 
-  const data = await response.json();
+  const data = await res.json();
   const texto = (data.content || [])
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('\n')
-    .trim();
+    .filter(b => b.type === 'text').map(b => b.text).join('\n');
 
-  const limpo = texto.replace(/```json/gi, '').replace(/```/g, '').trim();
-
-  try {
-    return JSON.parse(limpo);
-  } catch {
-    console.error('Resposta nao era JSON valido:', limpo.slice(0, 500));
-    const e = new Error('Nao consegui organizar a receita. Tente colar o texto na mao.');
-    e.status = 502;
-    throw e;
-  }
+  return lerJson(texto, 'claude');
 }
 
+// ─────────────────────────────────────────────────────────────
+// HANDLER
+// ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (!(await requireAuth(req, res))) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Use POST' });
-  }
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY nao configurada' });
-  }
+  const chaveGemini = process.env.GEMINI_API_KEY;
+  const chaveClaude = process.env.ANTHROPIC_API_KEY;
 
   try {
-    const { url, text, fileData, mediaType } = req.body || {};
+    const { url, videoUrl, mimeType, text, fileData, mediaType } = req.body || {};
 
     let origem = {
-      source_type: 'manual',
-      source_url: null,
-      video_id: null,
-      thumbnail_url: null,
-      title: null,
-      author: null,
-      texto: ''
+      source_type: 'manual', source_url: null, video_id: null,
+      thumbnail_url: null, title: null, author: null
     };
+    let bruto = null;
 
-    // ── 1. De onde vem o material ──
-    if (url) {
+    // ── CAMINHO 1: link do YouTube, assistido pelo Gemini ──
+    if (url && youtubeId(String(url).trim())) {
+      if (!chaveGemini) {
+        return res.status(500).json({
+          error: 'GEMINI_API_KEY nao configurada na Vercel — sem ela o app nao consegue assistir ao video.'
+        });
+      }
+      const id = youtubeId(String(url).trim());
+      origem = await metadadosYoutube(id);
+
+      bruto = await chamarGemini(chaveGemini, {
+        type: 'video',
+        uri: `https://www.youtube.com/watch?v=${id}`,
+        processing: { type: 'static', fps: 0.25 }
+      });
+
+    // ── CAMINHO 2: arquivo de video enviado pelo usuario (reel, TikTok, celular) ──
+    } else if (videoUrl) {
+      if (!chaveGemini) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY nao configurada na Vercel.' });
+      }
+
+      const baixado = await fetch(videoUrl);
+      if (!baixado.ok) throw erro('Nao consegui ler o video enviado.', 502);
+      const bytes = Buffer.from(await baixado.arrayBuffer());
+
+      if (bytes.length > 95 * 1024 * 1024) {
+        throw erro('Video grande demais (limite de 95 MB).', 413);
+      }
+
+      const mime = mimeType || baixado.headers.get('content-type') || 'video/mp4';
+      const arquivo = await subirVideoGemini(chaveGemini, bytes, mime);
+
+      origem.source_type = 'video';
+      try {
+        bruto = await chamarGemini(chaveGemini, {
+          type: 'video', uri: arquivo.uri, mime_type: arquivo.mime,
+          processing: { type: 'static', fps: 0.25 }
+        });
+      } finally {
+        await apagarArquivoGemini(chaveGemini, arquivo.name);
+      }
+
+    // ── CAMINHO 3: outro link (Instagram, TikTok, blog) ──
+    } else if (url) {
       const limpo = String(url).trim();
-      const ytId = youtubeId(limpo);
-      origem = ytId ? await lerYoutube(ytId) : await lerLinkGenerico(limpo);
+      const ehInsta  = /instagram\.com/i.test(limpo);
+      const ehTiktok = /tiktok\.com/i.test(limpo);
+      origem.source_type = ehInsta ? 'instagram' : (ehTiktok ? 'tiktok' : 'link');
+      origem.source_url  = limpo;
 
-      const util = (origem.texto || '').replace(/\s+/g, ' ').trim();
-      if (util.length < 80) {
+      let texto = '';
+      try {
+        const r = await fetch(limpo, {
+          headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9' },
+          redirect: 'follow'
+        });
+        if (r.ok) {
+          const html = await r.text();
+          origem.title         = metaTag(html, 'og:title');
+          origem.thumbnail_url = metaTag(html, 'og:image');
+          texto = [origem.title, metaTag(html, 'og:description')].filter(Boolean).join('\n\n');
+        }
+      } catch (err) {
+        console.error('[receita] link generico falhou:', err.message);
+      }
+
+      if (texto.replace(/\s+/g, ' ').trim().length < 80) {
         return res.status(200).json({
-          found: false,
-          ...origem,
-          ingredients: [],
-          steps: [],
+          found: false, ...origem, ingredients: [], steps: [],
           warnings: [
-            origem.source_type === 'instagram'
-              ? 'O Instagram nao deixa o app ler a legenda de fora do aplicativo. Copie a legenda do post e cole na aba "Colar texto", ou mande um print da tela.'
-              : 'Nao consegui ler texto suficiente nesse link. Cole a descricao ou mande um print da tela.'
+            (ehInsta || ehTiktok)
+              ? 'Essa plataforma nao deixa o app ler o video de fora do aplicativo dela. Baixe o video pelo proprio app e use a aba "Enviar video" — ai o Gemini assiste.'
+              : 'Nao consegui ler texto suficiente nesse link. Cole a receita ou mande um print da tela.'
           ]
         });
       }
-    } else if (text) {
-      origem.source_type = 'texto';
-      origem.texto = String(text).trim();
-      if (origem.texto.length < 30) {
-        return res.status(400).json({ error: 'Texto curto demais para virar receita' });
+
+      if (!chaveClaude) return res.status(500).json({ error: 'ANTHROPIC_API_KEY nao configurada' });
+      bruto = await chamarClaude(chaveClaude, [
+        { type: 'text', text: `MATERIAL ORIGINAL:\n\n${texto}` },
+        { type: 'text', text: PROMPT_TEXTO }
+      ]);
+
+    // ── CAMINHO 4: texto colado ou imagem ──
+    } else if (text || fileData) {
+      if (!chaveClaude) return res.status(500).json({ error: 'ANTHROPIC_API_KEY nao configurada' });
+
+      const blocos = [];
+
+      if (fileData) {
+        const ok = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        if (!ok.includes(mediaType)) {
+          return res.status(400).json({ error: `Tipo nao suportado: ${mediaType}` });
+        }
+        origem.source_type = 'imagem';
+        blocos.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: fileData } });
       }
-    } else if (!fileData) {
-      return res.status(400).json({ error: 'Envie um link, um texto ou uma imagem' });
-    }
 
-    // ── 2. Monta a mensagem para a Claude ──
-    const blocos = [];
-
-    if (fileData) {
-      const permitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (!permitidos.includes(mediaType)) {
-        return res.status(400).json({
-          error: `Tipo nao suportado: ${mediaType}. Use JPEG, PNG, WEBP ou GIF.`
-        });
+      if (text) {
+        const t = String(text).trim();
+        if (t.length < 30 && !fileData) {
+          return res.status(400).json({ error: 'Texto curto demais para virar receita' });
+        }
+        if (!fileData) origem.source_type = 'texto';
+        blocos.push({ type: 'text', text: `MATERIAL ORIGINAL:\n\n${t}` });
       }
-      origem.source_type = origem.source_url ? origem.source_type : 'imagem';
-      blocos.push({
-        type: 'image',
-        source: { type: 'base64', media_type: mediaType, data: fileData }
-      });
+
+      blocos.push({ type: 'text', text: PROMPT_TEXTO });
+      bruto = await chamarClaude(chaveClaude, blocos);
+
+    } else {
+      return res.status(400).json({ error: 'Envie um link, um video, um texto ou uma imagem' });
     }
 
-    if (origem.texto) {
-      blocos.push({ type: 'text', text: `MATERIAL ORIGINAL:\n\n${origem.texto}` });
-    }
-
-    blocos.push({ type: 'text', text: PROMPT });
-
-    const r = await chamarClaude(apiKey, blocos);
-
-    // ── 3. Normaliza a resposta ──
+    // ── Normaliza a resposta ──
     const lista = v => (Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean) : []);
-
-    const ingredients = lista(r.ingredients);
-    const steps       = lista(r.steps);
-    const found       = r.found !== false && (ingredients.length > 0 || steps.length > 0);
+    const ingredients = lista(bruto.ingredients);
+    const steps       = lista(bruto.steps);
+    const tempo       = Number(bruto.total_time_min);
 
     return res.status(200).json({
-      found,
-      title:          r.title || origem.title || null,
-      category:       CATEGORIAS.includes(r.category) ? r.category : 'Outros',
-      tags:           lista(r.tags).slice(0, 5).map(t => t.toLowerCase()),
-      servings:       r.servings || null,
-      total_time_min: Number.isFinite(Number(r.total_time_min)) && Number(r.total_time_min) > 0
-                        ? Math.round(Number(r.total_time_min)) : null,
+      found:          bruto.found !== false && (ingredients.length > 0 || steps.length > 0),
+      title:          bruto.title || origem.title || null,
+      category:       CATEGORIAS.includes(bruto.category) ? bruto.category : 'Outros',
+      tags:           lista(bruto.tags).slice(0, 5).map(t => t.toLowerCase()),
+      servings:       bruto.servings || null,
+      total_time_min: Number.isFinite(tempo) && tempo > 0 ? Math.round(tempo) : null,
       ingredients,
       steps,
-      notes:          r.notes || null,
-      confidence:     r.confidence || 'media',
-      warnings:       lista(r.warnings),
+      notes:          bruto.notes || null,
+      confidence:     bruto.confidence || 'media',
+      warnings:       lista(bruto.warnings),
       source_type:    origem.source_type,
       source_url:     origem.source_url,
       video_id:       origem.video_id,
