@@ -970,16 +970,24 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .star-pick button.on { color: #E5A50A; }
 
 .rec-src-tabs {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
   background: var(--bg); padding: 4px; border-radius: 10px; margin-bottom: 1rem;
 }
 .rec-src-tabs button {
-  padding: 8px 4px; border-radius: 7px; border: none; background: transparent;
-  font-family: var(--font); font-size: 11.5px; font-weight: 600; color: var(--text-2);
+  padding: 8px 2px; border-radius: 7px; border: none; background: transparent;
+  font-family: var(--font); font-size: 10.5px; font-weight: 600; color: var(--text-2);
   cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  line-height: 1.2; text-align: center;
   transition: all .15s;
 }
 .rec-src-tabs button i { font-size: 17px; }
+
+.rec-progresso {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--primary-l); border: 1px solid #C9D0FF; color: var(--primary-d);
+  border-radius: var(--radius); padding: .625rem .75rem;
+  font-size: 12.5px; font-weight: 600; margin-bottom: .875rem;
+}
 .rec-src-tabs button.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow); }
 
 .rec-hint { font-size: 11.5px; color: var(--text-3); line-height: 1.5; margin: -.375rem 0 .875rem; }
@@ -1609,9 +1617,10 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     </div>
 
     <div class="rec-src-tabs" id="rec-src-tabs">
-      <button class="active" onclick="setRecSource('link',this)"><i class="ti ti-brand-youtube"></i>Link</button>
-      <button onclick="setRecSource('texto',this)"><i class="ti ti-clipboard-text"></i>Colar texto</button>
-      <button onclick="setRecSource('imagem',this)"><i class="ti ti-camera"></i>Print ou foto</button>
+      <button class="active" onclick="setRecSource('link',this)"><i class="ti ti-brand-youtube"></i>Link do<br>YouTube</button>
+      <button onclick="setRecSource('video',this)"><i class="ti ti-video"></i>Enviar<br>vídeo</button>
+      <button onclick="setRecSource('texto',this)"><i class="ti ti-clipboard-text"></i>Colar<br>texto</button>
+      <button onclick="setRecSource('imagem',this)"><i class="ti ti-camera"></i>Print ou<br>foto</button>
       <button onclick="setRecSource('manual',this)"><i class="ti ti-pencil"></i>Digitar</button>
     </div>
 
@@ -1622,13 +1631,35 @@ tr.duplicate-row:hover { background: #FFF6D6; }
         <input type="text" id="rec-url" placeholder="https://www.youtube.com/watch?v=...">
       </div>
       <p class="rec-hint">
-        O app lê a descrição do vídeo, que é onde quase sempre está a receita escrita.
-        O Instagram bloqueia essa leitura de fora do aplicativo dele — nesse caso use
-        <b>Colar texto</b> ou <b>Print</b>.
+        O Gemini assiste ao vídeo inteiro — fala, texto na tela e imagem — e escreve
+        a receita. Leva de 20 a 60 segundos. Só funciona com vídeo público do YouTube;
+        para Instagram e TikTok use <b>Enviar vídeo</b>.
       </p>
       <button class="btn btn-primary rec-extract" onclick="extrairReceita()">
-        <i class="ti ti-wand"></i> Ler receita
+        <i class="ti ti-eye"></i> Assistir e extrair receita
       </button>
+    </div>
+
+    <!-- Fonte: arquivo de vídeo -->
+    <div id="rec-src-video" class="rec-src-pane" style="display:none">
+      <div class="form-row">
+        <div class="drop-zone" id="rec-video-drop">
+          <input type="file" id="rec-video-file" accept="video/*"
+                 onchange="handleRecVideo(this.files[0])">
+          <i class="ti ti-video-plus"></i>
+          <div class="drop-title" id="rec-video-drop-title">Escolha o arquivo do vídeo</div>
+          <div class="drop-sub">Reel, TikTok ou vídeo gravado por você — até 95 MB</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Link de origem (opcional)</label>
+        <input type="text" id="rec-video-url" placeholder="https://www.instagram.com/reel/...">
+      </div>
+      <p class="rec-hint">
+        Baixe o reel pelo próprio aplicativo do Instagram ou do TikTok e envie o arquivo aqui.
+        O vídeo é usado só para extrair a receita e apagado logo depois — fica guardado
+        apenas o primeiro quadro, como capa.
+      </p>
     </div>
 
     <!-- Fonte: texto -->
@@ -4944,9 +4975,15 @@ function openRecModal(id = null) {
   const selCat = document.getElementById('rec-f-cat');
   selCat.innerHTML = REC_CATEGORIAS.map(c => `<option value="${c}">${c}</option>`).join('');
 
-  ['rec-url', 'rec-text', 'rec-text-url', 'rec-f-title', 'rec-f-time',
+  ['rec-url', 'rec-text', 'rec-text-url', 'rec-video-url', 'rec-f-title', 'rec-f-time',
    'rec-f-serv', 'rec-f-tags', 'rec-f-ing', 'rec-f-steps', 'rec-f-notes']
     .forEach(x => { document.getElementById(x).value = ''; });
+
+  const dzv = document.getElementById('rec-video-drop');
+  dzv.classList.remove('has-file');
+  document.getElementById('rec-video-drop-title').textContent = 'Escolha o arquivo do vídeo';
+  document.getElementById('rec-video-file').value = '';
+  recProgresso(null);
 
   const dz = document.getElementById('rec-drop');
   dz.classList.remove('has-file');
@@ -4995,6 +5032,7 @@ function setRecSource(fonte, el) {
   if (pane) pane.style.display = 'block';
 
   document.getElementById('rec-warn').style.display = 'none';
+  if (fonte !== 'video') recProgresso(null);
   // No modo "Digitar" o formulário já aparece em branco
   document.getElementById('rec-form').style.display = fonte === 'manual' ? 'block' : 'none';
 }
@@ -5050,6 +5088,120 @@ async function extrairReceita() {
     toast(err.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
+// ── Leitura de arquivo de vídeo (Instagram, TikTok, celular) ──
+function recProgresso(texto) {
+  const pane = document.getElementById('rec-src-video');
+  let el = document.getElementById('rec-video-progresso');
+  if (!texto) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'rec-video-progresso';
+    el.className = 'rec-progresso';
+    pane.appendChild(el);
+  }
+  el.innerHTML = `<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> ${recEsc(texto)}`;
+}
+
+// Tira um quadro do vídeo para servir de capa (uns 40 KB, em vez de dezenas de MB)
+function capturarQuadro(file) {
+  return new Promise(resolve => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.muted = true;
+    v.playsInline = true;
+    v.src = URL.createObjectURL(file);
+
+    const desistir = () => { URL.revokeObjectURL(v.src); resolve(null); };
+    const prazo = setTimeout(desistir, 8000);
+
+    v.onerror = desistir;
+    v.onloadeddata = () => {
+      try { v.currentTime = Math.min(1.5, (v.duration || 3) / 3); } catch { desistir(); }
+    };
+    v.onseeked = () => {
+      try {
+        const larg = 480;
+        const alt  = Math.round(larg * ((v.videoHeight / v.videoWidth) || 0.5625));
+        const c = document.createElement('canvas');
+        c.width = larg; c.height = alt;
+        c.getContext('2d').drawImage(v, 0, 0, larg, alt);
+        c.toBlob(b => { clearTimeout(prazo); URL.revokeObjectURL(v.src); resolve(b); },
+                 'image/jpeg', 0.8);
+      } catch { desistir(); }
+    };
+  });
+}
+
+async function handleRecVideo(file) {
+  if (!file) return;
+
+  if (!/^video\//.test(file.type)) {
+    toast('Isso não é um arquivo de vídeo', 'error'); return;
+  }
+  if (file.size > 95 * 1024 * 1024) {
+    toast('Vídeo grande demais — o limite é 95 MB', 'error'); return;
+  }
+
+  const dz = document.getElementById('rec-video-drop');
+  dz.classList.add('has-file');
+  document.getElementById('rec-video-drop-title').textContent = file.name;
+  recWarn(null);
+
+  const ext     = (file.name.split('.').pop() || 'mp4').toLowerCase();
+  const tmpPath = `tmp/${crypto.randomUUID()}.${ext}`;
+  let capaPath  = null;
+
+  try {
+    recProgresso('Enviando o vídeo...');
+    const { error: upErr } = await db.storage.from(REC_BUCKET)
+      .upload(tmpPath, file, { contentType: file.type });
+    if (upErr) throw new Error('Falha ao enviar o vídeo: ' + upErr.message);
+
+    const { data: assinada, error: signErr } = await db.storage
+      .from(REC_BUCKET).createSignedUrl(tmpPath, 3600);
+    if (signErr || !assinada?.signedUrl) throw new Error('Falha ao liberar o vídeo para leitura');
+
+    recProgresso('O Gemini está assistindo ao vídeo — isso leva até um minuto...');
+
+    const [res, quadro] = await Promise.all([
+      fetch('/api/receita-extrair', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ videoUrl: assinada.signedUrl, mimeType: file.type })
+      }),
+      capturarQuadro(file)
+    ]);
+
+    const info = await res.json();
+    if (!res.ok) throw new Error(info.error || 'Falha ao ler o vídeo');
+
+    // Guarda só a capa
+    if (quadro) {
+      capaPath = `${new Date().getFullYear()}/${crypto.randomUUID()}.jpg`;
+      const { error: capaErr } = await db.storage.from(REC_BUCKET)
+        .upload(capaPath, quadro, { contentType: 'image/jpeg' });
+      if (capaErr) capaPath = null;
+    }
+
+    recProgresso(null);
+    document.getElementById('rec-video-drop-title').textContent = `✓ ${file.name}`;
+
+    preencherRecForm(info);
+
+    const origem = document.getElementById('rec-video-url').value.trim();
+    if (origem) recExtra.source_url = origem;
+    if (capaPath) recExtra.image_path = capaPath;
+  } catch (err) {
+    recProgresso(null);
+    document.getElementById('rec-video-drop-title').textContent = `${file.name} — não deu certo`;
+    document.getElementById('rec-form').style.display = 'block';
+    toast(err.message, 'error');
+  } finally {
+    // O vídeo sai do Storage de qualquer jeito
+    db.storage.from(REC_BUCKET).remove([tmpPath]).catch(() => {});
   }
 }
 
