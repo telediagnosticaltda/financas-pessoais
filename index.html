@@ -2,8 +2,15 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Finanças Pessoais</title>
+<meta name="theme-color" content="#4A57CC">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css">
@@ -5720,6 +5727,79 @@ async function doLogout() {
 });
 
 // ─────────────────────────────────────────────────────────────
+// APP INSTALADO NO CELULAR (compartilhamento)
+// ─────────────────────────────────────────────────────────────
+
+// Registra o ajudante que recebe o que você compartilha do celular.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .catch(err => console.error('[sw] não registrou:', err));
+  });
+}
+
+// Quando o app abre por causa de um compartilhamento, pega o que ficou guardado
+// e já começa a leitura da receita.
+async function verificarCompartilhamento() {
+  const params = new URLSearchParams(location.search);
+  if (!params.get('compartilhado')) return;
+
+  // Tira o ?compartilhado=1 da barra de endereço
+  history.replaceState({}, '', location.pathname);
+
+  try {
+    const cache = await caches.open('financas-compartilhado');
+    const respArquivo = await cache.match('/__compartilhado/arquivo');
+    const respTexto   = await cache.match('/__compartilhado/texto');
+
+    const texto = respTexto ? await respTexto.text() : '';
+    const link  = (texto.match(/https?:\/\/\S+/) || [])[0] || '';
+
+    await cache.delete('/__compartilhado/arquivo');
+    await cache.delete('/__compartilhado/texto');
+
+    if (!respArquivo && !link) return;
+
+    const abas = document.querySelectorAll('#rec-src-tabs button');
+    navigate('receitas');
+    openRecModal();
+
+    // ── Veio um arquivo (vídeo baixado do Instagram, print, foto) ──
+    if (respArquivo) {
+      const blob = await respArquivo.blob();
+      const nome = decodeURIComponent(
+        respArquivo.headers.get('x-nome-arquivo') || 'compartilhado');
+      const tipo = blob.type || '';
+      const arquivo = new File([blob], nome, { type: tipo });
+
+      if (/^video\//.test(tipo)) {
+        setRecSource('video', abas[1]);
+        if (link) document.getElementById('rec-video-url').value = link;
+        handleRecVideo(arquivo);
+      } else if (/^image\//.test(tipo)) {
+        setRecSource('imagem', abas[3]);
+        handleRecFile(arquivo);
+      }
+      return;
+    }
+
+    // ── Veio só um link ──
+    if (/youtu\.?be|youtube\.com/.test(link)) {
+      setRecSource('link', abas[0]);
+      document.getElementById('rec-url').value = link;
+      extrairReceita();
+    } else {
+      setRecSource('video', abas[1]);
+      document.getElementById('rec-video-url').value = link;
+      toast('Link guardado. Agora envie o arquivo do vídeo para eu assistir.');
+    }
+  } catch (err) {
+    console.error('[compartilhamento]', err);
+    toast('Não consegui abrir o que você compartilhou', 'error');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────
 async function startApp() {
@@ -5727,6 +5807,7 @@ async function startApp() {
   appStarted = true;
   await loadBase();
   loadDashboard();
+  verificarCompartilhamento();
   // Processa fila do cron automaticamente ao abrir o app
   setTimeout(() => processGmailQueue(true).then(n => {
     if (n > 0) { toast(`${n} novos lançamentos importados ✓`); loadDashboard(); }
