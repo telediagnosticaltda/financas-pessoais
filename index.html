@@ -1016,6 +1016,17 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 }
 .rec-pick-body b { color: var(--text); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 
+.rec-aviso {
+  background: #FFFBEA; border: 1px solid #FCD34D; color: #92400E;
+  border-radius: var(--radius); padding: .75rem .875rem; margin-bottom: .875rem;
+  font-size: 12.5px; line-height: 1.55;
+}
+.rec-aviso-titulo { font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.rec-aviso-link {
+  display: block; font-size: 11px; color: var(--text-3);
+  margin-top: 6px; word-break: break-all;
+}
+
 .rec-progresso {
   display: flex; align-items: center; gap: 8px;
   background: var(--primary-l); border: 1px solid #C9D0FF; color: var(--primary-d);
@@ -1676,6 +1687,15 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 
     <!-- Fonte: arquivo de vídeo -->
     <div id="rec-src-video" class="rec-src-pane" style="display:none">
+
+      <div class="rec-aviso" id="rec-aviso-link" style="display:none">
+        <div class="rec-aviso-titulo"><i class="ti ti-link"></i> Recebi o link, falta o vídeo</div>
+        O Instagram não deixa nenhum aplicativo ler o vídeo a partir do link.
+        Volte ao Instagram, toque nos três pontinhos do reel e escolha
+        <b>Salvar no dispositivo</b>. Depois toque no botão abaixo e escolha o vídeo na galeria.
+        <span class="rec-aviso-link" id="rec-aviso-link-url"></span>
+      </div>
+
       <div class="form-row">
         <div class="drop-zone" id="rec-video-drop">
           <input type="file" id="rec-video-file" accept="video/*"
@@ -1685,12 +1705,21 @@ tr.duplicate-row:hover { background: #FFF6D6; }
           <div class="drop-sub">Reel, TikTok ou vídeo gravado por você — até 95 MB</div>
         </div>
       </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
+        <button class="btn btn-primary" onclick="escolherVideo()">
+          <i class="ti ti-folder-open"></i> Escolher vídeo
+        </button>
+        <button class="btn btn-ghost" onclick="irParaLegenda()">
+          <i class="ti ti-clipboard-text"></i> Colar a legenda
+        </button>
+      </div>
+
       <div class="form-row">
         <label>Link de origem (opcional)</label>
         <input type="text" id="rec-video-url" placeholder="https://www.instagram.com/reel/...">
       </div>
       <p class="rec-hint">
-        Baixe o reel pelo próprio aplicativo do Instagram ou do TikTok e envie o arquivo aqui.
         O vídeo é usado só para extrair a receita e apagado logo depois — fica guardado
         apenas o primeiro quadro, como capa.
       </p>
@@ -5029,6 +5058,7 @@ function openRecModal(id = null) {
   recExtra = {};
   recLote = null;
   document.getElementById('rec-multi').style.display = 'none';
+  document.getElementById('rec-aviso-link').style.display = 'none';
 
   document.getElementById('modal-rec-title').textContent = id ? 'Editar receita' : 'Nova receita';
   document.getElementById('rec-warn').style.display = 'none';
@@ -5095,6 +5125,7 @@ function setRecSource(fonte, el) {
 
   recLote = null;
   document.getElementById('rec-multi').style.display = 'none';
+  document.getElementById('rec-aviso-link').style.display = 'none';
 
   document.getElementById('rec-warn').style.display = 'none';
   if (fonte !== 'video') recProgresso(null);
@@ -5157,6 +5188,25 @@ async function extrairReceita() {
 }
 
 // ── Leitura de arquivo de vídeo (Instagram, TikTok, celular) ──
+function escolherVideo() {
+  document.getElementById('rec-video-file').click();
+}
+
+// Quando não dá para baixar o reel, a legenda costuma salvar a receita
+function irParaLegenda() {
+  const link = document.getElementById('rec-video-url').value.trim();
+  const abas = document.querySelectorAll('#rec-src-tabs button');
+  setRecSource('texto', abas[2]);
+  if (link) document.getElementById('rec-text-url').value = link;
+  document.getElementById('rec-text').focus();
+}
+
+function mostrarAvisoLink(link) {
+  document.getElementById('rec-aviso-link-url').textContent = link || '';
+  document.getElementById('rec-aviso-link').style.display = 'block';
+}
+
+
 function recProgresso(texto) {
   const pane = document.getElementById('rec-src-video');
   let el = document.getElementById('rec-video-progresso');
@@ -5791,7 +5841,7 @@ async function verificarCompartilhamento() {
     } else {
       setRecSource('video', abas[1]);
       document.getElementById('rec-video-url').value = link;
-      toast('Link guardado. Agora envie o arquivo do vídeo para eu assistir.');
+      mostrarAvisoLink(link);
     }
   } catch (err) {
     console.error('[compartilhamento]', err);
