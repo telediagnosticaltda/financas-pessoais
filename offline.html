@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sem conexão — Finanças</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: #F4F6FB; color: #141928;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 2rem; text-align: center;
+  }
+  .caixa { max-width: 320px; }
+  .marca {
+    width: 56px; height: 56px; margin: 0 auto 1.25rem;
+    background: linear-gradient(135deg, #4A57CC, #7B8EFF);
+    border-radius: 16px;
+  }
+  h1 { font-size: 18px; font-weight: 700; margin-bottom: .5rem; letter-spacing: -.02em; }
+  p { font-size: 14px; color: #5A6380; line-height: 1.6; margin-bottom: 1.5rem; }
+  button {
+    background: #4A57CC; color: #fff; border: none; cursor: pointer;
+    padding: 10px 20px; border-radius: 10px;
+    font-size: 14px; font-weight: 600; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+  <div class="caixa">
+    <div class="marca"></div>
+    <h1>Sem conexão</h1>
+    <p>
+      O app precisa de internet para buscar seus lançamentos e receitas,
+      que ficam guardados no servidor.
+    </p>
+    <button onclick="location.href='/'">Tentar de novo</button>
+  </div>
+</body>
+</html>
