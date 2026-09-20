@@ -982,6 +982,33 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 }
 .rec-src-tabs button i { font-size: 17px; }
 
+.rec-pick {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color .15s, background .15s;
+}
+.rec-pick.off { opacity: .55; }
+.rec-pick.on  { border-color: var(--primary); background: var(--primary-l); }
+
+.rec-pick-head { display: flex; align-items: center; gap: 10px; padding: .625rem .75rem; }
+.rec-pick-head > input { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; accent-color: var(--primary); }
+.rec-pick-info { flex: 1; cursor: pointer; min-width: 0; }
+.rec-pick-title { font-size: 13px; font-weight: 700; letter-spacing: -.01em; }
+.rec-pick-meta { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+.rec-pick-more {
+  background: none; border: none; cursor: pointer; color: var(--text-3);
+  font-size: 17px; padding: 2px 4px; display: flex; align-items: center;
+}
+.rec-pick-body {
+  padding: .5rem .75rem .75rem 2.4rem;
+  border-top: 1px solid var(--border-2);
+  background: var(--surface);
+  font-size: 12px; color: var(--text-2); line-height: 1.6;
+}
+.rec-pick-body b { color: var(--text); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+
 .rec-progresso {
   display: flex; align-items: center; gap: 8px;
   background: var(--primary-l); border: 1px solid #C9D0FF; color: var(--primary-d);
@@ -1693,6 +1720,23 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     </div>
 
     <div id="rec-warn" style="display:none;background:#FFFBEA;border:1px solid #FCD34D;color:#92400E;border-radius:var(--radius);padding:.625rem .75rem;font-size:12px;margin-bottom:.875rem;line-height:1.5"></div>
+
+    <!-- Várias receitas encontradas no mesmo material -->
+    <div id="rec-multi" style="display:none">
+      <div style="border-top:1px solid var(--border-2);margin:1.125rem 0 1rem"></div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:.25rem" id="rec-multi-title"></div>
+      <p class="rec-hint" style="margin-bottom:.875rem">
+        Cada uma vira um registro separado. Desmarque o que não quiser guardar e ajuste
+        os detalhes depois, abrindo a receita na lista.
+      </p>
+      <div id="rec-multi-list"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-rec')">Cancelar</button>
+        <button class="btn btn-primary" id="rec-multi-save" onclick="saveManyRecipes()">
+          <i class="ti ti-device-floppy"></i> Salvar
+        </button>
+      </div>
+    </div>
 
     <!-- Formulário (aparece depois da leitura, ou direto no modo Digitar) -->
     <div id="rec-form" style="display:none">
@@ -4846,6 +4890,7 @@ let recSource     = 'link';
 let recFile       = null;    // imagem escolhida, ainda não enviada
 let recRating     = 0;
 let recExtra      = {};      // dados da origem (link, capa, autor)
+let recLote       = null;    // várias receitas encontradas de uma vez
 let editingRecId  = null;
 
 function recEsc(s) {
@@ -4858,6 +4903,12 @@ function recStars(n) {
   if (!v) return '';
   return '<span class="rec-stars">' + '★'.repeat(v) +
          `<span class="off">${'★'.repeat(5 - v)}</span></span>`;
+}
+
+function mmss(seg) {
+  if (!seg) return null;
+  const m = Math.floor(seg / 60), s = seg % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function recTempo(min) {
@@ -4955,6 +5006,7 @@ function renderReceitas() {
           <div class="rec-meta">
             ${r.category ? `<span>${recEsc(r.category)}</span>` : ''}
             ${t ? `<span><i class="ti ti-clock"></i> ${t}</span>` : ''}
+            ${r.video_start_sec ? `<span><i class="ti ti-player-play"></i> ${mmss(r.video_start_sec)}</span>` : ''}
             ${r.rating ? recStars(r.rating) : ''}
           </div>
         </div>
@@ -4968,6 +5020,8 @@ function openRecModal(id = null) {
   recFile = null;
   recRating = 0;
   recExtra = {};
+  recLote = null;
+  document.getElementById('rec-multi').style.display = 'none';
 
   document.getElementById('modal-rec-title').textContent = id ? 'Editar receita' : 'Nova receita';
   document.getElementById('rec-warn').style.display = 'none';
@@ -4997,7 +5051,8 @@ function openRecModal(id = null) {
     recExtra = {
       source_type: r.source_type, source_url: r.source_url,
       video_id: r.video_id, thumbnail_url: r.thumbnail_url,
-      author: r.author, image_path: r.image_path
+      author: r.author, image_path: r.image_path,
+      video_start_sec: r.video_start_sec
     };
     document.getElementById('rec-f-title').value = r.title || '';
     selCat.value = REC_CATEGORIAS.includes(r.category) ? r.category : 'Outros';
@@ -5030,6 +5085,9 @@ function setRecSource(fonte, el) {
   document.querySelectorAll('.rec-src-pane').forEach(p => p.style.display = 'none');
   const pane = document.getElementById('rec-src-' + fonte);
   if (pane) pane.style.display = 'block';
+
+  recLote = null;
+  document.getElementById('rec-multi').style.display = 'none';
 
   document.getElementById('rec-warn').style.display = 'none';
   if (fonte !== 'video') recProgresso(null);
@@ -5083,7 +5141,7 @@ async function extrairReceita() {
     });
     const info = await res.json();
     if (!res.ok) throw new Error(info.error || 'Falha na leitura');
-    preencherRecForm(info);
+    aplicarExtracao(info);
   } catch (err) {
     toast(err.message, 'error');
   } finally {
@@ -5189,7 +5247,8 @@ async function handleRecVideo(file) {
     recProgresso(null);
     document.getElementById('rec-video-drop-title').textContent = `✓ ${file.name}`;
 
-    preencherRecForm(info);
+    if (capaPath) recExtra.image_path = capaPath;
+    aplicarExtracao(info);
 
     const origem = document.getElementById('rec-video-url').value.trim();
     if (origem) recExtra.source_url = origem;
@@ -5232,7 +5291,7 @@ async function handleRecFile(file) {
     if (!res.ok) throw new Error(info.error || 'Falha na leitura');
 
     document.getElementById('rec-drop-title').textContent = `✓ ${file.name}`;
-    preencherRecForm(info);
+    aplicarExtracao(info);
   } catch (err) {
     document.getElementById('rec-drop-title').textContent = `✓ ${file.name} (preencha na mão)`;
     document.getElementById('rec-form').style.display = 'block';
@@ -5240,11 +5299,11 @@ async function handleRecFile(file) {
   }
 }
 
-function preencherRecForm(info) {
+function aplicarExtracao(info) {
   const avisos = [...(info.warnings || [])];
 
-  if (info.found === false) {
-    avisos.unshift('Não encontrei a receita escrita nesse material — preencha na mão ou tente o print da tela.');
+  if (!info.found) {
+    avisos.unshift('Não encontrei receita nesse material — preencha na mão ou tente o print da tela.');
   } else if (info.confidence === 'baixa') {
     avisos.unshift('A leitura ficou incerta — confira tudo antes de salvar.');
   }
@@ -5255,20 +5314,142 @@ function preencherRecForm(info) {
     source_url:    info.source_url || recExtra.source_url || null,
     video_id:      info.video_id || null,
     thumbnail_url: info.thumbnail_url || null,
-    author:        info.author || null
+    author:        info.author || null,
+    image_path:    recExtra.image_path || null
   };
 
-  if (info.title)       document.getElementById('rec-f-title').value = info.title;
-  if (info.category)    document.getElementById('rec-f-cat').value   = info.category;
-  if (info.total_time_min) document.getElementById('rec-f-time').value = info.total_time_min;
-  if (info.servings)    document.getElementById('rec-f-serv').value  = info.servings;
-  if ((info.tags || []).length) document.getElementById('rec-f-tags').value = info.tags.join(', ');
-  if ((info.ingredients || []).length) document.getElementById('rec-f-ing').value = info.ingredients.join('\n');
-  if ((info.steps || []).length) document.getElementById('rec-f-steps').value = info.steps.join('\n');
-  if (info.notes)       document.getElementById('rec-f-notes').value = info.notes;
+  const achadas = info.recipes || [];
+
+  if (achadas.length > 1) { montarEscolha(achadas); return; }
+  preencherRecForm(achadas[0] || null);
+}
+
+function preencherRecForm(r) {
+  recLote = null;
+  document.getElementById('rec-multi').style.display = 'none';
+
+  if (r) {
+    document.getElementById('rec-f-title').value = r.title || '';
+    if (r.category)       document.getElementById('rec-f-cat').value  = r.category;
+    if (r.total_time_min) document.getElementById('rec-f-time').value = r.total_time_min;
+    if (r.servings)       document.getElementById('rec-f-serv').value = r.servings;
+    if ((r.tags || []).length)        document.getElementById('rec-f-tags').value  = r.tags.join(', ');
+    if ((r.ingredients || []).length) document.getElementById('rec-f-ing').value   = r.ingredients.join('\n');
+    if ((r.steps || []).length)       document.getElementById('rec-f-steps').value = r.steps.join('\n');
+    if (r.notes)          document.getElementById('rec-f-notes').value = r.notes;
+    recExtra.video_start_sec = r.start_sec || null;
+  }
 
   document.getElementById('rec-form').style.display = 'block';
   document.getElementById('rec-f-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ── Várias receitas no mesmo material ──
+function montarEscolha(achadas) {
+  recLote = achadas.map(r => ({ ...r, _sel: true }));
+
+  document.getElementById('rec-form').style.display = 'none';
+  document.getElementById('rec-multi').style.display = 'block';
+  document.getElementById('rec-multi-title').textContent =
+    `${achadas.length} receitas encontradas nesse material`;
+
+  document.getElementById('rec-multi-list').innerHTML = recLote.map((r, i) => {
+    const detalhes = [
+      r.category,
+      r.start_sec ? `a partir de ${mmss(r.start_sec)}` : null,
+      `${(r.ingredients || []).length} ingredientes`,
+      `${(r.steps || []).length} passos`
+    ].filter(Boolean).join('&nbsp;·&nbsp;');
+
+    return `
+      <div class="rec-pick on" id="rec-pick-${i}">
+        <div class="rec-pick-head">
+          <input type="checkbox" checked onchange="toggleRecPick(${i}, this.checked)">
+          <div class="rec-pick-info" onclick="toggleRecPreview(${i})">
+            <div class="rec-pick-title">${recEsc(r.title)}</div>
+            <div class="rec-pick-meta">${detalhes}</div>
+          </div>
+          <button class="rec-pick-more" onclick="toggleRecPreview(${i})" title="Ver o conteúdo">
+            <i class="ti ti-chevron-down"></i>
+          </button>
+        </div>
+        <div class="rec-pick-body" id="rec-prev-${i}" style="display:none">
+          <b>Ingredientes</b><br>${(r.ingredients || []).map(recEsc).join('<br>') || '—'}
+          <br><br>
+          <b>Preparo</b><br>${(r.steps || []).map((s, n) => `${n + 1}. ${recEsc(s)}`).join('<br>') || '—'}
+        </div>
+      </div>`;
+  }).join('');
+
+  atualizarBotaoLote();
+  document.getElementById('rec-multi-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function toggleRecPick(i, marcado) {
+  if (!recLote || !recLote[i]) return;
+  recLote[i]._sel = marcado;
+  const el = document.getElementById(`rec-pick-${i}`);
+  el.classList.toggle('on', marcado);
+  el.classList.toggle('off', !marcado);
+  atualizarBotaoLote();
+}
+
+function toggleRecPreview(i) {
+  const el = document.getElementById(`rec-prev-${i}`);
+  if (!el) return;
+  const abrindo = el.style.display === 'none';
+  el.style.display = abrindo ? 'block' : 'none';
+  const ic = document.querySelector(`#rec-pick-${i} .rec-pick-more i`);
+  if (ic) ic.className = abrindo ? 'ti ti-chevron-up' : 'ti ti-chevron-down';
+}
+
+function atualizarBotaoLote() {
+  const n = (recLote || []).filter(r => r._sel).length;
+  const btn = document.getElementById('rec-multi-save');
+  btn.disabled = n === 0;
+  btn.innerHTML = `<i class="ti ti-device-floppy"></i> Salvar ${n} receita${n === 1 ? '' : 's'}`;
+}
+
+async function saveManyRecipes() {
+  const escolhidas = (recLote || []).filter(r => r._sel);
+  if (!escolhidas.length) { toast('Marque ao menos uma receita', 'error'); return; }
+
+  const btn = document.getElementById('rec-multi-save');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Salvando...';
+
+  try {
+    const agora = new Date().toISOString();
+    const registros = escolhidas.map(r => ({
+      title:           r.title,
+      category:        r.category || 'Outros',
+      tags:            r.tags || [],
+      source_type:     recExtra.source_type || 'manual',
+      source_url:      recExtra.source_url || null,
+      video_id:        recExtra.video_id || null,
+      video_start_sec: r.start_sec || null,
+      author:          recExtra.author || null,
+      thumbnail_url:   recExtra.thumbnail_url || null,
+      image_path:      recExtra.image_path || null,
+      servings:        r.servings || null,
+      total_time_min:  r.total_time_min || null,
+      ingredients:     r.ingredients || [],
+      steps:           r.steps || [],
+      notes:           r.notes || null,
+      updated_at:      agora
+    }));
+
+    const { error } = await db.from('recipes').insert(registros);
+    if (error) throw new Error(error.message);
+
+    closeModal('modal-rec');
+    toast(`${registros.length} receitas guardadas!`);
+    recLote = null;
+    loadReceitasPage();
+  } catch (err) {
+    toast(err.message, 'error');
+    atualizarBotaoLote();
+  }
 }
 
 // ── Salvar ──
@@ -5308,6 +5489,7 @@ async function saveRecipe() {
       source_type:    recExtra.source_type || 'manual',
       source_url:     recExtra.source_url || null,
       video_id:       recExtra.video_id || null,
+      video_start_sec: recExtra.video_start_sec || null,
       author:         recExtra.author || null,
       thumbnail_url:  recExtra.thumbnail_url || null,
       image_path:     imagePath,
@@ -5347,9 +5529,10 @@ function openRecView(id) {
   document.getElementById('rec-view-title').textContent = r.title;
 
   const capa = r.image_path ? recUrls[r.image_path] : null;
+  const inicio = r.video_start_sec || 0;
   const midia = r.video_id
     ? `<div class="rec-video">
-         <iframe src="https://www.youtube-nocookie.com/embed/${recEsc(r.video_id)}"
+         <iframe src="https://www.youtube-nocookie.com/embed/${recEsc(r.video_id)}${inicio ? `?start=${inicio}` : ''}"
                  title="${recEsc(r.title)}" allowfullscreen
                  allow="accelerometer; encrypted-media; picture-in-picture"></iframe>
        </div>`
@@ -5360,7 +5543,8 @@ function openRecView(id) {
     r.category,
     t ? `<i class="ti ti-clock"></i> ${t}` : null,
     r.servings ? `<i class="ti ti-users"></i> ${recEsc(r.servings)}` : null,
-    r.author ? `<i class="ti ti-user"></i> ${recEsc(r.author)}` : null
+    r.author ? `<i class="ti ti-user"></i> ${recEsc(r.author)}` : null,
+    inicio ? `<i class="ti ti-player-play"></i> trecho em ${mmss(inicio)}` : null
   ].filter(Boolean).join('&nbsp;&nbsp;·&nbsp;&nbsp;');
 
   const ing = (r.ingredients || []).length
@@ -5406,7 +5590,9 @@ function openRecView(id) {
     <div class="modal-footer" style="justify-content:space-between">
       <div style="display:flex;gap:8px">
         ${r.source_url
-          ? `<a class="btn btn-ghost" style="text-decoration:none" href="${recEsc(r.source_url)}" target="_blank" rel="noopener">
+          ? `<a class="btn btn-ghost" style="text-decoration:none" href="${recEsc(r.source_url)}${
+              inicio && /youtu/.test(r.source_url) ? (r.source_url.includes('?') ? '&' : '?') + 't=' + inicio + 's' : ''
+            }" target="_blank" rel="noopener">
                <i class="ti ti-external-link"></i> Abrir original
              </a>` : ''}
         <button class="btn btn-delete" onclick="deleteRecipe('${r.id}')">
