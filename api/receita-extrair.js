@@ -31,22 +31,44 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
 const FORMATO = `Responda APENAS com um objeto JSON, sem markdown, sem crases,
 sem nenhum texto antes ou depois.
 
+Um mesmo material pode ensinar VARIAS receitas ("5 molhos para macarrao",
+"3 marinadas", "cafe da manha da semana"). Por isso a resposta e sempre uma LISTA.
+
 Formato exato:
 {
-  "found": true | false,
-  "title": "nome da receita",
-  "category": ${CATEGORIAS.map(c => `"${c}"`).join(' | ')},
-  "tags": ["ate 5 tags curtas em minusculas, ex: rapido, airfryer, sem gluten"],
-  "servings": "texto curto, ex: 4 porcoes, ou null",
-  "total_time_min": numero total de minutos de preparo, ou null,
-  "ingredients": ["1 xicara de farinha de trigo", "2 ovos", "..."],
-  "steps": ["Passo completo em uma frase ou duas.", "..."],
-  "notes": "dica relevante de quem ensinou que nao cabe nos passos, ou null",
+  "recipes": [
+    {
+      "title": "nome da receita",
+      "category": ${CATEGORIAS.map(c => `"${c}"`).join(' | ')},
+      "tags": ["ate 5 tags curtas em minusculas, ex: rapido, airfryer, sem gluten"],
+      "servings": "texto curto, ex: 4 porcoes, ou null",
+      "total_time_min": numero de minutos de preparo desta receita, ou null,
+      "start_time": "momento em que esta receita comeca, no formato MM:SS, ou null",
+      "ingredients": ["1 xicara de farinha de trigo", "2 ovos", "..."],
+      "steps": ["Passo completo em uma frase ou duas.", "..."],
+      "notes": "dica de quem ensinou que nao cabe nos passos, ou null"
+    }
+  ],
   "confidence": "alta" | "media" | "baixa",
   "warnings": ["avisos curtos sobre o que ficou duvidoso ou faltando"]
 }
 
-Regras:
+Quantas receitas separar:
+- Uma entrada por PRATO DISTINTO ensinado. Cinco molhos diferentes sao cinco entradas,
+  cada uma com seu proprio titulo ("Molho de queijo", "Molho de tomate assado"...),
+  nunca um titulo generico como "5 molhos".
+- Se houver uma base comum a varias receitas (um refogado, uma massa, um caldo),
+  REPITA em cada entrada os ingredientes e os passos dessa base. Cada entrada precisa
+  ser suficiente sozinha: quem abrir so ela tem que conseguir cozinhar.
+- Variacoes triviais da mesma receita (trocar o queijo, versao sem lactose) NAO viram
+  entradas novas: ficam em notes da receita principal.
+- Se o material ensinar so uma receita, devolva uma lista com um item so.
+- Se NAO houver receita nenhuma (degustacao, resenha de restaurante, so hashtags ou
+  so o nome do prato sem preparo), devolva "recipes": [] e explique em warnings.
+- start_time: so para video, marcando onde aquela receita comeca. Para texto ou
+  imagem, use null. Nunca estime: se nao souber, null.
+
+Regras de conteudo:
 - NUNCA invente ingredientes, quantidades ou passos. Esta e a regra mais importante:
   uma receita chutada e pior que nenhuma receita. Se uma quantidade nao for dita nem
   mostrada, escreva o ingrediente sem quantidade e registre isso em warnings.
@@ -60,7 +82,10 @@ Regras:
   patrocinadores, hashtags e enderecos de redes sociais.`;
 
 const PROMPT_VIDEO = `Voce esta assistindo a um video de culinaria e sua tarefa e
-transcrever a receita ensinada nele.
+transcrever TODAS as receitas ensinadas nele.
+
+Antes de escrever, percorra o video inteiro e conte quantos pratos diferentes sao
+preparados. Videos de culinaria frequentemente ensinam varias receitas seguidas.
 
 Use TUDO o que o video oferece:
 - o que a pessoa fala (a maior parte das quantidades costuma estar na fala);
@@ -71,8 +96,11 @@ Use TUDO o que o video oferece:
 Se a fala e a tela discordarem, prefira o que estiver escrito na tela e registre a
 divergencia em warnings.
 
-Se o video NAO ensinar uma receita (for so uma degustacao, uma resenha de restaurante
-ou um comentario), responda com "found": false e listas vazias.
+Marque em start_time o momento em que cada receita comeca — a hora em que a pessoa
+anuncia o prato ou comeca a separar os ingredientes dele.
+
+Se o video NAO ensinar receita nenhuma (for so uma degustacao, uma resenha de
+restaurante ou um comentario), devolva "recipes": [].
 
 ${FORMATO}`;
 
@@ -80,14 +108,15 @@ const PROMPT_TEXTO = `Voce esta lendo o material de divulgacao de uma receita de
 culinaria: pode ser a legenda de um post, a descricao de um video, o print de uma
 tela ou a foto de uma receita escrita em papel.
 
-Sua tarefa e transformar isso numa receita organizada.
+Sua tarefa e transformar isso em receitas organizadas. O material pode trazer mais
+de uma receita — separe todas.
 
-Se o material NAO contiver uma receita de fato (so tiver link de afiliado, pedido de
-inscricao no canal, hashtags, ou apenas o nome do prato sem o preparo), responda com
-"found": false e listas vazias, explicando em warnings o que faltou.
+Se o material NAO contiver receita de fato (so tiver link de afiliado, pedido de
+inscricao no canal, hashtags, ou apenas o nome do prato sem o preparo), devolva
+"recipes": [] e explique em warnings o que faltou.
 
-Se houver ingredientes mas o modo de preparo estiver ausente, use "found": true,
-preencha o que existe e registre a falta em warnings.
+Se houver ingredientes mas o modo de preparo estiver ausente, mantenha a receita na
+lista, preencha o que existe e registre a falta em warnings.
 
 ${FORMATO}`;
 
@@ -122,6 +151,15 @@ function metaTag(html, prop) {
   const b = html.match(new RegExp(
     `<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'));
   return b ? decodeHtml(b[1]) : null;
+}
+
+// "12:34" ou "1:02:03" -> segundos
+function emSegundos(t) {
+  if (t === null || t === undefined) return null;
+  const partes = String(t).trim().split(':').map(Number);
+  if (!partes.length || partes.some(n => !Number.isFinite(n) || n < 0)) return null;
+  const seg = partes.reduce((total, n) => total * 60 + n, 0);
+  return seg > 0 ? Math.round(seg) : null;
 }
 
 function erro(msg, status = 500) {
@@ -421,7 +459,7 @@ export default async function handler(req, res) {
 
       if (texto.replace(/\s+/g, ' ').trim().length < 80) {
         return res.status(200).json({
-          found: false, ...origem, ingredients: [], steps: [],
+          found: false, count: 0, recipes: [], ...origem,
           warnings: [
             (ehInsta || ehTiktok)
               ? 'Essa plataforma nao deixa o app ler o video de fora do aplicativo dela. Baixe o video pelo proprio app e use a aba "Enviar video" — ai o Gemini assiste.'
@@ -469,20 +507,32 @@ export default async function handler(req, res) {
 
     // ── Normaliza a resposta ──
     const lista = v => (Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean) : []);
-    const ingredients = lista(bruto.ingredients);
-    const steps       = lista(bruto.steps);
-    const tempo       = Number(bruto.total_time_min);
+
+    // Aceita tanto a lista nova quanto uma receita solta, por seguranca
+    const cruas = Array.isArray(bruto.recipes) ? bruto.recipes
+                : (bruto.title || bruto.ingredients ? [bruto] : []);
+
+    const receitas = cruas.map(r => {
+      const ingredients = lista(r.ingredients);
+      const steps       = lista(r.steps);
+      const tempo       = Number(r.total_time_min);
+      return {
+        title:          r.title || origem.title || 'Receita sem nome',
+        category:       CATEGORIAS.includes(r.category) ? r.category : 'Outros',
+        tags:           lista(r.tags).slice(0, 5).map(t => t.toLowerCase()),
+        servings:       r.servings || null,
+        total_time_min: Number.isFinite(tempo) && tempo > 0 ? Math.round(tempo) : null,
+        start_sec:      emSegundos(r.start_time),
+        ingredients,
+        steps,
+        notes:          r.notes || null
+      };
+    }).filter(r => r.ingredients.length > 0 || r.steps.length > 0);
 
     return res.status(200).json({
-      found:          bruto.found !== false && (ingredients.length > 0 || steps.length > 0),
-      title:          bruto.title || origem.title || null,
-      category:       CATEGORIAS.includes(bruto.category) ? bruto.category : 'Outros',
-      tags:           lista(bruto.tags).slice(0, 5).map(t => t.toLowerCase()),
-      servings:       bruto.servings || null,
-      total_time_min: Number.isFinite(tempo) && tempo > 0 ? Math.round(tempo) : null,
-      ingredients,
-      steps,
-      notes:          bruto.notes || null,
+      found:          receitas.length > 0,
+      count:          receitas.length,
+      recipes:        receitas,
       confidence:     bruto.confidence || 'media',
       warnings:       lista(bruto.warnings),
       source_type:    origem.source_type,
