@@ -1662,7 +1662,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     </div>
 
     <div class="rec-src-tabs" id="rec-src-tabs">
-      <button class="active" onclick="setRecSource('link',this)"><i class="ti ti-brand-youtube"></i>Link do<br>YouTube</button>
+      <button class="active" onclick="setRecSource('link',this)"><i class="ti ti-link"></i>Colar<br>link</button>
       <button onclick="setRecSource('video',this)"><i class="ti ti-video"></i>Enviar<br>vídeo</button>
       <button onclick="setRecSource('texto',this)"><i class="ti ti-clipboard-text"></i>Colar<br>texto</button>
       <button onclick="setRecSource('imagem',this)"><i class="ti ti-camera"></i>Print ou<br>foto</button>
@@ -1673,12 +1673,12 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     <div id="rec-src-link" class="rec-src-pane">
       <div class="form-row">
         <label>Link do vídeo</label>
-        <input type="text" id="rec-url" placeholder="https://www.youtube.com/watch?v=...">
+        <input type="text" id="rec-url" placeholder="YouTube ou Instagram">
       </div>
       <p class="rec-hint">
+        Funciona com <b>YouTube</b> e <b>Instagram</b>, desde que o post seja público.
         O Gemini assiste ao vídeo inteiro — fala, texto na tela e imagem — e escreve
-        a receita. Leva de 20 a 60 segundos. Só funciona com vídeo público do YouTube;
-        para Instagram e TikTok use <b>Enviar vídeo</b>.
+        a receita. Leva de 30 a 90 segundos. Para TikTok, use <b>Enviar vídeo</b>.
       </p>
       <button class="btn btn-primary rec-extract" onclick="extrairReceita()">
         <i class="ti ti-eye"></i> Assistir e extrair receita
@@ -5129,6 +5129,7 @@ function setRecSource(fonte, el) {
 
   document.getElementById('rec-warn').style.display = 'none';
   if (fonte !== 'video') recProgresso(null);
+  if (fonte !== 'link')  recProgresso(null, 'rec-src-link');
   // No modo "Digitar" o formulário já aparece em branco
   document.getElementById('rec-form').style.display = fonte === 'manual' ? 'block' : 'none';
 }
@@ -5155,6 +5156,7 @@ async function extrairReceita() {
   if (recSource === 'link') {
     const url = document.getElementById('rec-url').value.trim();
     if (!url) { toast('Cole o link do vídeo', 'error'); return; }
+    if (/instagram\.com/i.test(url)) { fluxoInstagram(url); return; }
     corpo.url = url;
   } else {
     const texto = document.getElementById('rec-text').value.trim();
@@ -5187,6 +5189,104 @@ async function extrairReceita() {
   }
 }
 
+// ── Link do Instagram: busca o vídeo, depois manda o Gemini assistir ──
+async function fluxoInstagram(url) {
+  const btn = document.querySelector('#rec-src-link .rec-extract');
+  const original = btn ? btn.innerHTML : '';
+
+  const ocupado = (ligado) => {
+    if (!btn) return;
+    btn.disabled = ligado;
+    btn.innerHTML = ligado
+      ? '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Lendo...'
+      : original;
+  };
+
+  // Quando o link não dá certo, cai no caminho manual com o aviso explicado
+  const desistir = (motivo) => {
+    recProgresso(null, 'rec-src-link');
+    const abas = document.querySelectorAll('#rec-src-tabs button');
+    setRecSource('video', abas[1]);
+    document.getElementById('rec-video-url').value = url;
+    mostrarAvisoLink(url);
+    if (motivo) toast(motivo, 'error');
+  };
+
+  ocupado(true);
+  recWarn(null);
+  recProgresso('Buscando o vídeo do reel...', 'rec-src-link');
+
+  try {
+    const res = await fetch('/api/receita-resolver', {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ url })
+    });
+    const dados = await res.json();
+
+    if (!res.ok)   { desistir(dados.error || 'Não consegui abrir esse link'); return; }
+    if (!dados.ok) { desistir(dados.motivo); return; }
+
+    const corpo = {
+      caption:    dados.caption || null,
+      sourceUrl:  dados.sourceUrl || url,
+      sourceType: 'instagram',
+      author:     dados.author || null
+    };
+
+    if (dados.videoUrl) {
+      recProgresso('O Gemini está assistindo ao reel — isso leva até um minuto...', 'rec-src-link');
+      corpo.videoUrl = dados.videoUrl;
+      corpo.mimeType = 'video/mp4';
+    } else {
+      recProgresso('Sem vídeo disponível — lendo a legenda...', 'rec-src-link');
+      corpo.text = dados.caption;
+    }
+
+    const res2 = await fetch('/api/receita-extrair', {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify(corpo)
+    });
+    const info = await res2.json();
+    if (!res2.ok) { desistir(info.error || 'Falha ao ler o reel'); return; }
+
+    recProgresso(null, 'rec-src-link');
+    aplicarExtracao(info);
+
+    // A origem vem do resolvedor, não do leitor
+    recExtra.source_type = 'instagram';
+    recExtra.source_url  = dados.sourceUrl || url;
+    if (dados.author) recExtra.author = dados.author;
+
+    // A capa do post vira a capa da receita (a do Instagram expira em um dia)
+    if (dados.capaBase64) {
+      const capa = await guardarCapa(dados.capaBase64, dados.capaMime);
+      if (capa) recExtra.image_path = capa;
+    }
+  } catch (err) {
+    desistir(err.message);
+  } finally {
+    ocupado(false);
+  }
+}
+
+async function guardarCapa(base64, mime) {
+  try {
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const blob  = new Blob([bytes], { type: mime || 'image/jpeg' });
+    const ext   = (mime || 'image/jpeg').split('/')[1].replace('jpeg', 'jpg');
+    const path  = `${new Date().getFullYear()}/${crypto.randomUUID()}.${ext}`;
+
+    const { error } = await db.storage.from(REC_BUCKET)
+      .upload(path, blob, { contentType: blob.type });
+    return error ? null : path;
+  } catch (err) {
+    console.error('[capa]', err);
+    return null;
+  }
+}
+
 // ── Leitura de arquivo de vídeo (Instagram, TikTok, celular) ──
 function escolherVideo() {
   document.getElementById('rec-video-file').click();
@@ -5207,13 +5307,12 @@ function mostrarAvisoLink(link) {
 }
 
 
-function recProgresso(texto) {
-  const pane = document.getElementById('rec-src-video');
-  let el = document.getElementById('rec-video-progresso');
+function recProgresso(texto, painel = 'rec-src-video') {
+  const pane = document.getElementById(painel);
+  let el = pane.querySelector('.rec-progresso');
   if (!texto) { if (el) el.remove(); return; }
   if (!el) {
     el = document.createElement('div');
-    el.id = 'rec-video-progresso';
     el.className = 'rec-progresso';
     pane.appendChild(el);
   }
@@ -5834,7 +5933,7 @@ async function verificarCompartilhamento() {
     }
 
     // ── Veio só um link ──
-    if (/youtu\.?be|youtube\.com/.test(link)) {
+    if (/youtu\.?be|youtube\.com|instagram\.com/.test(link)) {
       setRecSource('link', abas[0]);
       document.getElementById('rec-url').value = link;
       extrairReceita();
