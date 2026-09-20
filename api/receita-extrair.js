@@ -96,6 +96,10 @@ Use TUDO o que o video oferece:
 Se a fala e a tela discordarem, prefira o que estiver escrito na tela e registre a
 divergencia em warnings.
 
+Se vier uma legenda publicada junto com o video, use-a como reforco: ela costuma
+trazer as quantidades por escrito. Quando a legenda e a fala discordarem, prefira a
+legenda para quantidades e o video para o modo de preparo.
+
 Marque em start_time o momento em que cada receita comeca — a hora em que a pessoa
 anuncia o prato ou comeca a separar os ingredientes dele.
 
@@ -232,7 +236,7 @@ function textoDaInteracao(data) {
   return saida.trim();
 }
 
-async function chamarGemini(apiKey, blocoVideo) {
+async function chamarGemini(apiKey, blocoVideo, textoExtra = null) {
   let ultimoErro = null;
 
   // Sem o ajuste de frames, caso a API recuse esse parametro
@@ -246,7 +250,13 @@ async function chamarGemini(apiKey, blocoVideo) {
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           model: modelo,
-          input: [bloco, { type: 'text', text: PROMPT_VIDEO }]
+          input: [
+            bloco,
+            ...(textoExtra
+              ? [{ type: 'text', text: `LEGENDA PUBLICADA JUNTO COM O VIDEO:\n\n${textoExtra}` }]
+              : []),
+            { type: 'text', text: PROMPT_VIDEO }
+          ]
         })
       });
 
@@ -382,7 +392,8 @@ export default async function handler(req, res) {
   const chaveClaude = process.env.ANTHROPIC_API_KEY;
 
   try {
-    const { url, videoUrl, mimeType, text, fileData, mediaType } = req.body || {};
+    const { url, videoUrl, mimeType, text, fileData, mediaType,
+            caption, sourceUrl, sourceType, author } = req.body || {};
 
     let origem = {
       source_type: 'manual', source_url: null, video_id: null,
@@ -423,12 +434,15 @@ export default async function handler(req, res) {
       const mime = mimeType || baixado.headers.get('content-type') || 'video/mp4';
       const arquivo = await subirVideoGemini(chaveGemini, bytes, mime);
 
-      origem.source_type = 'video';
+      origem.source_type = sourceType || 'video';
+      origem.source_url  = sourceUrl || null;
+      origem.author      = author || null;
+
       try {
         bruto = await chamarGemini(chaveGemini, {
           type: 'video', uri: arquivo.uri, mime_type: arquivo.mime,
           processing: { type: 'static', fps: 0.25 }
-        });
+        }, caption || null);
       } finally {
         await apagarArquivoGemini(chaveGemini, arquivo.name);
       }
