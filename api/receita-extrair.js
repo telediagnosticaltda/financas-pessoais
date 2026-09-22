@@ -166,9 +166,10 @@ function emSegundos(t) {
   return seg > 0 ? Math.round(seg) : null;
 }
 
-function erro(msg, status = 500) {
+function erro(msg, status = 500, diagnostico = null) {
   const e = new Error(msg);
   e.status = status;
+  e.diagnostico = diagnostico;
   return e;
 }
 
@@ -236,22 +237,48 @@ function textoDaInteracao(data) {
   return saida.trim();
 }
 
-async function chamarGemini(apiKey, blocoVideo, textoExtra = null) {
-  let ultimoErro = null;
+// Mensagem curta do erro devolvido pelo Google, para mostrar na tela
+function resumoErro(status, detalhe) {
+  let msg = '';
+  try { msg = JSON.parse(detalhe)?.error?.message || ''; } catch { /* nao era JSON */ }
+  msg = (msg || String(detalhe || '')).replace(/\s+/g, ' ').trim().slice(0, 140);
+  return `Gemini ${status}${msg ? ': ' + msg : ''}`;
+}
 
-  // Sem o ajuste de frames, caso a API recuse esse parametro
+async function chamarGemini(apiKey, blocoVideo, textoExtra = null) {
+  // O Google devolve erros 400 intermitentes com links do YouTube: a mesma
+  // requisicao, repetida, costuma dar certo. Por isso insistimos algumas vezes,
+  // sempre de olho no limite de 60 segundos da Vercel.
+  const inicio    = Date.now();
+  const ORCAMENTO = 35_000;
+
   const semAjuste = { ...blocoVideo };
   delete semAjuste.processing;
 
+  // 1a com ajuste de frames; 2a sem ele; 3a de novo sem, depois de uma pausa
+  const roteiro = [
+    { bloco: blocoVideo, pausa: 0 },
+    { bloco: semAjuste,  pausa: 0 },
+    { bloco: semAjuste,  pausa: 2000 }
+  ];
+
+  let ultimoErro = null;
+  let tentativas = 0;
+
+  modelos:
   for (const modelo of MODELOS_GEMINI) {
-    for (const bloco of [blocoVideo, semAjuste]) {
+    for (const passo of roteiro) {
+      if (Date.now() - inicio > ORCAMENTO) break modelos;
+      if (passo.pausa) await new Promise(r => setTimeout(r, passo.pausa));
+
+      tentativas++;
       const res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           model: modelo,
           input: [
-            bloco,
+            passo.bloco,
             ...(textoExtra
               ? [{ type: 'text', text: `LEGENDA PUBLICADA JUNTO COM O VIDEO:\n\n${textoExtra}` }]
               : []),
@@ -260,30 +287,50 @@ async function chamarGemini(apiKey, blocoVideo, textoExtra = null) {
         })
       });
 
-      if (res.ok) return lerJson(textoDaInteracao(await res.json()), 'gemini');
+      if (res.ok) {
+        const texto = textoDaInteracao(await res.json());
+        if (texto) {
+          try {
+            return lerJson(texto, 'gemini');
+          } catch {
+            ultimoErro = { status: 200, detalhe: 'resposta fora do formato esperado', modelo };
+            continue;
+          }
+        }
+        ultimoErro = { status: 200, detalhe: 'resposta vazia', modelo };
+        continue;
+      }
 
       const detalhe = await res.text();
-      console.error(`[gemini ${modelo}]`, res.status, detalhe.slice(0, 400));
-      ultimoErro = { status: res.status, detalhe };
+      console.error(`[gemini ${modelo} tentativa ${tentativas}]`, res.status, detalhe.slice(0, 400));
+      ultimoErro = { status: res.status, detalhe, modelo };
 
-      // 400 pode ser o parametro "processing": tenta de novo sem ele
-      if (res.status === 400 && !/API key/i.test(detalhe) && bloco === blocoVideo) continue;
-      break;
+      // Erros que nao adianta repetir
+      if (res.status === 429) break modelos;
+      if (/API key/i.test(detalhe)) break modelos;
+      if (/private|unavailable|not available|age.?restrict/i.test(detalhe)) break modelos;
+
+      // Modelo inexistente: pula direto para o proximo da lista
+      if (res.status === 404 || /model.*not found|not supported for/i.test(detalhe)) continue modelos;
+
+      // 400, 500, 503 e afins: segue tentando
     }
-
-    // Modelo inexistente ou sem permissao: tenta o proximo da lista
-    if (ultimoErro && (ultimoErro.status === 404 ||
-        /not found|not supported/i.test(ultimoErro.detalhe))) continue;
-    break;
   }
+
+  const diag = ultimoErro
+    ? `${resumoErro(ultimoErro.status, ultimoErro.detalhe)} (${tentativas} tentativa${tentativas > 1 ? 's' : ''})`
+    : null;
 
   if (ultimoErro?.status === 429) {
-    throw erro('O limite gratuito do Gemini foi atingido por hoje. Tente amanha ou use o print da tela.', 429);
+    throw erro('O limite gratuito do Gemini foi atingido por hoje. Tente amanha ou use o print da tela.', 429, diag);
   }
-  if (ultimoErro?.status === 400 && /API key/i.test(ultimoErro.detalhe)) {
-    throw erro('A GEMINI_API_KEY parece invalida. Confira a chave na Vercel.', 400);
+  if (ultimoErro && /API key/i.test(ultimoErro.detalhe)) {
+    throw erro('A GEMINI_API_KEY parece invalida. Confira a chave na Vercel.', 400, diag);
   }
-  throw erro('O Gemini nao conseguiu processar esse video.', 502);
+  if (ultimoErro && /private|unavailable|not available|age.?restrict/i.test(ultimoErro.detalhe)) {
+    throw erro('Esse video nao esta acessivel para o Gemini (privado, restrito por idade ou indisponivel).', 422, diag);
+  }
+  throw erro('O Gemini nao conseguiu processar esse video, mesmo tentando de novo.', 502, diag);
 }
 
 // ── Envia um arquivo de video para a Files API do Gemini ──
@@ -558,7 +605,8 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Falha em receita-extrair:', err);
     return res.status(err.status || 500).json({
-      error: err.message || 'Erro interno ao ler a receita'
+      error: err.message || 'Erro interno ao ler a receita',
+      diagnostico: err.diagnostico || null
     });
   }
 }
