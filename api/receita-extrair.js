@@ -12,7 +12,7 @@ import { requireAuth } from './_auth.js';
 //   GEMINI_API_KEY     (obrigatoria para video)
 //   ANTHROPIC_API_KEY  (obrigatoria para texto e imagem)
 
-const MODELOS_GEMINI = ['gemini-3.8-flash', 'gemini-3.7-flash'];
+const MODELOS_GEMINI = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash'];
 const MODELO_CLAUDE  = 'claude-sonnet-4-6';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
@@ -237,6 +237,25 @@ function textoDaInteracao(data) {
   return saida.trim();
 }
 
+// So o texto da mensagem de erro do Google. O corpo inteiro traz tambem um
+// campo "status" (ex.: "UNAVAILABLE" em sobrecarga) que confundia a
+// classificacao abaixo com "video indisponivel".
+function mensagemErro(detalhe) {
+  try { return JSON.parse(detalhe)?.error?.message || ''; } catch { return String(detalhe || ''); }
+}
+
+// Que tipo de falha foi — decide se vale insistir, trocar de modelo ou parar
+function tipoErro(status, detalhe) {
+  const msg = mensagemErro(detalhe);
+  if (status === 429)                                        return 'cota';
+  if (/API key/i.test(msg))                                  return 'chave';
+  if (status === 404 || /model.*not found|not supported for/i.test(msg)) return 'modelo';
+  if (status >= 500 || /overload|high demand|try again later/i.test(msg)) return 'sobrecarga';
+  if (/private|age.?restrict|video (is )?(not available|unavailable)|not available in your/i.test(msg))
+                                                             return 'video';
+  return 'repetir';  // 400 intermitente do YouTube e afins
+}
+
 // Mensagem curta do erro devolvido pelo Google, para mostrar na tela
 function resumoErro(status, detalhe) {
   let msg = '';
@@ -246,90 +265,105 @@ function resumoErro(status, detalhe) {
 }
 
 async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.now() + 35_000) {
-  // O Google devolve erros 400 intermitentes com links do YouTube: a mesma
-  // requisicao, repetida, costuma dar certo. Por isso insistimos algumas vezes.
-  // "prazo" e o horario-limite para COMECAR uma tentativa: depois dele, cada
-  // chamada pode levar ~20s, e a Vercel corta tudo aos 60s.
+  // Estrategia de insistencia:
+  //  - 400 intermitente (comum com links do YouTube): repete no mesmo modelo,
+  //    primeiro sem o ajuste de frames, depois apos uma pausa;
+  //  - sobrecarga (503): troca de modelo na hora — cada um tem capacidade
+  //    propria no Google; se todos estiverem cheios, respira e tenta outra rodada;
+  //  - cota, chave invalida ou video inacessivel: para na hora.
+  // "prazo" e o horario-limite para COMECAR uma tentativa (a Vercel corta aos 60s).
 
   const semAjuste = { ...blocoVideo };
   delete semAjuste.processing;
 
-  // 1a com ajuste de frames; 2a sem ele; 3a de novo sem, depois de uma pausa
   const roteiro = [
     { bloco: blocoVideo, pausa: 0 },
     { bloco: semAjuste,  pausa: 0 },
     { bloco: semAjuste,  pausa: 2000 }
   ];
 
-  let ultimoErro = null;
+  const vistos = [];      // todos os erros, para escolher o mais informativo
   let tentativas = 0;
 
-  modelos:
-  for (const modelo of MODELOS_GEMINI) {
-    for (const passo of roteiro) {
-      if (Date.now() > prazo) break modelos;
-      if (passo.pausa) await new Promise(r => setTimeout(r, passo.pausa));
+  rodadas:
+  for (let rodada = 0; rodada < 2; rodada++) {
+    let sobrecargaNaRodada = false;
 
-      tentativas++;
-      const res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
-          model: modelo,
-          input: [
-            passo.bloco,
-            ...(textoExtra
-              ? [{ type: 'text', text: `LEGENDA PUBLICADA JUNTO COM O VIDEO:\n\n${textoExtra}` }]
-              : []),
-            { type: 'text', text: PROMPT_VIDEO }
-          ]
-        })
-      });
+    modelos:
+    for (const modelo of MODELOS_GEMINI) {
+      for (const passo of roteiro) {
+        if (Date.now() > prazo) break rodadas;
+        if (passo.pausa) await new Promise(r => setTimeout(r, passo.pausa));
 
-      if (res.ok) {
-        const texto = textoDaInteracao(await res.json());
-        if (texto) {
-          try {
-            return lerJson(texto, 'gemini');
-          } catch {
-            ultimoErro = { status: 200, detalhe: 'resposta fora do formato esperado', modelo };
-            continue;
+        tentativas++;
+        const res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({
+            model: modelo,
+            input: [
+              passo.bloco,
+              ...(textoExtra
+                ? [{ type: 'text', text: `LEGENDA PUBLICADA JUNTO COM O VIDEO:\n\n${textoExtra}` }]
+                : []),
+              { type: 'text', text: PROMPT_VIDEO }
+            ]
+          })
+        });
+
+        if (res.ok) {
+          const texto = textoDaInteracao(await res.json());
+          if (texto) {
+            try { return lerJson(texto, 'gemini'); }
+            catch { vistos.push({ status: 200, detalhe: 'resposta fora do formato esperado', modelo, tipo: 'repetir' }); continue; }
           }
+          vistos.push({ status: 200, detalhe: 'resposta vazia', modelo, tipo: 'repetir' });
+          continue;
         }
-        ultimoErro = { status: 200, detalhe: 'resposta vazia', modelo };
-        continue;
+
+        const detalhe = await res.text();
+        const tipo = tipoErro(res.status, detalhe);
+        console.error(`[gemini ${modelo} tentativa ${tentativas}] ${res.status} ${tipo}`, detalhe.slice(0, 300));
+        vistos.push({ status: res.status, detalhe, modelo, tipo });
+
+        if (tipo === 'cota' || tipo === 'chave' || tipo === 'video') break rodadas;
+        if (tipo === 'sobrecarga') { sobrecargaNaRodada = true; continue modelos; }
+        if (tipo === 'modelo') continue modelos;
+        // 'repetir': segue o roteiro no mesmo modelo
       }
-
-      const detalhe = await res.text();
-      console.error(`[gemini ${modelo} tentativa ${tentativas}]`, res.status, detalhe.slice(0, 400));
-      ultimoErro = { status: res.status, detalhe, modelo };
-
-      // Erros que nao adianta repetir
-      if (res.status === 429) break modelos;
-      if (/API key/i.test(detalhe)) break modelos;
-      if (/private|unavailable|not available|age.?restrict/i.test(detalhe)) break modelos;
-
-      // Modelo inexistente: pula direto para o proximo da lista
-      if (res.status === 404 || /model.*not found|not supported for/i.test(detalhe)) continue modelos;
-
-      // 400, 500, 503 e afins: segue tentando
     }
+
+    // Todos cheios: respira e passa a lista mais uma vez, se der tempo
+    if (sobrecargaNaRodada && Date.now() + 3000 < prazo) {
+      await new Promise(r => setTimeout(r, 3000));
+      continue rodadas;
+    }
+    break rodadas;
   }
 
-  const diag = ultimoErro
-    ? `${resumoErro(ultimoErro.status, ultimoErro.detalhe)} (${tentativas} tentativa${tentativas > 1 ? 's' : ''})`
+  // O erro mais informativo, nao simplesmente o ultimo: um 404 do ultimo modelo
+  // da lista nao pode esconder a sobrecarga que aconteceu nos anteriores
+  const prioridade = ['cota', 'chave', 'video', 'sobrecarga', 'repetir', 'modelo'];
+  const principal = prioridade
+    .map(t => vistos.filter(e => e.tipo === t).at(-1))
+    .find(Boolean) || null;
+
+  const diag = principal
+    ? `${resumoErro(principal.status, principal.detalhe)} (${tentativas} tentativa${tentativas > 1 ? 's' : ''})`
     : null;
 
-  if (ultimoErro?.status === 429) {
-    throw erro('O limite gratuito do Gemini foi atingido por hoje. Tente amanha ou use o print da tela.', 429, diag);
+  switch (principal?.tipo) {
+    case 'cota':
+      throw erro('O limite gratuito do Gemini foi atingido por hoje. Tente amanha ou use o print da tela.', 429, diag);
+    case 'chave':
+      throw erro('A GEMINI_API_KEY parece invalida. Confira a chave na Vercel.', 400, diag);
+    case 'video':
+      throw erro('Esse video nao esta acessivel para o Gemini (privado, restrito por idade ou indisponivel).', 422, diag);
+    case 'sobrecarga':
+      throw erro('Os servidores do Gemini estao sobrecarregados agora. Tente de novo em alguns minutos.', 503, diag);
+    default:
+      throw erro('O Gemini nao conseguiu processar esse video, mesmo tentando de novo.', 502, diag);
   }
-  if (ultimoErro && /API key/i.test(ultimoErro.detalhe)) {
-    throw erro('A GEMINI_API_KEY parece invalida. Confira a chave na Vercel.', 400, diag);
-  }
-  if (ultimoErro && /private|unavailable|not available|age.?restrict/i.test(ultimoErro.detalhe)) {
-    throw erro('Esse video nao esta acessivel para o Gemini (privado, restrito por idade ou indisponivel).', 422, diag);
-  }
-  throw erro('O Gemini nao conseguiu processar esse video, mesmo tentando de novo.', 502, diag);
 }
 
 // ── Envia um arquivo de video para a Files API do Gemini ──
