@@ -1689,11 +1689,17 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     <div id="rec-src-video" class="rec-src-pane" style="display:none">
 
       <div class="rec-aviso" id="rec-aviso-link" style="display:none">
-        <div class="rec-aviso-titulo"><i class="ti ti-link"></i> Recebi o link, falta o vídeo</div>
-        O Instagram não deixa nenhum aplicativo ler o vídeo a partir do link.
-        Volte ao Instagram, toque nos três pontinhos do reel e escolha
-        <b>Salvar no dispositivo</b>. Depois toque no botão abaixo e escolha o vídeo na galeria.
+        <div class="rec-aviso-titulo"><i class="ti ti-alert-triangle"></i> Não consegui ler esse vídeo pelo link</div>
+        <div id="rec-aviso-link-motivo"></div>
+        <div style="margin-top:6px">
+          Você pode tentar de novo, colar a legenda do post, ou baixar o vídeo e enviar o arquivo.
+        </div>
+        <span class="rec-aviso-link" id="rec-aviso-link-diag"></span>
         <span class="rec-aviso-link" id="rec-aviso-link-url"></span>
+        <button class="btn btn-ghost" id="rec-aviso-retry" onclick="tentarLinkDeNovo()"
+                style="margin-top:10px;display:none;background:#fff">
+          <i class="ti ti-refresh"></i> Tentar de novo
+        </button>
       </div>
 
       <div class="form-row">
@@ -5179,7 +5185,7 @@ async function extrairReceita() {
       headers: await authHeaders(),
       body: JSON.stringify(corpo)
     });
-    const info = await res.json();
+    const info = await lerResposta(res);
     if (!res.ok) {
       const e = new Error(info.error || 'Falha na leitura');
       e.diagnostico = info.diagnostico;
@@ -5211,13 +5217,12 @@ async function fluxoInstagram(url) {
   };
 
   // Quando o link não dá certo, cai no caminho manual com o aviso explicado
-  const desistir = (motivo) => {
+  const desistir = (motivo, diagnostico = null) => {
     recProgresso(null, 'rec-src-link');
     const abas = document.querySelectorAll('#rec-src-tabs button');
     setRecSource('video', abas[1]);
     document.getElementById('rec-video-url').value = url;
-    mostrarAvisoLink(url);
-    if (motivo) toast(motivo, 'error');
+    mostrarAvisoLink(url, motivo, diagnostico);
   };
 
   ocupado(true);
@@ -5230,10 +5235,10 @@ async function fluxoInstagram(url) {
       headers: await authHeaders(),
       body: JSON.stringify({ url })
     });
-    const dados = await res.json();
+    const dados = await lerResposta(res);
 
-    if (!res.ok)   { desistir(dados.error || 'Não consegui abrir esse link'); return; }
-    if (!dados.ok) { desistir(dados.motivo); return; }
+    if (!res.ok)   { desistir(dados.error || 'Não consegui abrir esse link', dados.diagnostico); return; }
+    if (!dados.ok) { desistir(dados.motivo, dados.diagnostico); return; }
 
     const corpo = {
       caption:    dados.caption || null,
@@ -5256,8 +5261,8 @@ async function fluxoInstagram(url) {
       headers: await authHeaders(),
       body: JSON.stringify(corpo)
     });
-    const info = await res2.json();
-    if (!res2.ok) { desistir(info.error || 'Falha ao ler o reel'); return; }
+    const info = await lerResposta(res2);
+    if (!res2.ok) { desistir(info.error || 'Falha ao ler o reel', info.diagnostico); return; }
 
     recProgresso(null, 'rec-src-link');
     aplicarExtracao(info);
@@ -5273,7 +5278,7 @@ async function fluxoInstagram(url) {
       if (capa) recExtra.image_path = capa;
     }
   } catch (err) {
-    desistir(err.message);
+    desistir('Falha de conexão com o servidor.', err.message);
   } finally {
     ocupado(false);
   }
@@ -5309,9 +5314,45 @@ function irParaLegenda() {
   document.getElementById('rec-text').focus();
 }
 
-function mostrarAvisoLink(link) {
+let recLinkPendente = null;
+
+function mostrarAvisoLink(link, motivo = null, diagnostico = null) {
+  recLinkPendente = link || null;
+  const automatico = /youtu\.?be|youtube\.com|instagram\.com/i.test(link || '');
+
+  document.getElementById('rec-aviso-link-motivo').textContent = motivo ||
+    (automatico ? 'A leitura automática falhou.'
+                : 'Esse tipo de link não é lido automaticamente — só YouTube e Instagram.');
+  document.getElementById('rec-aviso-link-diag').textContent =
+    diagnostico ? 'Detalhe técnico: ' + diagnostico : '';
   document.getElementById('rec-aviso-link-url').textContent = link || '';
+  document.getElementById('rec-aviso-retry').style.display = automatico ? 'inline-flex' : 'none';
   document.getElementById('rec-aviso-link').style.display = 'block';
+}
+
+function tentarLinkDeNovo() {
+  if (!recLinkPendente) return;
+  const abas = document.querySelectorAll('#rec-src-tabs button');
+  setRecSource('link', abas[0]);
+  document.getElementById('rec-url').value = recLinkPendente;
+  extrairReceita();
+}
+
+// Lê a resposta do servidor mesmo quando ela não vem em JSON — é o caso de
+// quando a Vercel corta a função por passar de 60 segundos.
+async function lerResposta(res) {
+  const texto = await res.text();
+  try {
+    return JSON.parse(texto);
+  } catch {
+    const corte = res.status === 504 || /FUNCTION_INVOCATION_TIMEOUT/i.test(texto);
+    return {
+      ok: false,
+      error: corte ? 'O servidor passou do limite de 60 segundos.'
+                   : `O servidor respondeu com erro ${res.status}.`,
+      diagnostico: `HTTP ${res.status}: ${texto.replace(/\s+/g, ' ').slice(0, 100)}`
+    };
+  }
 }
 
 
