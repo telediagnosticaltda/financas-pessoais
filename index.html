@@ -5144,7 +5144,7 @@ function setRecRating(n) {
 function recWarn(msgs) {
   const el = document.getElementById('rec-warn');
   if (!msgs || !msgs.length) { el.style.display = 'none'; return; }
-  el.innerHTML = '<i class="ti ti-alert-triangle"></i> ' + msgs.map(recEsc).join(' ');
+  el.innerHTML = '<i class="ti ti-alert-triangle"></i> ' + msgs.map(recEsc).join('<br>');
   el.style.display = 'block';
 }
 
@@ -5180,10 +5180,18 @@ async function extrairReceita() {
       body: JSON.stringify(corpo)
     });
     const info = await res.json();
-    if (!res.ok) throw new Error(info.error || 'Falha na leitura');
+    if (!res.ok) {
+      const e = new Error(info.error || 'Falha na leitura');
+      e.diagnostico = info.diagnostico;
+      throw e;
+    }
     aplicarExtracao(info);
   } catch (err) {
-    toast(err.message, 'error');
+    // Fica na tela: um aviso que some em 3 segundos não ajuda ninguém
+    const linhas = [err.message];
+    if (recSource === 'link') linhas.push('Toque no botão de novo para tentar mais uma vez.');
+    if (err.diagnostico) linhas.push('Detalhe técnico: ' + err.diagnostico);
+    recWarn(linhas);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = original; }
   }
