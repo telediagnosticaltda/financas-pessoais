@@ -245,12 +245,11 @@ function resumoErro(status, detalhe) {
   return `Gemini ${status}${msg ? ': ' + msg : ''}`;
 }
 
-async function chamarGemini(apiKey, blocoVideo, textoExtra = null) {
+async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.now() + 35_000) {
   // O Google devolve erros 400 intermitentes com links do YouTube: a mesma
-  // requisicao, repetida, costuma dar certo. Por isso insistimos algumas vezes,
-  // sempre de olho no limite de 60 segundos da Vercel.
-  const inicio    = Date.now();
-  const ORCAMENTO = 35_000;
+  // requisicao, repetida, costuma dar certo. Por isso insistimos algumas vezes.
+  // "prazo" e o horario-limite para COMECAR uma tentativa: depois dele, cada
+  // chamada pode levar ~20s, e a Vercel corta tudo aos 60s.
 
   const semAjuste = { ...blocoVideo };
   delete semAjuste.processing;
@@ -268,7 +267,7 @@ async function chamarGemini(apiKey, blocoVideo, textoExtra = null) {
   modelos:
   for (const modelo of MODELOS_GEMINI) {
     for (const passo of roteiro) {
-      if (Date.now() - inicio > ORCAMENTO) break modelos;
+      if (Date.now() > prazo) break modelos;
       if (passo.pausa) await new Promise(r => setTimeout(r, passo.pausa));
 
       tentativas++;
@@ -438,6 +437,9 @@ export default async function handler(req, res) {
   const chaveGemini = process.env.GEMINI_API_KEY;
   const chaveClaude = process.env.ANTHROPIC_API_KEY;
 
+  // Nenhuma nova tentativa no Gemini depois de 38s: a Vercel corta aos 60s
+  const PRAZO = Date.now() + 38_000;
+
   try {
     const { url, videoUrl, mimeType, text, fileData, mediaType,
             caption, sourceUrl, sourceType, author } = req.body || {};
@@ -462,7 +464,7 @@ export default async function handler(req, res) {
         type: 'video',
         uri: `https://www.youtube.com/watch?v=${id}`,
         processing: { type: 'static', fps: 0.25 }
-      });
+      }, null, PRAZO);
 
     // ── CAMINHO 2: arquivo de video enviado pelo usuario (reel, TikTok, celular) ──
     } else if (videoUrl) {
@@ -471,27 +473,42 @@ export default async function handler(req, res) {
       }
 
       const baixado = await fetch(videoUrl);
-      if (!baixado.ok) throw erro('Nao consegui ler o video enviado.', 502);
+      if (!baixado.ok) {
+        throw erro('Nao consegui baixar o video para o Gemini assistir.', 502,
+                   `download do video: HTTP ${baixado.status}`);
+      }
       const bytes = Buffer.from(await baixado.arrayBuffer());
 
       if (bytes.length > 95 * 1024 * 1024) {
         throw erro('Video grande demais (limite de 95 MB).', 413);
       }
 
-      const mime = mimeType || baixado.headers.get('content-type') || 'video/mp4';
-      const arquivo = await subirVideoGemini(chaveGemini, bytes, mime);
+      let mime = (mimeType || baixado.headers.get('content-type') || 'video/mp4').split(';')[0];
+      if (!mime.startsWith('video/')) mime = 'video/mp4';
 
       origem.source_type = sourceType || 'video';
       origem.source_url  = sourceUrl || null;
       origem.author      = author || null;
 
-      try {
+      // Ate 14 MB o video vai dentro da propria requisicao (o base64 cresce um
+      // terco e o limite do Google e 20 MB). Reels quase sempre cabem, e assim
+      // pulamos o envio separado e a espera de processamento, que podiam levar
+      // 40 segundos e estourar o limite da Vercel.
+      if (bytes.length <= 14 * 1024 * 1024) {
         bruto = await chamarGemini(chaveGemini, {
-          type: 'video', uri: arquivo.uri, mime_type: arquivo.mime,
+          type: 'video', data: bytes.toString('base64'), mime_type: mime,
           processing: { type: 'static', fps: 0.25 }
-        }, caption || null);
-      } finally {
-        await apagarArquivoGemini(chaveGemini, arquivo.name);
+        }, caption || null, PRAZO);
+      } else {
+        const arquivo = await subirVideoGemini(chaveGemini, bytes, mime);
+        try {
+          bruto = await chamarGemini(chaveGemini, {
+            type: 'video', uri: arquivo.uri, mime_type: arquivo.mime,
+            processing: { type: 'static', fps: 0.25 }
+          }, caption || null, PRAZO);
+        } finally {
+          await apagarArquivoGemini(chaveGemini, arquivo.name);
+        }
       }
 
     // ── CAMINHO 3: outro link (Instagram, TikTok, blog) ──
