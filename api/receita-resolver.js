@@ -14,9 +14,10 @@ import { requireAuth } from './_auth.js';
 const ATOR_PADRAO = 'apify~instagram-scraper';
 const LIMITE_CAPA = 900 * 1024; // 900 KB
 
-function erro(msg, status = 500) {
+function erro(msg, status = 500, diagnostico = null) {
   const e = new Error(msg);
   e.status = status;
+  e.diagnostico = diagnostico;
   return e;
 }
 
@@ -75,7 +76,7 @@ export default async function handler(req, res) {
 
     const resposta = await fetch(
       `https://api.apify.com/v2/acts/${ator}/run-sync-get-dataset-items` +
-      `?token=${encodeURIComponent(token)}&timeout=75`,
+      `?token=${encodeURIComponent(token)}&timeout=45`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,9 +100,15 @@ export default async function handler(req, res) {
         throw erro('O credito da Apify acabou. Veja sua conta em console.apify.com.', 402);
       }
       if (resposta.status === 404) {
-        throw erro('O leitor de Instagram configurado nao existe mais. Troque o APIFY_ACTOR.', 404);
+        throw erro('O leitor de Instagram configurado nao existe mais. Troque o APIFY_ACTOR.', 404,
+                   `Apify 404 (${ator})`);
       }
-      throw erro('O leitor de Instagram nao respondeu. Tente de novo em alguns minutos.', 502);
+      if (resposta.status === 408) {
+        throw erro('O Instagram demorou demais para responder. Tente de novo.', 504,
+                   'Apify 408: tempo esgotado');
+      }
+      throw erro('O leitor de Instagram nao respondeu. Tente de novo em alguns minutos.', 502,
+                 `Apify ${resposta.status}: ${detalhe.replace(/\s+/g, ' ').slice(0, 120)}`);
     }
 
     const itens = await resposta.json();
@@ -140,7 +147,8 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Falha em receita-resolver:', err);
     return res.status(err.status || 500).json({
-      error: err.message || 'Erro ao abrir o link do Instagram'
+      error: err.message || 'Erro ao abrir o link do Instagram',
+      diagnostico: err.diagnostico || null
     });
   }
 }
