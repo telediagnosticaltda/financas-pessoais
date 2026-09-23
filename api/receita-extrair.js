@@ -46,7 +46,10 @@ Formato exato:
       "start_time": "momento em que esta receita comeca, no formato MM:SS, ou null",
       "ingredients": ["1 xicara de farinha de trigo", "2 ovos", "..."],
       "steps": ["Passo completo em uma frase ou duas.", "..."],
-      "notes": "dica de quem ensinou que nao cabe nos passos, ou null"
+      "notes": "dica de quem ensinou que nao cabe nos passos, ou null",
+      "kcal_porcao": calorias estimadas por porcao (inteiro), ou null,
+      "proteina_g": gramas de proteina por porcao (inteiro), ou null,
+      "nutri_confianca": "alta" | "media" | "baixa"
     }
   ],
   "confidence": "alta" | "media" | "baixa",
@@ -79,7 +82,19 @@ Regras de conteudo:
   Se nao houver informacao de tempo, use null. Nao estime.
 - Responda em portugues do Brasil. Se o material estiver em outro idioma, traduza.
 - Ignore pedidos de like e inscricao, links de cupom e afiliado, nomes de
-  patrocinadores, hashtags e enderecos de redes sociais.`;
+  patrocinadores, hashtags e enderecos de redes sociais.
+
+Estimativa nutricional (kcal_porcao, proteina_g, nutri_confianca):
+- Estime POR PORCAO, usando valores tipicos dos alimentos brasileiros.
+- Se "servings" estiver preenchido, divida o total por ele. Se nao houver,
+  suponha um numero razoavel de porcoes e marque nutri_confianca "baixa".
+- Quantidades vagas ("um fio de azeite", "queijo a gosto") puxam a confianca
+  para baixo. "media" e o normal; "alta" so quando quase tudo tem quantidade.
+- Guarnicoes que nao fazem parte da receita (arroz ou pao para acompanhar)
+  ficam de fora da conta.
+- Sem ingredientes suficientes, devolva null nos dois numeros.
+- Isso e uma estimativa grosseira e sera mostrada como tal. Nao invente
+  precisao: e melhor "baixa" confianca do que um numero confiante e errado.`;
 
 const PROMPT_VIDEO = `Voce esta assistindo a um video de culinaria e sua tarefa e
 transcrever TODAS as receitas ensinadas nele.
@@ -155,6 +170,12 @@ function metaTag(html, prop) {
   const b = html.match(new RegExp(
     `<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'));
   return b ? decodeHtml(b[1]) : null;
+}
+
+function inteiroPositivo(v, teto) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(Math.round(n), teto);
 }
 
 // "12:34" ou "1:02:03" -> segundos
@@ -640,7 +661,11 @@ export default async function handler(req, res) {
         start_sec:      emSegundos(r.start_time),
         ingredients,
         steps,
-        notes:          r.notes || null
+        notes:          r.notes || null,
+        kcal_porcao:    inteiroPositivo(r.kcal_porcao, 5000),
+        proteina_g:     inteiroPositivo(r.proteina_g, 300),
+        nutri_confianca: ['alta', 'media', 'baixa'].includes(r.nutri_confianca)
+                           ? r.nutri_confianca : 'media'
       };
     }).filter(r => r.ingredients.length > 0 || r.steps.length > 0);
 
