@@ -326,9 +326,11 @@ async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.
         console.error(`[gemini ${modelo} tentativa ${tentativas}] ${res.status} ${tipo}`, detalhe.slice(0, 300));
         vistos.push({ status: res.status, detalhe, modelo, tipo });
 
-        if (tipo === 'cota' || tipo === 'chave' || tipo === 'video') break rodadas;
+        if (tipo === 'chave' || tipo === 'video') break rodadas;
+        // A cota gratuita e contada POR MODELO ("rate limit exceeded for model
+        // gemini-3.8-flash"), entao o proximo da lista ainda pode responder
+        if (tipo === 'cota' || tipo === 'modelo') continue modelos;
         if (tipo === 'sobrecarga') { sobrecargaNaRodada = true; continue modelos; }
-        if (tipo === 'modelo') continue modelos;
         // 'repetir': segue o roteiro no mesmo modelo
       }
     }
@@ -343,7 +345,7 @@ async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.
 
   // O erro mais informativo, nao simplesmente o ultimo: um 404 do ultimo modelo
   // da lista nao pode esconder a sobrecarga que aconteceu nos anteriores
-  const prioridade = ['cota', 'chave', 'video', 'sobrecarga', 'repetir', 'modelo'];
+  const prioridade = ['chave', 'video', 'sobrecarga', 'cota', 'repetir', 'modelo'];
   const principal = prioridade
     .map(t => vistos.filter(e => e.tipo === t).at(-1))
     .find(Boolean) || null;
@@ -354,7 +356,8 @@ async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.
 
   switch (principal?.tipo) {
     case 'cota':
-      throw erro('O limite gratuito do Gemini foi atingido por hoje. Tente amanha ou use o print da tela.', 429, diag);
+      throw erro('A cota gratuita da API do Gemini acabou em todos os modelos. Ela zera amanha; ' +
+                 'para nao depender disso, ative o faturamento do Gemini no Google Cloud.', 429, diag);
     case 'chave':
       throw erro('A GEMINI_API_KEY parece invalida. Confira a chave na Vercel.', 400, diag);
     case 'video':
