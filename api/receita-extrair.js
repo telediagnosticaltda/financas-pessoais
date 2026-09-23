@@ -285,7 +285,7 @@ function resumoErro(status, detalhe) {
   return `Gemini ${status}${msg ? ': ' + msg : ''}`;
 }
 
-async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.now() + 35_000) {
+async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.now() + 35_000, maxTentativas = Infinity) {
   // Estrategia de insistencia:
   //  - 400 intermitente (comum com links do YouTube): repete no mesmo modelo,
   //    primeiro sem o ajuste de frames, depois apos uma pausa;
@@ -313,7 +313,7 @@ async function chamarGemini(apiKey, blocoVideo, textoExtra = null, prazo = Date.
     modelos:
     for (const modelo of MODELOS_GEMINI) {
       for (const passo of roteiro) {
-        if (Date.now() > prazo) break rodadas;
+        if (Date.now() > prazo || tentativas >= maxTentativas) break rodadas;
         if (passo.pausa) await new Promise(r => setTimeout(r, passo.pausa));
 
         tentativas++;
@@ -430,12 +430,12 @@ async function subirVideoGemini(apiKey, bytes, mime) {
   if (!arquivo?.name) throw erro('O Gemini nao devolveu o arquivo enviado.', 502);
 
   // Espera o video ficar pronto (ACTIVE)
-  const limite = Date.now() + 40_000;
+  const limite = Date.now() + 20_000;
   let estado = arquivo.state;
   while (estado !== 'ACTIVE') {
     if (estado === 'FAILED') throw erro('O Gemini nao conseguiu processar esse arquivo de video.', 502);
     if (Date.now() > limite) throw erro('O video demorou demais para ser processado. Tente um trecho menor.', 504);
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 1000));
     const r = await fetch(`${GEMINI_BASE}/v1beta/${arquivo.name}`, {
       headers: { 'x-goog-api-key': apiKey }
     });
@@ -507,6 +507,7 @@ export default async function handler(req, res) {
       thumbnail_url: null, title: null, author: null
     };
     let bruto = null;
+    const avisosExtra = [];   // explicacoes nossas, somadas as da IA
 
     // ── CAMINHO 1: link do YouTube, assistido pelo Gemini ──
     if (url && youtubeId(String(url).trim())) {
@@ -548,24 +549,60 @@ export default async function handler(req, res) {
       origem.source_url  = sourceUrl || null;
       origem.author      = author || null;
 
-      // Ate 14 MB o video vai dentro da propria requisicao (o base64 cresce um
-      // terco e o limite do Google e 20 MB). Reels quase sempre cabem, e assim
-      // pulamos o envio separado e a espera de processamento, que podiam levar
-      // 40 segundos e estourar o limite da Vercel.
+      // Tres degraus, do mais rapido ao mais garantido. O Gemini devolve 503
+      // com frequencia em requisicoes pesadas, e cada tentativa "inline"
+      // reenvia o video inteiro — caro demais para repetir varias vezes.
+      let falhaGemini = null;
+
+      // Degrau 1: video dentro da propria requisicao. Sem espera de
+      // processamento, mas so vale uma tentativa rapida.
       if (bytes.length <= 14 * 1024 * 1024) {
-        bruto = await chamarGemini(chaveGemini, {
-          type: 'video', data: bytes.toString('base64'), mime_type: mime,
-          processing: { type: 'static', fps: 0.25 }
-        }, caption || null, PRAZO);
-      } else {
-        const arquivo = await subirVideoGemini(chaveGemini, bytes, mime);
         try {
           bruto = await chamarGemini(chaveGemini, {
-            type: 'video', uri: arquivo.uri, mime_type: arquivo.mime,
+            type: 'video', data: bytes.toString('base64'), mime_type: mime,
             processing: { type: 'static', fps: 0.25 }
+            // duas tentativas rapidas no maximo: cada uma reenvia o video inteiro
+          }, caption || null, Math.min(PRAZO, Date.now() + 16_000), 2);
+        } catch (e) {
+          falhaGemini = e;
+          console.error('[receita] degrau 1 (inline) falhou:', e.message);
+        }
+      }
+
+      // Degrau 2: envia o video UMA vez e repete so o pedido, que e pequeno.
+      // Assim cabem varias tentativas em modelos diferentes dentro do prazo.
+      if (!bruto && Date.now() < PRAZO - 10_000) {
+        let arquivo = null;
+        try {
+          arquivo = await subirVideoGemini(chaveGemini, bytes, mime);
+          bruto = await chamarGemini(chaveGemini, {
+            type: 'video', uri: arquivo.uri, mime_type: arquivo.mime,
+            processing: { type: 'static', fps: 0.15 }   // mais leve: menos 503
           }, caption || null, PRAZO);
+        } catch (e) {
+          falhaGemini = e;
+          console.error('[receita] degrau 2 (arquivo) falhou:', e.message);
         } finally {
-          await apagarArquivoGemini(chaveGemini, arquivo.name);
+          if (arquivo) await apagarArquivoGemini(chaveGemini, arquivo.name);
+        }
+      }
+
+      // Degrau 3: o Gemini nao quis. Se veio legenda junto com o post, a Claude
+      // monta a receita a partir dela — pior que assistir, melhor que nada.
+      if (!bruto) {
+        const legenda = (caption || '').trim();
+        if (legenda.length >= 60 && chaveClaude) {
+          console.error('[receita] degrau 3: caindo para a legenda');
+          bruto = await chamarClaude(chaveClaude, [
+            { type: 'text', text: `MATERIAL ORIGINAL:\n\n${legenda}` },
+            { type: 'text', text: PROMPT_TEXTO }
+          ]);
+          avisosExtra.push(
+            'O Gemini nao conseguiu assistir ao video agora, entao esta receita saiu ' +
+            'da legenda do post. Confira as quantidades e o modo de preparo.'
+          );
+        } else {
+          throw falhaGemini || erro('Nao consegui ler esse video.', 502);
         }
       }
 
@@ -674,7 +711,7 @@ export default async function handler(req, res) {
       count:          receitas.length,
       recipes:        receitas,
       confidence:     bruto.confidence || 'media',
-      warnings:       lista(bruto.warnings),
+      warnings:       [...avisosExtra, ...lista(bruto.warnings)],
       source_type:    origem.source_type,
       source_url:     origem.source_url,
       video_id:       origem.video_id,
