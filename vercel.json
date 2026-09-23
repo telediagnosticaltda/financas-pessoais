@@ -20,6 +20,9 @@
     },
     "api/receita-resolver.js": {
       "maxDuration": 60
+    },
+    "api/receita-nutrir.js": {
+      "maxDuration": 60
     }
   }
 }
