@@ -1561,7 +1561,24 @@ tr.duplicate-row:hover { background: #FFF6D6; }
         <select class="filter-select" id="rec-filter-tag" onchange="renderReceitas()">
           <option value="">Todas as tags</option>
         </select>
+        <select class="filter-select" id="rec-filter-kcal" onchange="renderReceitas()">
+          <option value="">Calorias: todas</option>
+          <option value="leve">Mais leves (até 400 kcal)</option>
+          <option value="media">Médias (400 a 700)</option>
+          <option value="alta">Mais calóricas (700+)</option>
+        </select>
+        <select class="filter-select" id="rec-filter-prot" onchange="renderReceitas()">
+          <option value="">Proteína: qualquer</option>
+          <option value="alta">Mais proteicas (25 g+)</option>
+        </select>
         <span id="rec-count" style="font-size:12px;color:var(--text-3);margin-left:auto"></span>
+      </div>
+
+      <div id="rec-estimar" style="display:none;margin-bottom:1rem">
+        <button class="btn btn-ghost" id="rec-estimar-btn" onclick="estimarNutricao()"
+                style="border:1px dashed var(--border-2)">
+          <i class="ti ti-flame"></i> <span id="rec-estimar-txt"></span>
+        </button>
       </div>
 
       <div id="rec-grid"><div class="loading-msg">Carregando...</div></div>
@@ -4953,6 +4970,21 @@ function mmss(seg) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Faixas de caloria por porção. Os cortes são redondos de propósito: a
+// estimativa não tem precisão para justificar nada mais fino.
+function faixaKcal(k) {
+  if (!k) return null;
+  if (k < 400) return { chave: 'leve',  rotulo: 'leve' };
+  if (k <= 700) return { chave: 'media', rotulo: 'média' };
+  return { chave: 'alta', rotulo: 'calórica' };
+}
+
+function faixaProteina(g) {
+  if (!g) return null;
+  if (g >= 25) return { chave: 'alta', rotulo: 'rica em proteína' };
+  return { chave: 'normal', rotulo: null };
+}
+
 function recTempo(min) {
   if (!min) return null;
   if (min < 60) return `${min} min`;
@@ -4996,6 +5028,71 @@ async function loadReceitasPage() {
     tags.map(t => `<option value="${recEsc(t)}">${recEsc(t)}</option>`).join('');
 
   renderReceitas();
+  atualizarBotaoEstimar();
+}
+
+// ── Estimativa nutricional das receitas antigas ──
+function receitasSemEstimativa() {
+  return receitas.filter(r => r.kcal_porcao == null && (r.ingredients || []).length);
+}
+
+function atualizarBotaoEstimar() {
+  const faltam = receitasSemEstimativa();
+  const caixa  = document.getElementById('rec-estimar');
+  if (!faltam.length) { caixa.style.display = 'none'; return; }
+
+  document.getElementById('rec-estimar-btn').disabled = false;
+  document.getElementById('rec-estimar-txt').textContent =
+    `Estimar calorias e proteína de ${faltam.length} receita${faltam.length > 1 ? 's' : ''}`;
+  caixa.style.display = 'block';
+}
+
+async function estimarNutricao() {
+  const faltam = receitasSemEstimativa();
+  if (!faltam.length) return;
+
+  const btn = document.getElementById('rec-estimar-btn');
+  const txt = document.getElementById('rec-estimar-txt');
+  btn.disabled = true;
+
+  let feitas = 0, falhas = 0;
+
+  try {
+    // Em lotes: uma única chamada com 50 receitas estouraria o limite de resposta
+    for (let i = 0; i < faltam.length; i += 20) {
+      const lote = faltam.slice(i, i + 20);
+      txt.textContent = `Estimando... ${feitas} de ${faltam.length}`;
+
+      const res = await fetch('/api/receita-nutrir', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          receitas: lote.map(r => ({
+            id: r.id, title: r.title, servings: r.servings, ingredients: r.ingredients
+          }))
+        })
+      });
+
+      const dados = await lerResposta(res);
+      if (!res.ok) throw new Error(dados.error || 'Falha ao estimar');
+
+      for (const r of (dados.resultados || [])) {
+        const { error } = await db.from('recipes').update({
+          kcal_porcao:     r.kcal_porcao,
+          proteina_g:      r.proteina_g,
+          nutri_confianca: r.confianca
+        }).eq('id', r.id);
+        if (error) falhas++; else feitas++;
+      }
+    }
+
+    toast(falhas ? `${feitas} estimadas, ${falhas} não deram certo`
+                 : `${feitas} receita${feitas > 1 ? 's' : ''} estimada${feitas > 1 ? 's' : ''}!`);
+    loadReceitasPage();
+  } catch (err) {
+    toast(err.message, 'error');
+    atualizarBotaoEstimar();
+  }
 }
 
 function renderReceitas() {
@@ -5004,9 +5101,14 @@ function renderReceitas() {
   const cat   = document.getElementById('rec-filter-cat').value;
   const tag   = document.getElementById('rec-filter-tag').value;
 
+  const fKcal = document.getElementById('rec-filter-kcal').value;
+  const fProt = document.getElementById('rec-filter-prot').value;
+
   let lista = receitas;
   if (cat) lista = lista.filter(r => r.category === cat);
   if (tag) lista = lista.filter(r => (r.tags || []).includes(tag));
+  if (fKcal) lista = lista.filter(r => faixaKcal(r.kcal_porcao)?.chave === fKcal);
+  if (fProt) lista = lista.filter(r => faixaProteina(r.proteina_g)?.chave === fProt);
   if (busca) {
     lista = lista.filter(r => {
       const alvo = [
@@ -5049,6 +5151,8 @@ function renderReceitas() {
             ${r.category ? `<span>${recEsc(r.category)}</span>` : ''}
             ${t ? `<span><i class="ti ti-clock"></i> ${t}</span>` : ''}
             ${r.video_start_sec ? `<span><i class="ti ti-player-play"></i> ${mmss(r.video_start_sec)}</span>` : ''}
+            ${faixaKcal(r.kcal_porcao) ? `<span><i class="ti ti-flame"></i> ${faixaKcal(r.kcal_porcao).rotulo}</span>` : ''}
+            ${faixaProteina(r.proteina_g)?.rotulo ? `<span><i class="ti ti-meat"></i> proteica</span>` : ''}
             ${r.rating ? recStars(r.rating) : ''}
           </div>
         </div>
@@ -5095,7 +5199,9 @@ function openRecModal(id = null) {
       source_type: r.source_type, source_url: r.source_url,
       video_id: r.video_id, thumbnail_url: r.thumbnail_url,
       author: r.author, image_path: r.image_path,
-      video_start_sec: r.video_start_sec
+      video_start_sec: r.video_start_sec,
+      kcal_porcao: r.kcal_porcao, proteina_g: r.proteina_g,
+      nutri_confianca: r.nutri_confianca
     };
     document.getElementById('rec-f-title').value = r.title || '';
     selCat.value = REC_CATEGORIAS.includes(r.category) ? r.category : 'Outros';
@@ -5542,7 +5648,10 @@ function preencherRecForm(r) {
     if ((r.ingredients || []).length) document.getElementById('rec-f-ing').value   = r.ingredients.join('\n');
     if ((r.steps || []).length)       document.getElementById('rec-f-steps').value = r.steps.join('\n');
     if (r.notes)          document.getElementById('rec-f-notes').value = r.notes;
-    recExtra.video_start_sec = r.start_sec || null;
+    recExtra.video_start_sec  = r.start_sec || null;
+    recExtra.kcal_porcao      = r.kcal_porcao ?? null;
+    recExtra.proteina_g       = r.proteina_g ?? null;
+    recExtra.nutri_confianca  = r.nutri_confianca ?? null;
   }
 
   document.getElementById('rec-form').style.display = 'block';
@@ -5641,6 +5750,9 @@ async function saveManyRecipes() {
       ingredients:     r.ingredients || [],
       steps:           r.steps || [],
       notes:           r.notes || null,
+      kcal_porcao:     r.kcal_porcao ?? null,
+      proteina_g:      r.proteina_g ?? null,
+      nutri_confianca: r.nutri_confianca ?? null,
       updated_at:      agora
     }));
 
@@ -5703,6 +5815,9 @@ async function saveRecipe() {
       ingredients:    linhas('rec-f-ing'),
       steps:          linhas('rec-f-steps'),
       notes:          document.getElementById('rec-f-notes').value.trim() || null,
+      kcal_porcao:    recExtra.kcal_porcao ?? null,
+      proteina_g:     recExtra.proteina_g ?? null,
+      nutri_confianca: recExtra.nutri_confianca ?? null,
       rating:         recRating || null,
       updated_at:     new Date().toISOString()
     };
@@ -5781,6 +5896,19 @@ function openRecView(id) {
       ? `<div class="rec-tags-row" style="margin-bottom:.25rem">${
           (r.tags || []).map(x => `<span class="rec-tag">${recEsc(x)}</span>`).join('')}</div>`
       : ''}
+
+    ${r.kcal_porcao || r.proteina_g ? `
+      <div style="font-size:12px;color:var(--text-2);margin-top:.5rem;line-height:1.5">
+        <i class="ti ti-flame"></i>
+        Cerca de ${r.kcal_porcao ? `<b>${r.kcal_porcao} kcal</b>` : '—'}
+        e ${r.proteina_g ? `<b>${r.proteina_g} g</b> de proteína` : '— de proteína'} por porção.
+        <span style="color:var(--text-3)">
+          Estimativa a partir dos ingredientes${
+            r.nutri_confianca === 'baixa'
+              ? ', com pouca informação de quantidade ou de rendimento — trate como palpite'
+              : ''}.
+        </span>
+      </div>` : ''}
 
     <div class="rec-sec-title">Ingredientes</div>
     <div>${ing}</div>
