@@ -23,6 +23,9 @@
     },
     "api/receita-nutrir.js": {
       "maxDuration": 60
+    },
+    "api/noticias.js": {
+      "maxDuration": 30
     }
   }
 }
