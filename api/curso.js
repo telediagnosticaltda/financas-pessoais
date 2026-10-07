@@ -356,17 +356,34 @@ async function acaoAnalisar({ uri, tipo }, chave) {
   throw erro('O Gemini nao aceitou analisar o video.', 502, vistos);
 }
 
+// Quando a resposta e grande, o Google pode redirecionar para um endereco
+// temporario que ja traz a propria autorizacao embutida. Se a chave for junto
+// nesse redirecionamento, o Google reclama de "credenciais duplicadas".
+// Por isso o redirecionamento e seguido a mao, sem a chave.
+async function buscarInteracao(url, cabecalhos) {
+  let r = await fetch(url, { headers: cabecalhos, redirect: 'manual' });
+  for (let saltos = 0; saltos < 3 && r.status >= 300 && r.status < 400; saltos++) {
+    const destino = r.headers.get('location');
+    if (!destino) break;
+    const proximo = new URL(destino, url).toString();
+    const semChave = { ...cabecalhos };
+    delete semChave['x-goog-api-key'];
+    r = await fetch(proximo, { headers: semChave, redirect: 'manual' });
+  }
+  return r;
+}
+
 async function acaoResultado({ id }, chave) {
   if (!/^[A-Za-z0-9_.\/-]+$/.test(id || '')) throw erro('Analise invalida.', 400);
   const caminho = id.startsWith('interactions/') ? id : `interactions/${id}`;
   const url = `${GEMINI_BASE}/v1beta/${caminho}`;
 
   // Consulta com o cabecalho de versao; se o Google recusar, tenta sem ele
-  let r = await fetch(url, { headers: { 'x-goog-api-key': chave, 'Api-Revision': API_REVISION } });
+  let r = await buscarInteracao(url, { 'x-goog-api-key': chave, 'Api-Revision': API_REVISION });
   let texto = await r.text();
   if (r.status === 400) {
     const msg1 = mensagemGoogle(texto);
-    const r2 = await fetch(url, { headers: { 'x-goog-api-key': chave } });
+    const r2 = await buscarInteracao(url, { 'x-goog-api-key': chave });
     const texto2 = await r2.text();
     if (r2.ok) { r = r2; texto = texto2; }
     else {
