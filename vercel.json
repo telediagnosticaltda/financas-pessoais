@@ -24,7 +24,7 @@
     "api/receita-nutrir.js": {
       "maxDuration": 60
     },
-    "api/noticias.js": {
+    "api/inicio.js": {
       "maxDuration": 30
     }
   }
