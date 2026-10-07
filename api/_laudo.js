@@ -562,7 +562,7 @@ async function buscarBase(termos, autorizacao) {
   const idsArtigo = [...new Set(artigos.map(c => c.l.artigo_id))];
   const [metaAulas, metaArtigos] = await Promise.all([
     idsAula.length ? tentar(`curso_aulas?select=id,titulo,nome,modulo,curso_id&id=in.(${idsAula.map(encodeURIComponent).join(',')})`) : [],
-    idsArtigo.length ? tentar(`artigos?select=id,titulo,subpasta,drive_arquivo_id&id=in.(${idsArtigo.map(encodeURIComponent).join(',')})`) : []
+    idsArtigo.length ? tentar(`artigos?select=id,titulo,drive_arquivo_id&id=in.(${idsArtigo.map(encodeURIComponent).join(',')})`) : []
   ]);
   const idsCurso = [...new Set(metaAulas.map(a => a.curso_id).filter(Boolean))];
   const metaCursos = idsCurso.length ? await tentar(`cursos?select=id,nome&id=in.(${idsCurso.map(encodeURIComponent).join(',')})`) : [];
@@ -581,7 +581,7 @@ async function buscarBase(termos, autorizacao) {
   artigos.forEach((c) => {
     const ma = metaArtigos.find(a => a.id === c.l.artigo_id) || {};
     itens.push({
-      pontos: c.pontos, tipo: 'artigo', titulo: ma.titulo || 'Artigo', subpasta: ma.subpasta || '',
+      pontos: c.pontos, tipo: 'artigo', titulo: ma.titulo || 'Artigo',
       local: `p. ${c.l.pagina}`, pagina: c.l.pagina, drive_id: ma.drive_arquivo_id || null, texto: String(c.l.texto || '').trim().slice(0, 1400)
     });
   });
