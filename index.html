@@ -2074,7 +2074,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
               <i class="ti ti-folder-plus"></i> Adicionar pasta
             </button>
           </div>
-          <div class="cur-dica">Subpastas (até 3 níveis) também são lidas. O texto é extraído aqui no navegador. PDFs escaneados, só com imagem, não têm texto para buscar.</div>
+          <div class="cur-dica">Os PDFs que estiverem em subpastas (até 3 níveis) também entram, mas a lista é única: o nome das subpastas não é usado para organizar. O texto é extraído aqui no navegador. PDFs escaneados, só com imagem, não têm texto para buscar.</div>
         </div>
         <div id="art-aviso" class="cur-aviso" style="display:none"></div>
 
@@ -10049,7 +10049,7 @@ async function artSincronizar(driveId) {
   const jaTem = new Set((existentes || []).map(e => e.drive_arquivo_id));
   const novos = lido.artigos.filter(x => !jaTem.has(x.id)).map(x => ({
     pasta_id: pasta.id, drive_arquivo_id: x.id, titulo: x.nome.replace(/\.pdf$/i, ''),
-    subpasta: x.subpasta || null, tamanho: x.tamanho || null, status: 'pendente', no_drive: true
+    tamanho: x.tamanho || null, status: 'pendente', no_drive: true
   }));
   for (let i = 0; i < novos.length; i += 200) {
     const { error } = await db.from('artigos').insert(novos.slice(i, i + 200));
@@ -10135,7 +10135,7 @@ async function loadArtigosPage() {
   artLista = [];
   for (let de = 0; ; de += 1000) {                       // o Supabase devolve no máximo 1000 linhas por vez
     const { data, error } = await db.from('artigos')
-      .select('id,pasta_id,drive_arquivo_id,titulo,subpasta,tamanho,paginas,status,erro,no_drive')
+      .select('id,pasta_id,drive_arquivo_id,titulo,tamanho,paginas,status,erro,no_drive')
       .order('titulo').range(de, de + 999);
     if (error) { artEl('art-lista').innerHTML = `<div class="cur-aviso erro">${escHtml(error.message)}</div>`; return; }
     artLista.push(...(data || []));
@@ -10180,7 +10180,6 @@ function artRender() {
             <i class="ti ti-file-text" style="color:var(--text-3)"></i>
             <div class="art-info">
               <div class="art-titulo">${escHtml(a.titulo)}</div>
-              ${a.subpasta ? `<div class="art-sub">${escHtml(a.subpasta)}</div>` : ''}
             </div>
             <div class="art-dir">
               ${artChip(a)}
@@ -10226,7 +10225,7 @@ async function artBuscar() {
     return `<div class="card cur-res-aula">
       <div class="cur-res-cab" onclick="artAbrir('${id}')">
         <strong>${escHtml(a ? a.titulo : 'Artigo')}</strong>
-        <span>${a && a.subpasta ? escHtml(a.subpasta) + ' · ' : ''}${trechos.length} ${trechos.length === 1 ? 'trecho' : 'trechos'}</span>
+        <span>${trechos.length} ${trechos.length === 1 ? 'trecho' : 'trechos'}</span>
       </div>
       ${trechos.slice(0, 6).map(t => `<div class="cur-item" onclick="artAbrir('${id}')"><span class="cur-tempo">p. ${t.pagina}</span><span>${destacarTermo(t.texto, termo)}</span></div>`).join('')}
     </div>`;
