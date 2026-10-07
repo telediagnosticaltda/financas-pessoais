@@ -8583,6 +8583,20 @@ async function lgApagarCorrecao(id) {
 
 // ── Ditado por voz ───────────────────────────────────────────
 
+// ── Correção de erros comuns do reconhecimento de voz ─────────
+// O Chrome é um reconhecedor genérico e erra termos médicos de forma repetida.
+// Cada regra só age em contexto onde o erro é inequívoco (ex.: "no em Direito").
+const LG_VOZ_FIXAS = [
+  // "rim" é ouvido como "em": "no rim direito" → "no em Direito"
+  [/\b(no|do|ao|o|um|pelo|de)\s+em\s+(direito|esquerdo)\b/gi, (m, art, lado) => `${art} rim ${lado.toLowerCase()}`]
+];
+
+function lgCorrigirVoz(texto) {
+  let t = texto || '';
+  for (const [re, sub] of LG_VOZ_FIXAS) t = t.replace(re, sub);
+  return t;
+}
+
 // ── Pontuação falada ("ponto", "vírgula"...) ─────────────────
 // O reconhecimento do navegador escreve "ponto" por extenso. Aqui as palavras de
 // pontuação viram sinal. "Ponto" sozinho só vira "." quando não parece o substantivo
@@ -8593,7 +8607,7 @@ const LG_NAO_DEPOIS = new Set(['de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na',
 
 function lgPontuar(texto) {
   const sem = (x) => (x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const w = (texto || '').trim().split(/\s+/).filter(Boolean);
+  const w = lgCorrigirVoz(texto || '').trim().split(/\s+/).filter(Boolean);
   let s = '';
   const palavra = (p) => { s += (s && !/[\s(]$/.test(s) ? ' ' : '') + p; };
   const sinal   = (p) => { s = s.replace(/ +$/, '') + p; };
