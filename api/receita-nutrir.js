@@ -1,4 +1,5 @@
 import { requireAuth } from './_auth.js';
+import { tratarLaudo } from './_laudo.js';
 
 // api/receita-nutrir.js
 // Estima calorias e proteina por porcao a partir da lista de ingredientes.
@@ -42,6 +43,12 @@ Como estimar:
 - Nao explique nada. Nao escreva texto fora do JSON.`;
 
 export default async function handler(req, res) {
+  // Mesma funcao, dois servicos (limite de 12 funcoes do plano gratuito da Vercel):
+  // /api/receita-nutrir?tipo=laudo -> editor de laudos
+  if (new URL(req.url, 'http://localhost').searchParams.get('tipo') === 'laudo') {
+    return tratarLaudo(req, res);
+  }
+
   if (!(await requireAuth(req, res))) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
 
