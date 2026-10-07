@@ -1405,6 +1405,46 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-2); margin: 0; cursor: pointer; }
 .lg-auto input { width: auto; }
 .lg-atalhos kbd { font-family: var(--font); font-size: 10.5px; font-weight: 700; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; }
+
+/* ── LAUDOS: discussão do caso e captura de imagem ── */
+.lg-disc summary { cursor: pointer; font-size: 13px; font-weight: 700; list-style: none; display: flex; align-items: center; gap: 6px; }
+.lg-disc summary::-webkit-details-marker { display: none; }
+.lg-disc-corpo { margin-top: .875rem; }
+.lg-disc-barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: .75rem; }
+.lg-disc-barra label { margin: 0; }
+.lg-disc-barra select { width: auto; padding: 5px 9px; font-size: 12px; }
+.lg-disc-fio { display: flex; flex-direction: column; gap: 10px; max-height: 460px; overflow-y: auto; margin-bottom: .75rem; }
+.lg-disc-fio:empty { display: none; }
+.lg-msg { border-radius: var(--radius); padding: .625rem .8rem; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 92%; }
+.lg-msg.user { background: var(--primary-l); align-self: flex-end; }
+.lg-msg.ia { background: var(--surface-2); border: 1px solid var(--border-2); align-self: flex-start; }
+.lg-msg.sis { align-self: center; background: var(--green-l); color: #0B7A57; font-size: 12px; font-weight: 600; max-width: 100%; text-align: center; }
+.lg-msg-quem { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-bottom: 3px; }
+.lg-msg-imgs, .lg-pend { display: flex; flex-wrap: wrap; gap: 8px; }
+.lg-msg-imgs { margin-bottom: 6px; }
+.lg-pend { margin-bottom: .625rem; }
+.lg-pend:empty { display: none; }
+.lg-msg-imgs img, .lg-pend img { height: 84px; width: auto; max-width: 150px; object-fit: cover; border-radius: 7px; border: 1px solid var(--border); background: #000; cursor: zoom-in; display: block; }
+.lg-pend-item { position: relative; }
+.lg-pend-item button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: none; background: var(--red); color: #fff; font-size: 13px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.lg-pensando { color: var(--text-3); font-style: italic; }
+#lg-disc-texto { min-height: 64px; font-size: 13.5px; line-height: 1.55; }
+.lg-mic-sm { padding: 7px 14px; font-size: 12.5px; }
+.lg-mic-sm i { font-size: 16px; }
+
+.lg-overlay { position: fixed; inset: 0; background: rgba(14,17,35,.62); display: none; align-items: center; justify-content: center; z-index: 1100; padding: 1rem; }
+.lg-overlay.open { display: flex; }
+.lg-img-modal { background: var(--surface); border-radius: var(--radius-xl); padding: 1rem 1.25rem; width: min(1100px, 96vw); max-height: 94vh; display: flex; flex-direction: column; gap: .75rem; box-shadow: 0 24px 64px rgba(14,17,35,.3); overflow: auto; }
+.lg-img-topo { display: flex; align-items: center; justify-content: space-between; }
+.lg-img-barra { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lg-img-barra .btn.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.lg-img-area { overflow: auto; background: #0b0d17; border-radius: var(--radius); padding: 8px; display: flex; justify-content: center; align-items: flex-start; min-height: 120px; }
+.lg-img-wrap { position: relative; display: inline-block; line-height: 0; }
+#lg-img-canvas { max-width: 100%; max-height: 60vh; width: auto; height: auto; cursor: crosshair; touch-action: none; display: block; }
+#lg-img-sel { position: absolute; display: none; pointer-events: none; border: 2px dashed #fff; box-shadow: 0 0 0 1px #000; box-sizing: border-box; }
+#lg-img-sel.tarja { background: rgba(0,0,0,.7); }
+#lg-img-sel.recorte { background: rgba(74,87,204,.2); border-color: #9FB0FF; }
+.lg-zoom-img { max-width: 94vw; max-height: 92vh; border-radius: 8px; background: #000; }
 </style>
 </head>
 <body>
@@ -2179,6 +2219,38 @@ tr.duplicate-row:hover { background: #FFF6D6; }
               </div>
             </details>
 
+            <details class="card lg-disc" id="lg-disc">
+              <summary><i class="ti ti-messages"></i> Discussão do caso <span class="lg-ant-tag" id="lg-disc-tag" style="display:none">em andamento</span></summary>
+              <div class="lg-disc-corpo">
+                <div class="lg-disc-barra">
+                  <label for="lg-disc-ia">IA</label>
+                  <select id="lg-disc-ia" onchange="lgSalvarPrefIa()">
+                    <option value="gemini">Gemini</option>
+                    <option value="claude">Claude</option>
+                  </select>
+                  <button class="btn btn-ghost btn-sm" id="lg-cap-btn" onclick="lgCapturarTela()"><i class="ti ti-screenshot"></i> Capturar tela</button>
+                  <button class="btn btn-ghost btn-sm" id="lg-cap-parar" onclick="lgPararCaptura()" style="display:none"><i class="ti ti-player-stop"></i> Parar compartilhamento</button>
+                  <button class="btn btn-ghost btn-sm" onclick="lgEl('lg-disc-arq').click()"><i class="ti ti-photo-plus"></i> Anexar imagem</button>
+                  <input type="file" id="lg-disc-arq" accept="image/*" multiple style="display:none" onchange="lgDiscArquivos(this)">
+                </div>
+                <div class="lg-disc-fio" id="lg-disc-fio"></div>
+                <div class="lg-pend" id="lg-disc-pend"></div>
+                <textarea id="lg-disc-texto" placeholder="Descreva o que você vê e converse sobre o caso. Você pode trocar de IA a qualquer momento. (Ctrl + Enter envia)"
+                          oninput="lgAoEditarDisc()"
+                          onkeydown="if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); lgDiscEnviar(); }"></textarea>
+                <div class="lg-ditado-acoes">
+                  <button class="lg-mic lg-mic-sm" id="lg-mic-disc" onclick="lgAlternarVoz('discussao')"><i class="ti ti-microphone"></i> <span id="lg-mic-disc-txt">Falar</span></button>
+                  <button class="btn btn-primary" id="lg-disc-enviar" onclick="lgDiscEnviar()"><i class="ti ti-send"></i> Enviar</button>
+                  <button class="btn btn-ghost" id="lg-disc-encerrar" onclick="lgDiscEncerrar()" disabled><i class="ti ti-check"></i> Encerrar e inserir no laudo</button>
+                  <button class="btn btn-ghost" onclick="lgDiscNova()"><i class="ti ti-refresh"></i> Nova discussão</button>
+                </div>
+                <div class="lg-nota">
+                  <b>Captura:</b> clique em “Capturar tela”, escolha uma vez o monitor ou a janela do PACS e, a cada clique, o app congela a imagem para você recortar. Também funciona colar um print (<kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>, depois <kbd>Ctrl</kbd>+<kbd>V</kbd> aqui). <b>Antes de enviar, cubra com tarja preta nome, data de nascimento e número do exame.</b> As imagens não são guardadas em lugar nenhum.<br>
+                  Ao encerrar, só entra no laudo o que <b>você</b> afirmou ou aceitou na conversa, nunca uma sugestão da IA que você não adotou. Voz: <i>capturar</i> (depois da primeira vez), <i>enviar</i>, <i>encerrar discussão</i>. A IA é um interlocutor, não uma segunda leitura: modelos de uso geral podem errar na leitura de imagens.
+                </div>
+              </div>
+            </details>
+
             <div class="card">
               <div class="lg-ed-topo">
                 <div>
@@ -2266,6 +2338,38 @@ tr.duplicate-row:hover { background: #FFF6D6; }
       <button class="btn btn-primary" id="lg-m-salvar" onclick="lgSalvarMascara()"><i class="ti ti-check"></i> Salvar máscara</button>
     </div>
   </div>
+</div>
+
+<!-- Janela: preparar imagem (recorte e tarja) -->
+<div class="lg-overlay" id="modal-lg-img">
+  <div class="lg-img-modal">
+    <div class="lg-img-topo">
+      <span class="modal-title">Preparar imagem</span>
+      <button class="modal-close" onclick="lgImgCancelar()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="lg-img-barra">
+      <button class="btn btn-ghost btn-sm on" id="lg-img-m-tarja" onclick="lgImgModo('tarja')"><i class="ti ti-square-filled"></i> Tarja preta</button>
+      <button class="btn btn-ghost btn-sm" id="lg-img-m-recorte" onclick="lgImgModo('recorte')"><i class="ti ti-crop"></i> Recortar</button>
+      <button class="btn btn-ghost btn-sm" id="lg-img-desfazer" onclick="lgImgDesfazer()" disabled><i class="ti ti-arrow-back-up"></i> Desfazer</button>
+      <span class="lg-status">Arraste sobre a imagem. Tarja: cubre identificação. Recortar: fica só a área escolhida.</span>
+    </div>
+    <div class="lg-img-area">
+      <div class="lg-img-wrap">
+        <canvas id="lg-img-canvas"></canvas>
+        <div id="lg-img-sel"></div>
+      </div>
+    </div>
+    <div class="lg-nota" style="margin:0">Confira se não sobrou nome do paciente, data de nascimento, número do exame ou da instituição em nenhum canto da imagem. O app não consegue detectar isso sozinho.</div>
+    <div class="modal-footer" style="margin-top:0;padding-top:.75rem">
+      <button class="btn btn-ghost" onclick="lgImgCancelar()">Cancelar</button>
+      <button class="btn btn-primary" id="lg-img-anexar" onclick="lgImgAnexar()"><i class="ti ti-paperclip"></i> Anexar à discussão</button>
+    </div>
+  </div>
+</div>
+
+<!-- Janela: ver imagem ampliada -->
+<div class="lg-overlay" id="modal-lg-zoom" onclick="closeModal('modal-lg-zoom')">
+  <img class="lg-zoom-img" id="lg-zoom-img" alt="Imagem ampliada">
 </div>
 
 <!-- Modal: Adicionar recibo médico -->
@@ -8205,6 +8309,16 @@ let lgAnterior       = null;                         // estado antes da última 
 let lgMascaraEditId  = null;
 let lgOcupado        = false;
 let lgConferindo     = false;
+let lgAlvoVoz        = 'ditado';                     // para onde vai a fala: 'ditado' ou 'discussao'
+let lgDisc           = { msgs: [], enviando: false, encerrada: false };   // discussão do caso
+let lgDiscPend       = [];                           // imagens preparadas, ainda não enviadas
+let lgCapStream      = null;                         // compartilhamento de tela (captura)
+let lgCapVideo       = null;
+let lgImg            = null;                         // imagem em preparo (recorte e tarja)
+let lgFilaImg        = [];
+const LG_MAX_IMAGENS   = 12;
+const LG_ORCAMENTO_IMG = 3400000;                    // caracteres de base64 por requisição (a Vercel aceita ~4,5 MB)
+const LG_MAX_IMG_REQ   = 10;
 let lgRec            = null;
 let lgOuvindo        = false;
 let lgDitadoFixo     = '';
@@ -8400,6 +8514,7 @@ async function loadLaudosPage() {
   }
   try { lgEl('lg-auto-conf').checked = localStorage.getItem('lg_auto_conferir') !== '0'; }
   catch (_) { lgEl('lg-auto-conf').checked = true; }
+  try { lgEl('lg-disc-ia').value = localStorage.getItem('lg_disc_ia') === 'claude' ? 'claude' : 'gemini'; } catch (_) {}
   await lgCarregarMascaras();
   lgRenderMascaras();
   lgAjustarTodas();
@@ -8544,6 +8659,7 @@ function lgCarregarDaMascara() {
   lgDitadoFixo = '';
   lgRemoverAnterior();
   lgLimparConferencia();
+  lgDiscReset();
   lgDefinirTexto('corpo', lgMascaraAtual.corpo, []);
   lgDefinirTexto('conclusao', lgMascaraAtual.conclusao, []);
 }
@@ -8700,15 +8816,39 @@ function lgAnexar(base, trecho) {
   return base + trecho + (/[\n(]$/.test(trecho) ? '' : ' ');
 }
 
-function lgAlternarVoz() {
-  if (lgOuvindo) lgPararVoz(); else lgIniciarVoz();
+const lgCampoVoz = () => lgEl(lgAlvoVoz === 'discussao' ? 'lg-disc-texto' : 'lg-ditado');
+
+function lgAtualizarBotoesVoz() {
+  const m1 = lgEl('lg-mic');
+  if (!m1) return;
+  const noDitado = lgOuvindo && lgAlvoVoz === 'ditado';
+  const naDisc   = lgOuvindo && lgAlvoVoz === 'discussao';
+  m1.classList.toggle('ligado', noDitado);
+  lgEl('lg-mic-txt').textContent = noDitado ? 'Parar' : 'Ditar';
+  lgEl('lg-mic-disc').classList.toggle('ligado', naDisc);
+  lgEl('lg-mic-disc-txt').textContent = naDisc ? 'Parar' : 'Falar';
+  lgEl('lg-status').textContent = !lgOuvindo ? LG_STATUS_PADRAO
+    : (naDisc ? 'Ouvindo… o que você falar vai para a discussão.' : 'Ouvindo… fale os achados.');
 }
 
-function lgIniciarVoz() {
+function lgAlternarVoz(alvo = 'ditado') {
+  if (lgOuvindo && alvo === lgAlvoVoz) { lgPararVoz(); return; }
+  if (lgOuvindo) {          // troca o destino da fala sem religar o microfone
+    lgAlvoVoz = alvo;
+    const campo = lgCampoVoz();
+    lgDitadoFixo = campo.value && !/\s$/.test(campo.value) ? campo.value + ' ' : campo.value;
+    lgAtualizarBotoesVoz();
+    return;
+  }
+  lgIniciarVoz(alvo);
+}
+
+function lgIniciarVoz(alvo = 'ditado') {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { toast('Este navegador não tem reconhecimento de voz. Use o Chrome ou o Edge.', 'error'); return; }
-  const campo = lgEl('lg-ditado');
-  lgDitadoFixo = campo.value && !/\s$/.test(campo.value) ? campo.value + ' ' : campo.value;
+  lgAlvoVoz = alvo;
+  const inicial = lgCampoVoz();
+  lgDitadoFixo = inicial.value && !/\s$/.test(inicial.value) ? inicial.value + ' ' : inicial.value;
 
   lgRec = new SR();
   lgRec.lang = 'pt-BR';
@@ -8725,7 +8865,8 @@ function lgIniciarVoz() {
         lgDitadoFixo = lgAnexar(lgDitadoFixo, lgPontuar(r[0].transcript));
       } else parcial += r[0].transcript;
     }
-    if (lgComandoDe(parcial)) parcial = '';   // não mostra comando na caixa de ditado
+    if (lgComandoDe(parcial)) parcial = '';   // não mostra comando na caixa de texto
+    const campo = lgCampoVoz();
     campo.value = lgAnexar(lgDitadoFixo, lgPontuar(parcial)).replace(/ +$/, '');
     campo.scrollTop = campo.scrollHeight;
   };
@@ -8756,9 +8897,7 @@ function lgIniciarVoz() {
     return;
   }
   lgOuvindo = true;
-  lgEl('lg-mic').classList.add('ligado');
-  lgEl('lg-mic-txt').textContent = 'Parar';
-  lgEl('lg-status').textContent = 'Ouvindo… fale os achados.';
+  lgAtualizarBotoesVoz();
 }
 
 function lgPararVoz() {
@@ -8769,15 +8908,15 @@ function lgPararVoz() {
     r.onend = null;
     try { r.stop(); } catch (_) {}
   }
-  const mic = lgEl('lg-mic');
-  if (!mic) return;
-  mic.classList.remove('ligado');
-  lgEl('lg-mic-txt').textContent = 'Ditar';
-  lgEl('lg-status').textContent = LG_STATUS_PADRAO;
+  lgAtualizarBotoesVoz();
 }
 
 function lgAoEditarDitado() {
-  if (lgOuvindo) lgDitadoFixo = lgEl('lg-ditado').value;
+  if (lgOuvindo && lgAlvoVoz === 'ditado') lgDitadoFixo = lgEl('lg-ditado').value;
+}
+
+function lgAoEditarDisc() {
+  if (lgOuvindo && lgAlvoVoz === 'discussao') lgDitadoFixo = lgEl('lg-disc-texto').value;
 }
 
 // ── Aplicar o ditado com a IA ────────────────────────────────
@@ -8789,6 +8928,20 @@ async function lgAplicarDitado() {
   const ditado = brutoDitado.trim();
   if (!ditado) { toast('Dite ou escreva os achados primeiro', 'error'); return; }
 
+  const j = await lgAplicarTexto(ditado);
+  if (!j) return;
+
+  // Mantém o que foi falado enquanto a IA trabalhava (microfone pode continuar ligado)
+  const agora = lgEl('lg-ditado').value;
+  const resto = agora.startsWith(brutoDitado) ? agora.slice(brutoDitado.length).trimStart() : '';
+  lgEl('lg-ditado').value = resto;
+  if (lgAlvoVoz === 'ditado') lgDitadoFixo = resto ? resto + ' ' : '';
+}
+
+// Aplica um texto ditado ao laudo (destaque, desfazer e aprendizado incluídos).
+// Devolve a resposta do servidor, ou null se falhar.
+async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } = {}) {
+  if (lgOcupado || !lgMascaraAtual) return null;
   lgOcupado = true;
   const btn = lgEl('lg-aplicar');
   btn.disabled = true;
@@ -8812,7 +8965,7 @@ async function lgAplicarDitado() {
     if (!r.ok) throw new Error(j.error || 'Falha ao aplicar o ditado');
 
     lgAnterior = {
-      corpo: corpoAntes, conclusao: conclusaoAntes, ditado,
+      corpo: corpoAntes, conclusao: conclusaoAntes, ditado, origem,
       baseline: { ...lgBaseline }
     };
 
@@ -8820,25 +8973,23 @@ async function lgAplicarDitado() {
     lgDefinirTexto('conclusao', j.conclusao, lgDiffInseridos(conclusaoAntes, j.conclusao));
     lgBaseline = { corpo: j.corpo, conclusao: j.conclusao };
 
-    // Mantém o que foi falado enquanto a IA trabalhava (microfone continua ligado)
-    const agora = lgEl('lg-ditado').value;
-    const resto = agora.startsWith(brutoDitado) ? agora.slice(brutoDitado.length).trimStart() : '';
-    lgEl('lg-ditado').value = resto;
-    lgDitadoFixo = resto ? resto + ' ' : '';
     lgLimparConferencia();
     lgEl('lg-desfazer').style.display = '';
 
+    const avisos = [...(j.avisos || []), ...avisosExtras];
     const caixa = lgEl('lg-avisos');
-    if (j.avisos && j.avisos.length) {
-      caixa.innerHTML = '<b>Conferir:</b><ul>' + j.avisos.map(a => `<li>${escHtml(a)}</li>`).join('') + '</ul>';
+    if (avisos.length) {
+      caixa.innerHTML = '<b>Conferir:</b><ul>' + avisos.map(a => `<li>${escHtml(a)}</li>`).join('') + '</ul>';
       caixa.style.display = '';
     } else {
       caixa.style.display = 'none';
     }
-    toast('Laudo atualizado');
+    if (origem === 'ditado') toast('Laudo atualizado');
+    return j;
   } catch (e) {
     console.error('[laudos] aplicar', e);
     toast(e.message || 'Não consegui aplicar o ditado', 'error');
+    return null;
   } finally {
     lgOcupado = false;
     btn.disabled = false;
@@ -8851,13 +9002,22 @@ function lgDesfazer() {
   lgDefinirTexto('corpo', lgAnterior.corpo, []);
   lgDefinirTexto('conclusao', lgAnterior.conclusao, []);
   lgBaseline = lgAnterior.baseline;
-  lgEl('lg-ditado').value = lgAnterior.ditado;
-  lgDitadoFixo = lgAnterior.ditado;
+  const daDiscussao = lgAnterior.origem === 'discussao';
+  if (!daDiscussao) {
+    lgEl('lg-ditado').value = lgAnterior.ditado;
+    if (lgAlvoVoz === 'ditado') lgDitadoFixo = lgAnterior.ditado;
+  }
   lgAnterior = null;
   lgEl('lg-desfazer').style.display = 'none';
   lgEl('lg-avisos').style.display = 'none';
   lgLimparConferencia();
-  toast('Aplicação desfeita. O ditado voltou para a caixa.');
+  if (daDiscussao) {
+    lgDisc.encerrada = false;
+    lgDiscRender();
+    toast('Inserção desfeita. A discussão continua aberta.');
+  } else {
+    toast('Aplicação desfeita. O ditado voltou para a caixa.');
+  }
 }
 
 // ── Copiar o laudo ───────────────────────────────────────────
@@ -9084,6 +9244,9 @@ function lgComandoDe(transcricao) {
   if (/^(conferir|conferir laudo|conferir o laudo|checar laudo|checar o laudo)$/.test(t)) return { cmd: 'conferir' };
   if (/^(desfazer|desfazer aplicacao|desfazer ultima aplicacao)$/.test(t)) return { cmd: 'desfazer' };
   if (/^(apagar ditado|apagar o ditado|limpar ditado|limpar o ditado)$/.test(t)) return { cmd: 'limpar' };
+  if (/^(enviar|enviar mensagem|enviar discussao|enviar para a discussao)$/.test(t)) return { cmd: 'enviar' };
+  if (/^(capturar|capturar tela|capturar imagem|tirar print|tirar um print)$/.test(t)) return { cmd: 'capturar' };
+  if (/^(encerrar discussao|encerrar a discussao|encerrar e inserir|encerrar e inserir no laudo)$/.test(t)) return { cmd: 'encerrar' };
   const m = t.match(/^(?:abrir|abre|abra)(?: a| o)?(?: mascara)?(?: de| do| da)? (.+)$/);
   if (m) return { cmd: 'abrir', arg: m[1] };
   return null;
@@ -9130,14 +9293,25 @@ function lgExecutarComando(c) {
     case 'copiar':    lgCopiar(); return;
     case 'conferir':  lgConferir(); return;
     case 'desfazer':  lgDesfazer(); return;
-    case 'limpar':    lgEl('lg-ditado').value = ''; lgDitadoFixo = ''; toast('Ditado apagado'); return;
+    case 'limpar':    lgCampoVoz().value = ''; lgDitadoFixo = ''; toast('Texto apagado'); return;
+    case 'enviar':    lgDiscEnviar(); return;
+    case 'encerrar':  lgDiscEncerrar(); return;
+    case 'capturar':
+      // A primeira captura precisa de um clique (o navegador exige um gesto para escolher a tela)
+      if (!lgCapStream || !lgCapStream.active) toast('Clique uma vez em “Capturar tela” para escolher o monitor. Depois, posso capturar por voz.', 'error');
+      else lgCapturarTela();
+      return;
   }
 }
 
 // Atalhos de teclado (também servem para pedal e microfone com botões programáveis)
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (lgEl('modal-lg-zoom').classList.contains('open')) { closeModal('modal-lg-zoom'); return; }
+    if (lgEl('modal-lg-img').classList.contains('open')) { lgImgCancelar(); return; }
+  }
   if (!lgEl('page-laudos').classList.contains('active')) return;
-  if (document.querySelector('.modal-backdrop.open')) return;
+  if (document.querySelector('.modal-backdrop.open, .lg-overlay.open')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const acoes = { F2: lgAlternarVoz, F4: lgAplicarDitado, F8: lgCopiar, F9: lgConferir };
   const acao = acoes[e.key];
@@ -9145,6 +9319,423 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   acao();
 });
+
+
+// ── Discussão do caso (com imagens) ──────────────────────────
+
+const LG_NOME_IA = { claude: 'Claude', gemini: 'Gemini' };
+
+function lgSalvarPrefIa() {
+  try { localStorage.setItem('lg_disc_ia', lgEl('lg-disc-ia').value); } catch (_) {}
+}
+
+// O que vai para o servidor. Respeita o limite de bytes por requisição: se as imagens
+// não couberem, as mais antigas são omitidas e o servidor recebe só o aviso.
+function lgDiscMontarPayload(msgs, orcamento = LG_ORCAMENTO_IMG, maxImagens = LG_MAX_IMG_REQ) {
+  let gasto = 0, n = 0;
+  const out = [];
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (m.role === 'sistema') continue;
+    const item = { role: m.role, texto: (m.texto || '').slice(0, 8000), ia: m.ia || '' };
+    if (m.role === 'user' && m.imagens && m.imagens.length) {
+      const enviadas = [];
+      for (let k = m.imagens.length - 1; k >= 0; k--) {
+        const tam = m.imagens[k].length;
+        if (n < maxImagens && gasto + tam <= orcamento) { gasto += tam; n++; enviadas.unshift(m.imagens[k]); }
+      }
+      item.imagens = enviadas;
+      item.omitidas = m.imagens.length - enviadas.length;
+    }
+    out.unshift(item);
+  }
+  return out;
+}
+
+const lgDiscContarImagens = () => lgDisc.msgs.reduce((s, m) => s + ((m.imagens || []).length), 0) + lgDiscPend.length;
+
+function lgDiscRender() {
+  const fio = lgEl('lg-disc-fio');
+  fio.innerHTML = lgDisc.msgs.map((m, i) => {
+    if (m.role === 'sistema') return `<div class="lg-msg sis">${escHtml(m.texto)}</div>`;
+    const quem = m.role === 'user' ? 'Você' : (LG_NOME_IA[m.ia] || 'IA');
+    const imgs = (m.imagens || []).map((u, k) => `<img src="${u}" alt="Imagem ${k + 1}" onclick="lgZoom(${i}, ${k})">`).join('');
+    return `<div class="lg-msg ${m.role === 'user' ? 'user' : 'ia'}"><span class="lg-msg-quem">${escHtml(quem)}</span>`
+      + (imgs ? `<div class="lg-msg-imgs">${imgs}</div>` : '') + escHtml(m.texto) + '</div>';
+  }).join('') + (lgDisc.enviando && !lgDisc.consolidando ? '<div class="lg-msg ia lg-pensando">Pensando…</div>' : '');
+  fio.scrollTop = fio.scrollHeight;
+  lgEl('lg-disc-tag').style.display = (lgDisc.msgs.length && !lgDisc.encerrada) ? '' : 'none';
+  lgEl('lg-disc-enviar').disabled = lgDisc.enviando;
+  lgEl('lg-disc-encerrar').disabled = lgDisc.enviando || lgDisc.encerrada || !lgDisc.msgs.some(m => m.role === 'user' && m.texto);
+}
+
+function lgDiscRenderPend() {
+  lgEl('lg-disc-pend').innerHTML = lgDiscPend.map((p, i) =>
+    `<div class="lg-pend-item"><img src="${p.dataUrl}" alt="Imagem anexada" onclick="lgZoomPend(${i})"><button title="Remover" onclick="lgDiscRemoverPend(${i})">×</button></div>`).join('');
+}
+
+function lgDiscRemoverPend(i) { lgDiscPend.splice(i, 1); lgDiscRenderPend(); }
+
+function lgZoomUrl(url) {
+  lgEl('lg-zoom-img').src = url;
+  lgEl('modal-lg-zoom').classList.add('open');
+}
+function lgZoom(i, k) { const m = lgDisc.msgs[i]; if (m && m.imagens && m.imagens[k]) lgZoomUrl(m.imagens[k]); }
+function lgZoomPend(i) { if (lgDiscPend[i]) lgZoomUrl(lgDiscPend[i].dataUrl); }
+
+function lgDiscReset() {
+  lgDisc = { msgs: [], enviando: false, encerrada: false };
+  lgDiscPend = [];
+  lgFilaImg = [];
+  const campo = lgEl('lg-disc-texto');
+  if (campo) campo.value = '';
+  if (lgOuvindo && lgAlvoVoz === 'discussao') lgDitadoFixo = '';
+  lgDiscRender();
+  lgDiscRenderPend();
+}
+
+function lgDiscNova() {
+  if (lgDisc.msgs.length && !lgDisc.encerrada) {
+    showConfirm('Nova discussão', 'Descartar a discussão atual e começar outra?', lgDiscReset, 'Descartar', 'btn-primary');
+  } else {
+    lgDiscReset();
+  }
+}
+
+async function lgDiscEnviar() {
+  if (!lgMascaraAtual) { toast('Escolha uma máscara primeiro', 'error'); return; }
+  if (lgDisc.enviando) return;
+  const campo = lgEl('lg-disc-texto');
+  const brutoCampo = campo.value;
+  const texto = brutoCampo.trim();
+  if (!texto && !lgDiscPend.length) { toast('Escreva ou dite algo, ou anexe uma imagem', 'error'); return; }
+
+  if (lgDisc.encerrada) {           // depois de encerrada, uma nova mensagem abre outra discussão
+    const pend = lgDiscPend;
+    lgDiscReset();
+    lgDiscPend = pend;
+    campo.value = brutoCampo;
+  }
+  const ia = lgEl('lg-disc-ia').value === 'claude' ? 'claude' : 'gemini';
+  const disc = lgDisc;
+  disc.msgs.push({ role: 'user', texto, imagens: lgDiscPend.map(p => p.dataUrl) });
+  lgDiscPend = [];
+  lgDiscRenderPend();
+
+  // Mantém o que foi falado enquanto a mensagem seguia (o microfone pode continuar ligado)
+  const agora = campo.value;
+  campo.value = agora.startsWith(brutoCampo) ? agora.slice(brutoCampo.length).trimStart() : '';
+  if (lgOuvindo && lgAlvoVoz === 'discussao') lgDitadoFixo = campo.value ? campo.value + ' ' : '';
+
+  disc.enviando = true;
+  lgDiscRender();
+  try {
+    const r = await fetch('/api/receita-nutrir?tipo=laudo-discutir', {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ ia, tipo_exame: lgMascaraAtual.tipo_exame, mensagens: lgDiscMontarPayload(disc.msgs) })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Falha ao conversar com a IA');
+    disc.msgs.push({ role: 'assistant', texto: j.resposta, ia: j.ia || ia });
+  } catch (e) {
+    console.error('[laudos] discutir', e);
+    toast(e.message || 'Não consegui falar com a IA', 'error');
+    const ult = disc.msgs.pop();       // devolve a mensagem para a caixa, para reenviar
+    if (disc === lgDisc && ult && ult.role === 'user') {
+      const c = lgEl('lg-disc-texto');
+      c.value = ult.texto + (c.value ? ' ' + c.value : '');
+      ult.imagens.forEach(u => lgDiscPend.push({ dataUrl: u }));
+      lgDiscRenderPend();
+    }
+  } finally {
+    disc.enviando = false;
+    if (disc === lgDisc) lgDiscRender();
+  }
+}
+
+// Encerra: a IA extrai só o que o médico concluiu e o texto entra direto no laudo
+async function lgDiscEncerrar() {
+  if (!lgMascaraAtual || lgDisc.enviando || lgDisc.encerrada || lgOcupado) return;
+  const disc = lgDisc;
+  if (!disc.msgs.some(m => m.role === 'user' && m.texto)) { toast('Converse sobre o caso antes de encerrar', 'error'); return; }
+
+  const btn = lgEl('lg-disc-encerrar');
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Consolidando…';
+  disc.enviando = true;
+  disc.consolidando = true;
+  lgDiscRender();
+  try {
+    const r = await fetch('/api/receita-nutrir?tipo=laudo-consolidar', {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({
+        tipo_exame: lgMascaraAtual.tipo_exame,
+        mensagens: disc.msgs.filter(m => m.role !== 'sistema')
+          .map(m => ({ role: m.role, texto: m.texto, ia: m.ia || '', n_imagens: (m.imagens || []).length }))
+      })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Falha ao consolidar a discussão');
+    if (!j.ditado) {
+      toast('Não encontrei na conversa conclusões suas para incluir no laudo. Diga o que você concluiu e encerre de novo.', 'error');
+      return;
+    }
+    const aplicado = await lgAplicarTexto(j.ditado, {
+      origem: 'discussao',
+      avisosExtras: (j.em_aberto || []).map(x => 'Em aberto na discussão: ' + x)
+    });
+    if (!aplicado) return;
+    disc.encerrada = true;
+    disc.msgs.push({ role: 'sistema', texto: 'Discussão encerrada. A conclusão foi inserida no laudo (veja os trechos destacados).' });
+    toast('Conclusão da discussão inserida no laudo');
+  } catch (e) {
+    console.error('[laudos] encerrar', e);
+    toast(e.message || 'Não consegui encerrar a discussão', 'error');
+  } finally {
+    disc.enviando = false;
+    disc.consolidando = false;
+    btn.innerHTML = '<i class="ti ti-check"></i> Encerrar e inserir no laudo';
+    if (disc === lgDisc) lgDiscRender();
+  }
+}
+
+// ── Captura de tela e imagens ────────────────────────────────
+
+async function lgCapturarTela() {
+  if (!lgMascaraAtual) { toast('Escolha uma máscara primeiro', 'error'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    toast('Este navegador não permite capturar a tela. Use o Chrome ou o Edge.', 'error');
+    return;
+  }
+  try {
+    if (!lgCapStream || !lgCapStream.active) {
+      lgCapStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false });
+      lgCapVideo = document.createElement('video');
+      lgCapVideo.muted = true;
+      lgCapVideo.playsInline = true;
+      lgCapVideo.srcObject = lgCapStream;
+      await lgCapVideo.play();
+      const faixa = lgCapStream.getVideoTracks()[0];
+      if (faixa) faixa.addEventListener('ended', lgPararCaptura);
+      lgEl('lg-cap-parar').style.display = '';
+      await new Promise(r => setTimeout(r, 300));       // deixa o primeiro quadro chegar
+    }
+    const w = lgCapVideo.videoWidth, h = lgCapVideo.videoHeight;
+    if (!w || !h) throw new Error('sem quadro');
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(lgCapVideo, 0, 0, w, h);
+    lgEl('lg-disc').open = true;
+    lgAbrirPreparo(c);
+  } catch (e) {
+    if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) { toast('Captura cancelada'); return; }
+    console.error('[laudos] capturar', e);
+    toast('Não consegui capturar a tela', 'error');
+  }
+}
+
+function lgPararCaptura() {
+  if (lgCapStream) { lgCapStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); }
+  lgCapStream = null;
+  lgCapVideo = null;
+  const b = lgEl('lg-cap-parar');
+  if (b) b.style.display = 'none';
+}
+
+// Lê um arquivo de imagem (colado ou escolhido) e abre o preparo
+async function lgCarregarArquivos(arquivos) {
+  if (!lgMascaraAtual) return;
+  const lista = [...arquivos].filter(f => f && /^image\//.test(f.type)).slice(0, 6);
+  if (!lista.length) { toast('Esse arquivo não é uma imagem', 'error'); return; }
+  for (const f of lista) {
+    try { lgFilaImg.push(await lgLerImagem(f)); }
+    catch (_) { toast('Não consegui abrir uma das imagens', 'error'); }
+  }
+  lgEl('lg-disc').open = true;
+  if (!lgImg) lgProximaDaFila();
+}
+
+function lgLerImagem(arquivo) {
+  if (typeof createImageBitmap === 'function') return createImageBitmap(arquivo);
+  return new Promise((ok, falha) => {
+    const url = URL.createObjectURL(arquivo);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); ok(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); falha(new Error('imagem')); };
+    im.src = url;
+  });
+}
+
+async function lgDiscArquivos(input) {
+  await lgCarregarArquivos(input.files);
+  input.value = '';
+}
+
+function lgProximaDaFila() {
+  const f = lgFilaImg.shift();
+  if (f) lgAbrirPreparo(f);
+}
+
+// Ctrl+V com uma imagem na área de transferência (Win+Shift+S → colar)
+document.addEventListener('paste', (e) => {
+  if (!lgEl('page-laudos').classList.contains('active') || !lgMascaraAtual) return;
+  const itens = [...((e.clipboardData && e.clipboardData.items) || [])].filter(i => i.kind === 'file' && /^image\//.test(i.type));
+  if (!itens.length) return;      // texto comum: segue o comportamento normal
+  e.preventDefault();
+  lgCarregarArquivos(itens.map(i => i.getAsFile()).filter(Boolean));
+});
+
+// ── Preparo da imagem: tarja preta e recorte ─────────────────
+
+function lgAbrirPreparo(fonte) {
+  const w0 = fonte.naturalWidth || fonte.videoWidth || fonte.width;
+  const h0 = fonte.naturalHeight || fonte.videoHeight || fonte.height;
+  if (!w0 || !h0) { toast('Imagem inválida', 'error'); return; }
+  const esc = Math.min(1, 2400 / Math.max(w0, h0));
+  const c = lgEl('lg-img-canvas');
+  c.width = Math.round(w0 * esc);
+  c.height = Math.round(h0 * esc);
+  c.getContext('2d').drawImage(fonte, 0, 0, c.width, c.height);
+  lgImg = { desfazer: [], modo: 'tarja', arrasto: null };
+  lgImgModo('tarja');
+  lgEl('lg-img-desfazer').disabled = true;
+  lgEl('modal-lg-img').classList.add('open');
+}
+
+function lgFecharPreparo() {
+  lgEl('modal-lg-img').classList.remove('open');
+  lgEl('lg-img-sel').style.display = 'none';
+  lgImg = null;
+}
+
+function lgImgCancelar() {
+  lgFecharPreparo();
+  lgProximaDaFila();
+}
+
+function lgImgModo(modo) {
+  if (lgImg) lgImg.modo = modo;
+  lgEl('lg-img-m-tarja').classList.toggle('on', modo === 'tarja');
+  lgEl('lg-img-m-recorte').classList.toggle('on', modo === 'recorte');
+}
+
+function lgImgDesfazer() {
+  if (!lgImg || !lgImg.desfazer.length) return;
+  const snap = lgImg.desfazer.pop();
+  const c = lgEl('lg-img-canvas');
+  c.width = snap.width;
+  c.height = snap.height;
+  c.getContext('2d').putImageData(snap, 0, 0);
+  lgEl('lg-img-desfazer').disabled = !lgImg.desfazer.length;
+}
+
+// Aplica um retângulo arrastado (em pixels da tela) sobre a imagem: tarja ou recorte
+function lgImgAplicar(a, rect) {
+  if (!lgImg || !rect.width || !rect.height) return;
+  const c = lgEl('lg-img-canvas');
+  const ctx = c.getContext('2d');
+  const kx = c.width / rect.width, ky = c.height / rect.height;
+  let x = Math.round(Math.min(a.x0, a.x1) * kx), y = Math.round(Math.min(a.y0, a.y1) * ky);
+  let w = Math.round(Math.abs(a.x1 - a.x0) * kx), h = Math.round(Math.abs(a.y1 - a.y0) * ky);
+  x = Math.max(0, Math.min(x, c.width - 1));  y = Math.max(0, Math.min(y, c.height - 1));
+  w = Math.min(w, c.width - x);  h = Math.min(h, c.height - y);
+  if (w < 6 || h < 6) return;
+
+  lgImg.desfazer.push(ctx.getImageData(0, 0, c.width, c.height));
+  if (lgImg.desfazer.length > 8) lgImg.desfazer.shift();
+
+  if (lgImg.modo === 'tarja') {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x, y, w, h);
+  } else {
+    const recorte = ctx.getImageData(x, y, w, h);
+    c.width = w;
+    c.height = h;
+    c.getContext('2d').putImageData(recorte, 0, 0);
+  }
+  lgEl('lg-img-desfazer').disabled = false;
+}
+
+// Reduz e comprime para caber no limite de envio; devolve data URL JPEG ou null
+function lgComprimirCanvas(src) {
+  for (const [lado, q] of [[1568, 0.85], [1568, 0.72], [1280, 0.72], [1024, 0.7]]) {
+    const esc = Math.min(1, lado / Math.max(src.width, src.height));
+    const t = document.createElement('canvas');
+    t.width = Math.max(1, Math.round(src.width * esc));
+    t.height = Math.max(1, Math.round(src.height * esc));
+    const ctx = t.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, t.width, t.height);
+    ctx.drawImage(src, 0, 0, t.width, t.height);
+    const url = t.toDataURL('image/jpeg', q);
+    if (url.length - 23 <= 1300000) return url;     // o servidor aceita até 1,6 milhão de caracteres por imagem
+  }
+  return null;
+}
+
+function lgImgAnexar() {
+  if (!lgImg) return;
+  if (lgDiscContarImagens() >= LG_MAX_IMAGENS) { toast(`Limite de ${LG_MAX_IMAGENS} imagens por discussão. Comece uma nova.`, 'error'); return; }
+  const url = lgComprimirCanvas(lgEl('lg-img-canvas'));
+  if (!url) { toast('Não consegui preparar a imagem. Recorte uma área menor.', 'error'); return; }
+  if (lgDisc.encerrada) lgDiscReset();       // imagem nova depois de encerrar abre outra discussão
+  lgDiscPend.push({ dataUrl: url });
+  lgDiscRenderPend();
+  lgFecharPreparo();
+  lgEl('lg-disc').open = true;
+  lgProximaDaFila();
+}
+
+// Arrastar sobre a imagem
+(function lgConfigurarCanvasImagem() {
+  const c = lgEl('lg-img-canvas');
+  const sel = lgEl('lg-img-sel');
+  if (!c || !sel) return;
+  const pos = (e) => {
+    const r = c.getBoundingClientRect();
+    return { x: Math.min(Math.max(e.clientX - r.left, 0), r.width), y: Math.min(Math.max(e.clientY - r.top, 0), r.height), r };
+  };
+  const desenhar = () => {
+    const a = lgImg && lgImg.arrasto;
+    if (!a) return;
+    sel.style.left = Math.min(a.x0, a.x1) + 'px';
+    sel.style.top = Math.min(a.y0, a.y1) + 'px';
+    sel.style.width = Math.abs(a.x1 - a.x0) + 'px';
+    sel.style.height = Math.abs(a.y1 - a.y0) + 'px';
+  };
+  c.addEventListener('pointerdown', (e) => {
+    if (!lgImg) return;
+    e.preventDefault();
+    if (c.setPointerCapture && e.pointerId !== undefined) { try { c.setPointerCapture(e.pointerId); } catch (_) {} }
+    const p = pos(e);
+    lgImg.arrasto = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+    sel.className = lgImg.modo;
+    sel.style.display = 'block';
+    desenhar();
+  });
+  c.addEventListener('pointermove', (e) => {
+    if (!lgImg || !lgImg.arrasto) return;
+    const p = pos(e);
+    lgImg.arrasto.x1 = p.x;
+    lgImg.arrasto.y1 = p.y;
+    desenhar();
+  });
+  c.addEventListener('pointerup', (e) => {
+    if (!lgImg || !lgImg.arrasto) return;
+    const p = pos(e);
+    const a = lgImg.arrasto;
+    a.x1 = p.x;
+    a.y1 = p.y;
+    lgImg.arrasto = null;
+    sel.style.display = 'none';
+    lgImgAplicar(a, p.r);
+  });
+  c.addEventListener('pointercancel', () => {
+    if (lgImg) lgImg.arrasto = null;
+    sel.style.display = 'none';
+  });
+})();
 
 (async () => {
   const { data } = await db.auth.getSession();
