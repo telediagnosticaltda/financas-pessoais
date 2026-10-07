@@ -9,6 +9,7 @@ import { requireAuth } from './_auth.js';
 //   token           -> chave temporaria (1h) do Drive, para o player tocar o video
 //   info            -> nome, tamanho e tipo do arquivo no Drive
 //   listar-pasta    -> modulos (subpastas) e aulas (videos) da pasta do curso
+//   listar-artigos  -> PDFs de uma pasta do Drive (e subpastas) para a base de artigos
 //   iniciar-envio   -> abre o envio do video para a area de arquivos do Gemini
 //   enviar-parte    -> copia um pedaco do video, do Drive direto para o Gemini
 //   estado-arquivo  -> o Gemini ja terminou de preparar o video?
@@ -281,6 +282,36 @@ async function acaoListarPasta({ id }) {
   return { nome: pasta.name, modulos };
 }
 
+// Aba "Artigos": lista os PDFs de uma pasta (ate 3 niveis de subpastas).
+// O texto dos PDFs e extraido no navegador, com a chave temporaria da acao "token".
+const MAX_ARTIGOS = 600;
+
+async function acaoListarArtigos({ id }) {
+  validarId(id);
+  const g = await exigirDrive();
+  const pasta = await infoDrive(g.token, id);
+  if (pasta.mimeType !== PASTA) throw erro('Esse link nao e de uma pasta do Drive. Use o link da pasta com os artigos.', 422);
+
+  const artigos = [];
+  let nivel = [{ id, caminho: '' }];
+  for (let prof = 0; prof <= 3 && nivel.length && artigos.length < MAX_ARTIGOS; prof++) {   // pasta + 3 niveis de subpastas
+    const lidos = await Promise.all(nivel.map(async (p) => ({ p, filhos: await listarFilhos(g.token, p.id) })));
+    const proximo = [];
+    for (const { p, filhos } of lidos) {
+      for (const f of filhos) {
+        if (f.mimeType === PASTA) {
+          proximo.push({ id: f.id, caminho: p.caminho ? `${p.caminho} / ${f.name}` : f.name });
+        } else if (f.mimeType === 'application/pdf') {
+          artigos.push({ id: f.id, nome: f.name, tamanho: Number(f.size || 0), subpasta: p.caminho });
+        }
+      }
+    }
+    nivel = proximo;
+  }
+  artigos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+  return { nome: pasta.name, artigos: artigos.slice(0, MAX_ARTIGOS), cortado: artigos.length > MAX_ARTIGOS };
+}
+
 async function acaoIniciarEnvio({ id }, chave) {
   validarId(id);
   const g = await exigirDrive();
@@ -515,6 +546,7 @@ export default async function handler(req, res) {
       case 'token':          saida = await acaoToken(); break;
       case 'info':           saida = await acaoInfo(corpo); break;
       case 'listar-pasta':   saida = await acaoListarPasta(corpo); break;
+      case 'listar-artigos': saida = await acaoListarArtigos(corpo); break;
       case 'enviar-parte':   saida = await acaoEnviarParte(corpo); break;
       case 'iniciar-envio':
       case 'estado-arquivo':
