@@ -282,7 +282,8 @@ async function acaoListarPasta({ id }) {
   return { nome: pasta.name, modulos };
 }
 
-// Aba "Artigos": lista os PDFs de uma pasta (ate 3 niveis de subpastas).
+// Aba "Artigos": lista os PDFs de uma pasta, incluindo os que estao dentro de subpastas
+// (ate 3 niveis). A lista e PLANA: o nome das subpastas nao e usado para organizar nada.
 // O texto dos PDFs e extraido no navegador, com a chave temporaria da acao "token".
 const MAX_ARTIGOS = 600;
 
@@ -293,16 +294,17 @@ async function acaoListarArtigos({ id }) {
   if (pasta.mimeType !== PASTA) throw erro('Esse link nao e de uma pasta do Drive. Use o link da pasta com os artigos.', 422);
 
   const artigos = [];
-  let nivel = [{ id, caminho: '' }];
+  const vistos = new Set();
+  let nivel = [id];
   for (let prof = 0; prof <= 3 && nivel.length && artigos.length < MAX_ARTIGOS; prof++) {   // pasta + 3 niveis de subpastas
-    const lidos = await Promise.all(nivel.map(async (p) => ({ p, filhos: await listarFilhos(g.token, p.id) })));
+    const lidos = await Promise.all(nivel.map(pid => listarFilhos(g.token, pid)));
     const proximo = [];
-    for (const { p, filhos } of lidos) {
+    for (const filhos of lidos) {
       for (const f of filhos) {
-        if (f.mimeType === PASTA) {
-          proximo.push({ id: f.id, caminho: p.caminho ? `${p.caminho} / ${f.name}` : f.name });
-        } else if (f.mimeType === 'application/pdf') {
-          artigos.push({ id: f.id, nome: f.name, tamanho: Number(f.size || 0), subpasta: p.caminho });
+        if (f.mimeType === PASTA) proximo.push(f.id);
+        else if (f.mimeType === 'application/pdf' && !vistos.has(f.id)) {
+          vistos.add(f.id);
+          artigos.push({ id: f.id, nome: f.name, tamanho: Number(f.size || 0) });
         }
       }
     }
