@@ -1445,6 +1445,35 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 #lg-img-sel.tarja { background: rgba(0,0,0,.7); }
 #lg-img-sel.recorte { background: rgba(74,87,204,.2); border-color: #9FB0FF; }
 .lg-zoom-img { max-width: 94vw; max-height: 92vh; border-radius: 8px; background: #000; }
+
+/* ── ARTIGOS (base de PDFs dentro de Cursos) ── */
+.cur-topo-abas { margin: -.25rem 0 1rem; padding: 0; }
+.art-pasta { margin-bottom: 1rem; padding: 0; overflow: hidden; }
+.art-pasta-cab { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: .9rem 1.1rem; }
+.art-pasta-nome { font-weight: 700; font-size: 14px; flex: 1; min-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-pasta-meta { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.art-pasta-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
+.art-linhas { border-top: 1px solid var(--border-2); max-height: 420px; overflow-y: auto; }
+.art-linha { display: flex; align-items: center; gap: .7rem; padding: .5rem 1.1rem; border-bottom: 1px solid var(--border-2); cursor: pointer; }
+.art-linha:last-child { border-bottom: none; }
+.art-linha:hover { background: var(--surface-2); }
+.art-linha.fora { opacity: .5; }
+.art-info { flex: 1; min-width: 0; }
+.art-titulo { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-sub { font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-dir { display: flex; align-items: center; gap: .5rem; font-size: 11.5px; color: var(--text-3); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.art-ok { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: var(--green-l); color: var(--green); }
+
+/* fontes citadas na discussão de casos */
+.lg-ref { color: var(--primary); font-weight: 700; cursor: pointer; font-size: 10.5px; margin-left: 1px; }
+.lg-ref:hover { text-decoration: underline; }
+.lg-fontes { margin-top: .5rem; padding-top: .5rem; border-top: 1px dashed var(--border); font-size: 12px; }
+.lg-fontes-t { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-bottom: 4px; }
+.lg-fonte { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; line-height: 1.45; }
+.lg-fonte-txt { flex: 1; min-width: 0; }
+.lg-fonte-tipo { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 8px; background: var(--primary-l); color: var(--primary-d); text-transform: uppercase; margin-right: 4px; }
+.lg-fonte-tipo.artigo { background: #FFE8A3; color: #7A5B00; }
+.lg-fonte-onde { color: var(--text-3); }
 </style>
 </head>
 <body>
@@ -2024,6 +2053,50 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     <!-- PAGE: CURSOS -->
     <div id="page-cursos" class="page">
 
+      <!-- Abas do topo: Aulas | Artigos -->
+      <div class="cur-abas cur-topo-abas" id="cur-topo-abas">
+        <button class="active" id="cur-topo-aulas" onclick="curTopo('aulas')"><i class="ti ti-school"></i> Aulas</button>
+        <button id="cur-topo-artigos" onclick="curTopo('artigos')"><i class="ti ti-file-text"></i> Artigos</button>
+      </div>
+
+      <!-- Artigos (base de PDFs) -->
+      <div id="cur-v-artigos" style="display:none">
+        <div class="page-header">
+          <h1 class="page-title">Artigos</h1>
+        </div>
+        <p class="cur-intro">PDFs de artigos científicos do seu Drive viram uma base de consulta. O app guarda o texto (não o arquivo). Na aba Laudos, a discussão de casos consulta esse texto e o das aulas, só quando for pertinente.</p>
+        <div class="card cur-abrir">
+          <label for="art-pasta-link">Adicionar pasta de artigos: link da pasta no Drive</label>
+          <div class="cur-abrir-linha">
+            <input type="text" id="art-pasta-link" placeholder="https://drive.google.com/drive/folders/..."
+                   onkeydown="if (event.key === 'Enter') artAdicionarPasta()">
+            <button class="btn btn-primary" id="art-add-btn" onclick="artAdicionarPasta()">
+              <i class="ti ti-folder-plus"></i> Adicionar pasta
+            </button>
+          </div>
+          <div class="cur-dica">Subpastas (até 3 níveis) também são lidas. O texto é extraído aqui no navegador. PDFs escaneados, só com imagem, não têm texto para buscar.</div>
+        </div>
+        <div id="art-aviso" class="cur-aviso" style="display:none"></div>
+
+        <div class="card cur-fila" id="art-fila" style="display:none">
+          <div class="cur-fila-topo">
+            <div class="cur-etapa" id="art-fila-etapa"></div>
+            <button class="btn btn-ghost" id="art-fila-pausar" onclick="artPausarFila()"><i class="ti ti-player-pause"></i> Pausar</button>
+          </div>
+          <div class="cur-etapa-sub" id="art-fila-sub"></div>
+          <div class="cur-barra"><div id="art-fila-barra"></div></div>
+          <div class="cur-dica">Deixe esta aba aberta enquanto os artigos são lidos. Se fechar, os que já ficaram prontos continuam guardados e dá para continuar depois.</div>
+        </div>
+
+        <div class="filters-bar">
+          <input type="text" id="art-busca" placeholder="Buscar no texto dos artigos…" oninput="artBuscarDebounce()"
+                 style="flex:1;min-width:200px;max-width:460px;padding:8px 11px;font-size:12.5px">
+        </div>
+        <div id="art-resultados" style="display:none"></div>
+        <div id="art-lista"><div class="loading-msg">Carregando...</div></div>
+      </div>
+
+
       <!-- Lista de cursos -->
       <div id="cur-v-lista">
         <div class="page-header">
@@ -2228,6 +2301,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                     <option value="gemini">Gemini</option>
                     <option value="claude">Claude</option>
                   </select>
+                  <label class="lg-auto" title="A IA só usa a base quando for pertinente ao que está sendo discutido; as fontes citadas aparecem abaixo da resposta"><input type="checkbox" id="lg-disc-base" onchange="lgSalvarPrefBase()" checked> Consultar minha base (aulas e artigos)</label>
                   <button class="btn btn-ghost btn-sm" id="lg-cap-btn" onclick="lgCapturarTela()"><i class="ti ti-screenshot"></i> Capturar tela</button>
                   <button class="btn btn-ghost btn-sm" id="lg-cap-parar" onclick="lgPararCaptura()" style="display:none"><i class="ti ti-player-stop"></i> Parar compartilhamento</button>
                   <button class="btn btn-ghost btn-sm" onclick="lgEl('lg-disc-arq').click()"><i class="ti ti-photo-plus"></i> Anexar imagem</button>
@@ -2246,7 +2320,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                 </div>
                 <div class="lg-nota">
                   <b>Captura:</b> clique em “Capturar tela”, escolha uma vez o monitor ou a janela do PACS e, a cada clique, o app congela a imagem para você recortar. Também funciona colar um print (<kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>, depois <kbd>Ctrl</kbd>+<kbd>V</kbd> aqui). <b>Antes de enviar, cubra com tarja preta nome, data de nascimento e número do exame.</b> As imagens não são guardadas em lugar nenhum.<br>
-                  Ao encerrar, só entra no laudo o que <b>você</b> afirmou ou aceitou na conversa, nunca uma sugestão da IA que você não adotou. Voz: <i>capturar</i> (depois da primeira vez), <i>enviar</i>, <i>encerrar discussão</i>. A IA é um interlocutor, não uma segunda leitura: modelos de uso geral podem errar na leitura de imagens.
+                  A base (aulas do Cursos e artigos da aba Artigos) é consultada automaticamente, mas a IA só a usa se ajudar; quando usa, as fontes aparecem abaixo da resposta e dá para abrir a aula no minuto ou o artigo. Ao encerrar, só entra no laudo o que <b>você</b> afirmou ou aceitou na conversa, nunca uma sugestão da IA que você não adotou. Voz: <i>capturar</i> (depois da primeira vez), <i>enviar</i>, <i>encerrar discussão</i>. A IA é um interlocutor, não uma segunda leitura: modelos de uso geral podem errar na leitura de imagens.
                 </div>
               </div>
             </details>
@@ -7306,6 +7380,9 @@ function mostrarVistaCurso(qual) {
   document.getElementById('cur-v-lista').style.display = qual === 'lista' ? 'block' : 'none';
   document.getElementById('cur-v-curso').style.display = qual === 'curso' ? 'block' : 'none';
   document.getElementById('cur-v-aula').style.display  = qual === 'aula'  ? 'block' : 'none';
+  document.getElementById('cur-v-artigos').style.display = qual === 'artigos' ? 'block' : 'none';
+  document.getElementById('cur-topo-aulas').classList.toggle('active', qual !== 'artigos');
+  document.getElementById('cur-topo-artigos').classList.toggle('active', qual === 'artigos');
   if (qual !== 'aula') {
     const v = document.getElementById('cur-video');
     if (v && !v.paused) v.pause();
@@ -7317,6 +7394,7 @@ function mostrarVistaCurso(qual) {
 // LISTA DE CURSOS
 // ─────────────────────────────────────────────────────────────
 function loadCursosPage() {
+  if (document.getElementById('cur-v-artigos').style.display === 'block') { loadArtigosPage(); return; }
   if (curAula && document.getElementById('cur-v-aula').style.display === 'block') return;
   if (curCurso && document.getElementById('cur-v-curso').style.display === 'block') { renderCurso(); return; }
   mostrarListaCursos();
@@ -8515,6 +8593,7 @@ async function loadLaudosPage() {
   try { lgEl('lg-auto-conf').checked = localStorage.getItem('lg_auto_conferir') !== '0'; }
   catch (_) { lgEl('lg-auto-conf').checked = true; }
   try { lgEl('lg-disc-ia').value = localStorage.getItem('lg_disc_ia') === 'claude' ? 'claude' : 'gemini'; } catch (_) {}
+  try { lgEl('lg-disc-base').checked = localStorage.getItem('lg_disc_base') !== '0'; } catch (_) {}
   await lgCarregarMascaras();
   lgRenderMascaras();
   lgAjustarTodas();
@@ -9325,6 +9404,14 @@ document.addEventListener('keydown', (e) => {
 
 const LG_NOME_IA = { claude: 'Claude', gemini: 'Gemini' };
 
+function lgSalvarPrefBase() {
+  try { localStorage.setItem('lg_disc_base', lgEl('lg-disc-base').checked ? '1' : '0'); } catch (_) {}
+}
+
+// Tira os marcadores de fonte ([1], [2]) do texto do assistente antes de reenviá-lo:
+// a numeração é de cada resposta e confundiria a IA nas rodadas seguintes
+const lgSemMarcas = (t) => String(t || '').replace(/\s?\[\d+\]/g, '');
+
 function lgSalvarPrefIa() {
   try { localStorage.setItem('lg_disc_ia', lgEl('lg-disc-ia').value); } catch (_) {}
 }
@@ -9337,7 +9424,7 @@ function lgDiscMontarPayload(msgs, orcamento = LG_ORCAMENTO_IMG, maxImagens = LG
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i];
     if (m.role === 'sistema') continue;
-    const item = { role: m.role, texto: (m.texto || '').slice(0, 8000), ia: m.ia || '' };
+    const item = { role: m.role, texto: (m.role === 'assistant' ? lgSemMarcas(m.texto) : (m.texto || '')).slice(0, 8000), ia: m.ia || '' };
     if (m.role === 'user' && m.imagens && m.imagens.length) {
       const enviadas = [];
       for (let k = m.imagens.length - 1; k >= 0; k--) {
@@ -9354,19 +9441,72 @@ function lgDiscMontarPayload(msgs, orcamento = LG_ORCAMENTO_IMG, maxImagens = LG
 
 const lgDiscContarImagens = () => lgDisc.msgs.reduce((s, m) => s + ((m.imagens || []).length), 0) + lgDiscPend.length;
 
+// Texto da resposta com os marcadores [n] clicáveis (só os que têm fonte)
+function lgTextoComRefs(m, i) {
+  const fontes = m.fontes || [];
+  return escHtml(m.texto).replace(/\[(\d+)\]/g, (tudo, n) => {
+    const f = fontes.find(x => String(x.n) === n);
+    return f ? `<sup class="lg-ref" title="${escHtml(f.titulo)}" onclick="lgAbrirFonte(${i}, ${n})">[${n}]</sup>` : tudo;
+  });
+}
+
+// Fontes da base que a IA realmente citou (só aparecem quando foram usadas)
+function lgHtmlFontes(m, i) {
+  if (!m.fontes || !m.fontes.length) return '';
+  return '<div class="lg-fontes"><span class="lg-fontes-t">Fontes da sua base</span>' + m.fontes.map(f => {
+    const onde = f.tipo === 'aula'
+      ? [f.curso, f.modulo].filter(Boolean).join(', ') + (f.local ? ' · ' + f.local : '')
+      : (f.local || '');
+    return `<div class="lg-fonte" title="${escHtml(f.trecho || '')}"><b>[${f.n}]</b>`
+      + `<div class="lg-fonte-txt"><span class="lg-fonte-tipo ${f.tipo === 'artigo' ? 'artigo' : ''}">${f.tipo === 'artigo' ? 'Artigo' : 'Aula'}</span>${escHtml(f.titulo)} <span class="lg-fonte-onde">${onde ? '· ' + escHtml(onde) : ''}</span></div>`
+      + `<button class="btn btn-ghost btn-sm" onclick="lgAbrirFonte(${i}, ${f.n})">Abrir</button></div>`;
+  }).join('') + '</div>';
+}
+
 function lgDiscRender() {
   const fio = lgEl('lg-disc-fio');
   fio.innerHTML = lgDisc.msgs.map((m, i) => {
     if (m.role === 'sistema') return `<div class="lg-msg sis">${escHtml(m.texto)}</div>`;
     const quem = m.role === 'user' ? 'Você' : (LG_NOME_IA[m.ia] || 'IA');
     const imgs = (m.imagens || []).map((u, k) => `<img src="${u}" alt="Imagem ${k + 1}" onclick="lgZoom(${i}, ${k})">`).join('');
+    const corpo = m.role === 'assistant' ? lgTextoComRefs(m, i) : escHtml(m.texto);
     return `<div class="lg-msg ${m.role === 'user' ? 'user' : 'ia'}"><span class="lg-msg-quem">${escHtml(quem)}</span>`
-      + (imgs ? `<div class="lg-msg-imgs">${imgs}</div>` : '') + escHtml(m.texto) + '</div>';
+      + (imgs ? `<div class="lg-msg-imgs">${imgs}</div>` : '') + corpo + (m.role === 'assistant' ? lgHtmlFontes(m, i) : '') + '</div>';
   }).join('') + (lgDisc.enviando && !lgDisc.consolidando ? '<div class="lg-msg ia lg-pensando">Pensando…</div>' : '');
   fio.scrollTop = fio.scrollHeight;
   lgEl('lg-disc-tag').style.display = (lgDisc.msgs.length && !lgDisc.encerrada) ? '' : 'none';
   lgEl('lg-disc-enviar').disabled = lgDisc.enviando;
   lgEl('lg-disc-encerrar').disabled = lgDisc.enviando || lgDisc.encerrada || !lgDisc.msgs.some(m => m.role === 'user' && m.texto);
+}
+
+// Abre a fonte citada: artigo no Drive, ou a aula no minuto indicado
+function lgAbrirFonte(i, n) {
+  const m = lgDisc.msgs[i];
+  const f = m && (m.fontes || []).find(x => x.n === n);
+  if (!f) return;
+  if (f.tipo === 'artigo') {
+    if (f.drive_id) window.open(`https://drive.google.com/file/d/${f.drive_id}/view`, '_blank', 'noopener');
+    else toast('Esse artigo não tem link do Drive', 'error');
+    return;
+  }
+  if (!f.curso_id || !f.aula_id) { toast('Não achei a aula para abrir', 'error'); return; }
+  lgIrParaAula(f.curso_id, f.aula_id, f.seg);
+}
+
+async function lgIrParaAula(cursoId, aulaId, seg) {
+  lgPararVoz();
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+  document.getElementById('page-cursos').classList.add('active');
+  document.querySelector('.nav-item[data-page="cursos"]').classList.add('active');
+  currentPage = 'cursos';
+  try {
+    await abrirCurso(cursoId);
+    await abrirAula(aulaId, seg);
+  } catch (e) {
+    console.error('[laudos] abrir aula', e);
+    toast('Não consegui abrir a aula', 'error');
+  }
 }
 
 function lgDiscRenderPend() {
@@ -9433,11 +9573,11 @@ async function lgDiscEnviar() {
     const r = await fetch('/api/receita-nutrir?tipo=laudo-discutir', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ ia, tipo_exame: lgMascaraAtual.tipo_exame, mensagens: lgDiscMontarPayload(disc.msgs) })
+      body: JSON.stringify({ ia, tipo_exame: lgMascaraAtual.tipo_exame, usar_base: lgEl('lg-disc-base').checked, mensagens: lgDiscMontarPayload(disc.msgs) })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao conversar com a IA');
-    disc.msgs.push({ role: 'assistant', texto: j.resposta, ia: j.ia || ia });
+    disc.msgs.push({ role: 'assistant', texto: j.resposta, ia: j.ia || ia, fontes: j.fontes || [] });
   } catch (e) {
     console.error('[laudos] discutir', e);
     toast(e.message || 'Não consegui falar com a IA', 'error');
@@ -9472,7 +9612,7 @@ async function lgDiscEncerrar() {
       body: JSON.stringify({
         tipo_exame: lgMascaraAtual.tipo_exame,
         mensagens: disc.msgs.filter(m => m.role !== 'sistema')
-          .map(m => ({ role: m.role, texto: m.texto, ia: m.ia || '', n_imagens: (m.imagens || []).length }))
+          .map(m => ({ role: m.role, texto: m.role === 'assistant' ? lgSemMarcas(m.texto) : m.texto, ia: m.ia || '', n_imagens: (m.imagens || []).length }))
       })
     });
     const j = await r.json().catch(() => ({}));
@@ -9736,6 +9876,362 @@ function lgImgAnexar() {
     sel.style.display = 'none';
   });
 })();
+
+
+// ─────────────────────────────────────────────────────────────
+// ARTIGOS — base de PDFs do Drive (aba dentro de Cursos)
+// ─────────────────────────────────────────────────────────────
+// O texto é extraído no navegador (PDF.js) com a chave temporária do Drive e guardado
+// em artigo_pastas, artigos e artigo_trechos. O arquivo em si não é copiado.
+// A discussão de casos (aba Laudos) consulta esse texto e o das aulas.
+let artPastas      = [];
+let artLista       = [];
+let artFila        = { rodando: false, pausar: false };
+let artTokenDrive  = { valor: null, ate: 0 };
+let artBuscaTimer  = null;
+const ART_MAX_BYTES   = 80 * 1024 * 1024;
+const ART_MAX_PAGINAS = 500;
+const ART_TAM_TRECHO  = 1200;
+const ART_MIN_CHARS   = 300;      // abaixo disso o PDF é tratado como escaneado
+
+const artEl = (id) => document.getElementById(id);
+
+function curTopo(qual) {
+  if (qual === 'artigos') { mostrarVistaCurso('artigos'); loadArtigosPage(); }
+  else mostrarListaCursos();
+}
+
+// Quebra o texto de uma página em trechos de ~1200 caracteres, preferindo fim de frase
+function artDividirTexto(texto, tam = ART_TAM_TRECHO) {
+  const t = String(texto || '').replace(/\s+/g, ' ').trim();
+  const out = [];
+  let ini = 0;
+  while (ini < t.length) {
+    let fim = Math.min(ini + tam, t.length);
+    if (fim < t.length) {
+      const janela = t.slice(ini, fim);
+      let corte = Math.max(janela.lastIndexOf('. '), janela.lastIndexOf('? '), janela.lastIndexOf('! '));
+      if (corte < tam * 0.6) corte = janela.lastIndexOf(' ');
+      if (corte > tam * 0.4) fim = ini + corte + 1;
+    }
+    const pedaco = t.slice(ini, fim).trim();
+    if (pedaco.length >= 40) out.push(pedaco);     // descarta restos minúsculos (nº de página, rodapé)
+    ini = fim;
+  }
+  return out;
+}
+
+async function artTextoDaPagina(pagina) {
+  const c = await pagina.getTextContent();
+  let t = '';
+  for (const it of c.items) t += it.str + (it.hasEOL ? '\n' : ' ');
+  return t.replace(/-\n\s*/g, '');                  // junta palavras hifenizadas na quebra de linha
+}
+
+async function artToken() {
+  if (artTokenDrive.valor && Date.now() < artTokenDrive.ate - 120000) return artTokenDrive.valor;
+  const { access_token, expires_in } = await cursoApi('token');
+  artTokenDrive = { valor: access_token, ate: Date.now() + (expires_in || 3600) * 1000 };
+  return access_token;
+}
+
+async function artBaixarPdf(driveId) {
+  const token = await artToken();
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveId)}?alt=media&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) throw new Error(r.status === 404 ? 'Arquivo não encontrado no Drive' : `O Drive recusou o download (${r.status})`);
+  return r.arrayBuffer();
+}
+
+// Lê um PDF e devolve { paginas, totalChars, linhas } (linhas prontas para guardar)
+async function artLerPdf(a, aoProgresso) {
+  if (a.tamanho && a.tamanho > ART_MAX_BYTES) throw new Error('Arquivo muito grande (mais de 80 MB)');
+  const dados = await artBaixarPdf(a.drive_arquivo_id);
+  const pdf = await pdfjsLib.getDocument({ data: dados }).promise;
+  try {
+    const n = Math.min(pdf.numPages, ART_MAX_PAGINAS);
+    const linhas = [];
+    let totalChars = 0, ordem = 0;
+    for (let p = 1; p <= n; p++) {
+      if (aoProgresso) aoProgresso(p, n);
+      const pagina = await pdf.getPage(p);
+      const texto = await artTextoDaPagina(pagina);
+      if (pagina.cleanup) pagina.cleanup();
+      totalChars += texto.length;
+      for (const trecho of artDividirTexto(texto)) {
+        linhas.push({ artigo_id: a.id, pagina: p, ordem: ordem++, texto: trecho, texto_busca: normalizarBusca(trecho) });
+      }
+    }
+    return { paginas: pdf.numPages, totalChars, linhas };
+  } finally {
+    try { pdf.destroy(); } catch (_) {}
+  }
+}
+
+async function artSalvarStatus(a, campos) {
+  Object.assign(a, campos);
+  const { error } = await db.from('artigos').update(campos).eq('id', a.id);
+  if (error) console.error('[artigos] status', error);
+}
+
+async function artProcessar(a, aoProgresso) {
+  await artSalvarStatus(a, { status: 'analisando', erro: null });
+  artRender();
+  try {
+    const lido = await artLerPdf(a, aoProgresso);
+    await db.from('artigo_trechos').delete().eq('artigo_id', a.id);
+    if (lido.totalChars < ART_MIN_CHARS || !lido.linhas.length) {
+      await artSalvarStatus(a, { status: 'sem_texto', paginas: lido.paginas, erro: 'PDF sem texto selecionável (provavelmente escaneado).', indexado_em: null });
+      return;
+    }
+    for (let i = 0; i < lido.linhas.length; i += 300) {
+      const { error } = await db.from('artigo_trechos').insert(lido.linhas.slice(i, i + 300));
+      if (error) throw new Error('Não consegui salvar o texto: ' + error.message);
+    }
+    await artSalvarStatus(a, { status: 'indexado', paginas: lido.paginas, erro: null, indexado_em: new Date().toISOString() });
+  } catch (e) {
+    console.error('[artigos] processar', a.titulo, e);
+    await artSalvarStatus(a, { status: 'erro', erro: String(e.message || e).slice(0, 200) });
+  }
+}
+
+// Fila: lê os artigos pendentes (ou com erro) um por vez
+async function artIndexarPendentes(pastaId = null, soId = null) {
+  if (artFila.rodando) return;
+  const alvo = artLista.filter(a => a.no_drive
+    && (soId ? a.id === soId : (a.status === 'pendente' || a.status === 'erro'))
+    && (!pastaId || a.pasta_id === pastaId));
+  if (!alvo.length) { toast('Nenhum artigo pendente'); return; }
+
+  artFila = { rodando: true, pausar: false };
+  artEl('art-fila').style.display = 'block';
+  artEl('art-fila-pausar').disabled = false;
+  artEl('art-fila-pausar').innerHTML = '<i class="ti ti-player-pause"></i> Pausar';
+  const barra = artEl('art-fila-barra');
+  let feitos = 0, prontos = 0, falhas = 0;
+
+  for (const a of alvo) {
+    if (artFila.pausar) break;
+    artEl('art-fila-etapa').textContent = `Lendo artigo ${feitos + 1} de ${alvo.length}`;
+    artEl('art-fila-sub').textContent = a.titulo;
+    barra.style.width = `${(feitos / alvo.length) * 100}%`;
+    await artProcessar(a, (p, n) => {
+      artEl('art-fila-sub').textContent = `${a.titulo} · página ${p} de ${n}`;
+      barra.style.width = `${((feitos + p / n) / alvo.length) * 100}%`;
+    });
+    feitos++;
+    if (a.status === 'indexado') prontos++; else falhas++;
+    artRender();
+  }
+
+  const pausou = artFila.pausar;
+  artFila = { rodando: false, pausar: false };
+  artEl('art-fila').style.display = 'none';
+  artRender();
+  toast(pausou ? `Pausado: ${prontos} artigo(s) pronto(s)` : `${prontos} artigo(s) lido(s)${falhas ? `, ${falhas} com problema` : ''}`, falhas && !prontos ? 'error' : 'success');
+}
+
+function artPausarFila() {
+  artFila.pausar = true;
+  artEl('art-fila-pausar').disabled = true;
+  artEl('art-fila-pausar').textContent = 'Pausando…';
+}
+
+// ── Pastas ───────────────────────────────────────────────────
+
+async function artSincronizar(driveId) {
+  const lido = await cursoApi('listar-artigos', { id: driveId });
+  const { data: pasta, error: e1 } = await db.from('artigo_pastas')
+    .upsert({ drive_pasta_id: driveId, nome: lido.nome }, { onConflict: 'drive_pasta_id' }).select().single();
+  if (e1) throw new Error('Não consegui salvar a pasta: ' + e1.message);
+
+  const { data: existentes } = await db.from('artigos').select('id,drive_arquivo_id').eq('pasta_id', pasta.id).limit(5000);
+  const jaTem = new Set((existentes || []).map(e => e.drive_arquivo_id));
+  const novos = lido.artigos.filter(x => !jaTem.has(x.id)).map(x => ({
+    pasta_id: pasta.id, drive_arquivo_id: x.id, titulo: x.nome.replace(/\.pdf$/i, ''),
+    subpasta: x.subpasta || null, tamanho: x.tamanho || null, status: 'pendente', no_drive: true
+  }));
+  for (let i = 0; i < novos.length; i += 200) {
+    const { error } = await db.from('artigos').insert(novos.slice(i, i + 200));
+    if (error) throw new Error('Não consegui salvar os artigos: ' + error.message);
+  }
+  const vistos = new Set(lido.artigos.map(x => x.id));
+  const sumiram = (existentes || []).filter(e => !vistos.has(e.drive_arquivo_id)).map(e => e.id);
+  const voltaram = (existentes || []).filter(e => vistos.has(e.drive_arquivo_id)).map(e => e.id);
+  if (sumiram.length) await db.from('artigos').update({ no_drive: false }).in('id', sumiram);
+  if (voltaram.length) await db.from('artigos').update({ no_drive: true }).in('id', voltaram);
+  return { pasta, novos: novos.length, total: lido.artigos.length, cortado: !!lido.cortado };
+}
+
+async function artAdicionarPasta() {
+  const id = extrairIdDrive(artEl('art-pasta-link').value);
+  avisoEm('art-aviso', '');
+  if (!id) { avisoEm('art-aviso', 'Não reconheci esse link. Cole o link da pasta de artigos no Drive.', true); return; }
+  const btn = artEl('art-add-btn');
+  btn.disabled = true;
+  try {
+    const r = await artSincronizar(id);
+    artEl('art-pasta-link').value = '';
+    await loadArtigosPage();
+    toast(r.novos ? `${r.novos} artigo(s) encontrado(s)` : 'Pasta atualizada. Nenhum artigo novo');
+    if (r.cortado) avisoEm('art-aviso', 'A pasta tem mais de 600 PDFs: só os 600 primeiros foram listados.');
+    artIndexarPendentes(r.pasta.id);
+  } catch (e) {
+    console.error('[artigos]', e);
+    avisoEm('art-aviso', msgErroCurso(e), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function artSincronizarPasta(pastaId) {
+  const p = artPastas.find(x => x.id === pastaId);
+  if (!p) return;
+  avisoEm('art-aviso', '');
+  try {
+    const r = await artSincronizar(p.drive_pasta_id);
+    await loadArtigosPage();
+    toast(r.novos ? `${r.novos} artigo(s) novo(s)` : 'Nenhum artigo novo na pasta');
+    if (r.novos) artIndexarPendentes(pastaId);
+  } catch (e) {
+    console.error('[artigos]', e);
+    avisoEm('art-aviso', msgErroCurso(e), true);
+  }
+}
+
+function artRemoverPasta(pastaId) {
+  const p = artPastas.find(x => x.id === pastaId);
+  if (!p) return;
+  const n = artLista.filter(a => a.pasta_id === pastaId).length;
+  showConfirm('Remover pasta', `Remover “${p.nome}” e o texto de ${n} artigo(s) do app? Os PDFs no Drive não são tocados.`, async () => {
+    const { error } = await db.from('artigo_pastas').delete().eq('id', pastaId);
+    if (error) { toast('Não consegui remover', 'error'); return; }
+    await loadArtigosPage();
+    toast('Pasta removida');
+  });
+}
+
+async function artReindexar(id) {
+  const a = artLista.find(x => x.id === id);
+  if (!a || artFila.rodando) return;
+  await artSalvarStatus(a, { status: 'pendente', erro: null });
+  artIndexarPendentes(null, id);
+}
+
+function artAbrir(id) {
+  const a = artLista.find(x => x.id === id);
+  if (a) window.open(`https://drive.google.com/file/d/${a.drive_arquivo_id}/view`, '_blank', 'noopener');
+}
+
+// ── Lista ────────────────────────────────────────────────────
+
+async function loadArtigosPage() {
+  const pastas = await db.from('artigo_pastas').select('*').order('criado_em');
+  if (pastas.error) {
+    artEl('art-lista').innerHTML = `<div class="cur-aviso erro">Não consegui ler os artigos. Você já rodou o SQL das tabelas de artigos no Supabase? (${escHtml(pastas.error.message)})</div>`;
+    return;
+  }
+  artPastas = pastas.data || [];
+  artLista = [];
+  for (let de = 0; ; de += 1000) {                       // o Supabase devolve no máximo 1000 linhas por vez
+    const { data, error } = await db.from('artigos')
+      .select('id,pasta_id,drive_arquivo_id,titulo,subpasta,tamanho,paginas,status,erro,no_drive')
+      .order('titulo').range(de, de + 999);
+    if (error) { artEl('art-lista').innerHTML = `<div class="cur-aviso erro">${escHtml(error.message)}</div>`; return; }
+    artLista.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  artRender();
+}
+
+function artChip(a) {
+  if (a.status === 'indexado') return `<span class="art-ok">${a.paginas ? a.paginas + ' pág.' : 'pronto'}</span>`;
+  if (a.status === 'sem_texto') return '<span class="cur-st erro" title="PDF sem texto selecionável (escaneado)">sem texto</span>';
+  if (a.status === 'erro') return `<span class="cur-st erro" title="${escHtml(a.erro || '')}">erro</span>`;
+  if (a.status === 'analisando') return '<span class="cur-st analisando">lendo…</span>';
+  return '<span class="cur-st pendente">pendente</span>';
+}
+
+function artRender() {
+  const box = artEl('art-lista');
+  if (!box) return;
+  if (!artPastas.length) {
+    box.innerHTML = '<div class="empty"><p>Nenhuma pasta de artigos ainda. Cole acima o link da pasta do Drive.</p></div>';
+    return;
+  }
+  box.innerHTML = artPastas.map(p => {
+    const itens = artLista.filter(a => a.pasta_id === p.id);
+    const prontos = itens.filter(a => a.status === 'indexado').length;
+    const pend = itens.filter(a => a.no_drive && (a.status === 'pendente' || a.status === 'erro')).length;
+    const semTexto = itens.filter(a => a.status === 'sem_texto').length;
+    return `
+      <div class="card art-pasta">
+        <div class="art-pasta-cab">
+          <div class="art-pasta-nome" title="${escHtml(p.nome)}"><i class="ti ti-folder"></i> ${escHtml(p.nome)}</div>
+          <div class="art-pasta-meta">${prontos} de ${itens.length} lidos${semTexto ? ` · ${semTexto} sem texto` : ''}</div>
+          <div class="art-pasta-acoes">
+            <button class="btn btn-ghost cur-btn-peq" onclick="artSincronizarPasta('${p.id}')"><i class="ti ti-refresh"></i> Sincronizar</button>
+            <button class="btn btn-primary cur-btn-peq" ${pend && !artFila.rodando ? '' : 'disabled'} onclick="artIndexarPendentes('${p.id}')"><i class="ti ti-player-play"></i> Ler pendentes${pend ? ' (' + pend + ')' : ''}</button>
+            <button class="btn btn-ghost cur-btn-peq" onclick="artRemoverPasta('${p.id}')" title="Remover pasta do app"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+        <div class="art-linhas">${itens.map(a => `
+          <div class="art-linha ${a.no_drive ? '' : 'fora'}" onclick="artAbrir('${a.id}')" title="Abrir no Drive">
+            <i class="ti ti-file-text" style="color:var(--text-3)"></i>
+            <div class="art-info">
+              <div class="art-titulo">${escHtml(a.titulo)}</div>
+              ${a.subpasta ? `<div class="art-sub">${escHtml(a.subpasta)}</div>` : ''}
+            </div>
+            <div class="art-dir">
+              ${artChip(a)}
+              ${a.status !== 'pendente' && a.status !== 'analisando' ? `<button class="btn btn-ghost cur-btn-peq" title="Ler de novo" onclick="event.stopPropagation(); artReindexar('${a.id}')"><i class="ti ti-refresh"></i></button>` : ''}
+            </div>
+          </div>`).join('') || '<div class="cur-vazio">Nenhum PDF nesta pasta.</div>'}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Busca no texto dos artigos ───────────────────────────────
+
+function artBuscarDebounce() {
+  clearTimeout(artBuscaTimer);
+  artBuscaTimer = setTimeout(artBuscar, 300);
+}
+
+async function artBuscar() {
+  const termo = artEl('art-busca').value.trim();
+  const res = artEl('art-resultados');
+  const lista = artEl('art-lista');
+  if (termo.length < 2) { res.style.display = 'none'; lista.style.display = ''; return; }
+  res.style.display = 'block'; lista.style.display = 'none';
+  res.innerHTML = '<div class="loading-msg">Buscando…</div>';
+
+  const alvo = normalizarBusca(termo).replace(/[%_\\]/g, ' ');
+  const { data, error } = await db.from('artigo_trechos')
+    .select('artigo_id,pagina,ordem,texto')
+    .ilike('texto_busca', `%${alvo}%`)
+    .order('artigo_id').order('ordem')
+    .limit(300);
+  if (error) { res.innerHTML = `<div class="cur-aviso erro">${escHtml(error.message)}</div>`; return; }
+  if (!data || !data.length) { res.innerHTML = `<div class="empty"><p>Nada encontrado para "${escHtml(termo)}".</p></div>`; return; }
+
+  const grupos = new Map();
+  for (const t of data) {
+    if (!grupos.has(t.artigo_id)) grupos.set(t.artigo_id, []);
+    grupos.get(t.artigo_id).push(t);
+  }
+  res.innerHTML = [...grupos.entries()].slice(0, 40).map(([id, trechos]) => {
+    const a = artLista.find(x => x.id === id);
+    return `<div class="card cur-res-aula">
+      <div class="cur-res-cab" onclick="artAbrir('${id}')">
+        <strong>${escHtml(a ? a.titulo : 'Artigo')}</strong>
+        <span>${a && a.subpasta ? escHtml(a.subpasta) + ' · ' : ''}${trechos.length} ${trechos.length === 1 ? 'trecho' : 'trechos'}</span>
+      </div>
+      ${trechos.slice(0, 6).map(t => `<div class="cur-item" onclick="artAbrir('${id}')"><span class="cur-tempo">p. ${t.pagina}</span><span>${destacarTermo(t.texto, termo)}</span></div>`).join('')}
+    </div>`;
+  }).join('');
+}
 
 (async () => {
   const { data } = await db.auth.getSession();
