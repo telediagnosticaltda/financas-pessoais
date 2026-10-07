@@ -388,10 +388,15 @@ async function acaoResultado({ id }, chave) {
     { nome: 'cabecalho+versao', url: base,                                   cab: { 'x-goog-api-key': chave, 'Api-Revision': API_REVISION } },
     { nome: 'url+versao',       url: `${base}?key=${encodeURIComponent(chave)}`, cab: { 'Api-Revision': API_REVISION } },
     { nome: 'url',              url: `${base}?key=${encodeURIComponent(chave)}`, cab: {} },
-    { nome: 'cabecalho',        url: base,                                   cab: { 'x-goog-api-key': chave } }
+    { nome: 'cabecalho',        url: base,                                   cab: { 'x-goog-api-key': chave } },
+    // O identificador da analise pode ja carregar a propria autorizacao
+    { nome: 'sem-chave+versao', url: base,                                   cab: { 'Api-Revision': API_REVISION } },
+    { nome: 'sem-chave',        url: base,                                   cab: {} }
   ];
 
-  const relato = [];
+  // Formato do identificador (sem revelar o conteudo), para diagnostico
+  const relato = [`id: ${id.length} caracteres, comeca com "${id.slice(0, 6)}", ` +
+                  `contem ponto: ${id.includes('.') ? 'sim' : 'nao'}, contem barra: ${id.includes('/') ? 'sim' : 'nao'}`];
   let r = null, texto = '';
   for (const t of tentativas) {
     const resp = await buscarInteracao(t.url, t.cab, relato, t.nome);
@@ -405,7 +410,7 @@ async function acaoResultado({ id }, chave) {
   if (!r || !r.ok) {
     console.error('[curso resultado]', relato.join(' | '));
     const status = r?.status || 400;
-    throw erro(`Nao consegui consultar a analise (${status}). [v3]`,
+    throw erro(`Nao consegui consultar a analise (${status}). [v4]`,
                status === 404 || status >= 500 ? 503 : 502, relato);
   }
   const d = JSON.parse(texto);
