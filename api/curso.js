@@ -11,8 +11,8 @@ import { requireAuth } from './_auth.js';
 //   iniciar-envio   -> abre o envio do video para a area de arquivos do Gemini
 //   enviar-parte    -> copia um pedaco do video, do Drive direto para o Gemini
 //   estado-arquivo  -> o Gemini ja terminou de preparar o video?
-//   analisar        -> pede a analise da aula (roda em segundo plano no Google)
-//   resultado       -> a analise ficou pronta?
+//   analisar-trecho -> o Gemini assiste a um trecho de alguns minutos (cabe nos 60s)
+//   resumir         -> titulo, resumo, topicos e temas a partir do texto transcrito
 //   apagar          -> apaga o video da area temporaria do Gemini
 //
 // O video vai do Drive para o Gemini passando so pelos servidores (Vercel e
@@ -29,9 +29,7 @@ const DRIVE_BASE  = 'https://www.googleapis.com/drive/v3';
 
 const MODELOS_GEMINI = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'];
 
-// Versao do formato da API de interacoes. A documentacao atual do Google manda
-// este cabecalho na criacao e na consulta das analises em segundo plano.
-const API_REVISION = '2026-05-20';
+
 
 // Pedaco copiado por chamada. Precisa ser multiplo de 256 KB (exigencia do
 // envio em partes do Google). 32 MB cabe com folga nos 60s da Vercel.
@@ -45,28 +43,42 @@ const TEMAS = [
   'Musculoesquelético pediátrico', 'Técnica e física (RM/US/TC)'
 ];
 
-const PROMPT_AULA = `Voce esta analisando uma videoaula de um curso de RADIOLOGIA MUSCULOESQUELETICA, em portugues do Brasil, para um medico radiologista que vai estudar e pesquisar o conteudo depois.
+const CONTEXTO = `Voce esta analisando uma videoaula de um curso de RADIOLOGIA MUSCULOESQUELETICA, em portugues do Brasil, para um medico radiologista que vai estudar e pesquisar o conteudo depois.`;
 
-Assista ao video inteiro, ouvindo o audio E lendo o que aparece na tela (slides, legendas de imagens, setas, nomes escritos nos casos).
+function promptTrecho(inicio, fim) {
+  return `${CONTEXTO}
+
+Voce recebeu SOMENTE o trecho do video entre ${hms(inicio)} e ${hms(fim)}. Assista a esse trecho ouvindo o audio E lendo o que aparece na tela (slides, legendas de imagens, setas, nomes escritos nos casos).
 
 Regras importantes:
 - Transcreva a fala com fidelidade, em portugues, sem resumir. Corrija apenas erros evidentes de fala.
-- Escreva corretamente a terminologia medica, epônimos e siglas (ex.: Segond, Hill-Sachs, Bankart, Stener, LCA, LCU, STIR, DP, T1, T2). Use o texto dos slides para confirmar a grafia.
+- Escreva corretamente a terminologia medica, eponimos e siglas (ex.: Segond, Hill-Sachs, Bankart, Stener, LCA, LCU, STIR, DP, T1, T2). Use o texto dos slides para confirmar a grafia.
 - Divida a transcricao em trechos curtos (uma ou duas frases, de 10 a 40 segundos cada), cada um com o tempo de inicio.
-- Tempos no formato MM:SS, ou H:MM:SS se o video passar de uma hora. Os tempos precisam corresponder ao momento real do video.
+- Use o TEMPO ABSOLUTO do video inteiro (entre ${hms(inicio)} e ${hms(fim)}), no formato MM:SS ou H:MM:SS.
 - Em "slides", registre cada slide diferente (ou mudanca importante na tela) com o tempo em que aparece e o texto escrito nele. Se o slide so tem imagem, descreva em poucas palavras o que mostra (modalidade, sequencia, regiao, achado indicado).
-- Em "topicos", liste as grandes partes da aula com o tempo de inicio.
-- Em "temas", escolha UM OU MAIS da lista abaixo que a aula realmente aborda (nao invente temas fora da lista):
+- Se uma frase estiver cortada no inicio ou no fim do trecho, transcreva apenas a parte que esta dentro dele.
+
+Responda SOMENTE com um JSON valido, sem texto antes ou depois e sem crases, neste formato:
+{
+  "slides": [{ "inicio": "00:00", "texto": "..." }],
+  "transcricao": [{ "inicio": "00:00", "texto": "..." }]
+}`;
+}
+
+const PROMPT_RESUMO = `${CONTEXTO}
+
+Abaixo estao a transcricao completa da aula (com tempos) e o texto dos slides. Com base neles:
+- escreva um titulo curto e um resumo de 3 a 6 frases;
+- liste as grandes partes da aula em "topicos", cada uma com o tempo de inicio tirado da transcricao;
+- escolha em "temas" UM OU MAIS da lista abaixo que a aula realmente aborda (nao invente temas fora da lista):
 ${TEMAS.map(t => '  - ' + t).join('\n')}
 
 Responda SOMENTE com um JSON valido, sem texto antes ou depois e sem crases, neste formato:
 {
-  "titulo": "titulo curto da aula",
-  "resumo": "resumo de 3 a 6 frases do conteudo",
+  "titulo": "...",
+  "resumo": "...",
   "temas": ["..."],
-  "topicos": [{ "inicio": "00:00", "titulo": "..." }],
-  "slides": [{ "inicio": "00:00", "texto": "..." }],
-  "transcricao": [{ "inicio": "00:00", "texto": "..." }]
+  "topicos": [{ "inicio": "00:00", "titulo": "..." }]
 }`;
 
 // Preco do Gemini Flash no plano pago, em US$ por milhao de tokens.
@@ -305,138 +317,118 @@ async function acaoEstadoArquivo({ nome }, chave) {
   return { estado: d.state, uri: d.uri, tipo: d.mimeType };
 }
 
-async function acaoAnalisar({ uri, tipo }, chave) {
-  if (!/^https:\/\/generativelanguage\.googleapis\.com\//.test(uri || '')) throw erro('Video invalido.', 400);
+function hms(seg) {
+  seg = Math.max(0, Math.round(seg));
+  const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), x = seg % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`
+           : `${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`;
+}
 
-  // Um quadro a cada 5 segundos basta para ler os slides (mudam devagar) e
-  // reduz bastante o custo. Se o Google recusar algum ajuste, tenta sem ele.
-  const variacoes = [
-    { processing: { type: 'static', fps: 0.2 }, media_resolution: 'high' },
-    { processing: { type: 'static', fps: 0.2 } },
-    {}
-  ];
+function seg(txt) {
+  const p = String(txt || '').trim().split(':').map(Number);
+  if (!p.length || p.some(isNaN)) return null;
+  return p.reduce((a, n) => a * 60 + n, 0);
+}
 
+// Uma chamada direta ao Gemini (sem segundo plano), com troca de modelo em
+// sobrecarga. "prazo" e o horario-limite: a Vercel corta a funcao aos 60s.
+async function chamarGeminiDireto(chave, montarInput, prazo) {
   const vistos = [];
   for (const modelo of MODELOS_GEMINI) {
-    for (const ajuste of variacoes) {
-      const res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave, 'Api-Revision': API_REVISION },
-        body: JSON.stringify({
-          model: modelo,
-          background: true,
-          input: [
-            { type: 'video', uri, mime_type: tipo || 'video/mp4', ...ajuste },
-            { type: 'text', text: PROMPT_AULA }
-          ]
-        })
-      });
+    for (let variacao = 0; variacao < 3; variacao++) {
+      const resta = prazo - Date.now();
+      if (resta < 8000) throw erro('Tempo esgotado neste trecho.', 504, vistos);
 
-      const texto = await res.text();
-      if (res.ok) {
-        let d = {};
-        try { d = JSON.parse(texto); } catch { /* segue */ }
-        const inter = d.interaction || d;
-        if (inter.id) return { id: inter.id, modelo, ajuste: Object.keys(ajuste).join('+') || 'padrao' };
-        vistos.push(`${modelo}: resposta sem id`);
-        continue;
+      const controle = new AbortController();
+      const timer = setTimeout(() => controle.abort(), resta);
+      let res, texto;
+      try {
+        res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
+          body: JSON.stringify({ model: modelo, input: montarInput(variacao) }),
+          signal: controle.signal
+        });
+        texto = await res.text();
+      } catch (e) {
+        if (e.name === 'AbortError') throw erro('Tempo esgotado neste trecho.', 504, vistos);
+        throw e;
+      } finally {
+        clearTimeout(timer);
       }
 
-      const msg = mensagemGoogle(texto).slice(0, 200);
-      vistos.push(`${modelo} ${res.status}: ${msg}`);
-      console.error('[curso analisar]', modelo, res.status, msg);
+      if (res.ok) {
+        const inter = (() => { try { const d = JSON.parse(texto); return d.interaction || d; } catch { return {}; } })();
+        const saida = textoDaInteracao(inter);
+        if (!saida) { vistos.push(`${modelo}: resposta vazia`); continue; }
+        try { return { dados: lerJson(saida), uso: resumirUso(inter), modelo, variacao }; }
+        catch { vistos.push(`${modelo}: resposta fora do formato`); continue; }
+      }
 
-      if (res.status === 400) continue;                       // tenta sem o ajuste
-      if (res.status === 404 || res.status >= 500) break;      // proximo modelo
-      if (res.status === 429) throw erro('Limite de uso do Gemini atingido. Tente de novo em alguns minutos.', 429);
-      if (res.status === 401 || res.status === 403) throw erro('A chave do Gemini foi recusada. Confira a GEMINI_API_KEY na Vercel.', 403);
+      const msg = mensagemGoogle(texto).slice(0, 160);
+      vistos.push(`${modelo} ${res.status}: ${msg}`);
+      console.error('[curso gemini]', modelo, res.status, msg);
+      if (res.status === 400) continue;                     // tenta sem algum ajuste
+      if (res.status === 404 || res.status >= 500) break;    // proximo modelo
+      if (res.status === 429) throw erro('Limite de uso do Gemini atingido. Tente de novo em alguns minutos.', 429, vistos);
+      if (res.status === 401 || res.status === 403) {
+        if (/file|not exist|permission/i.test(msg)) throw erro('O video expirou na area temporaria do Gemini.', 410, vistos);
+        throw erro('A chave do Gemini foi recusada. Confira a GEMINI_API_KEY na Vercel.', 403, vistos);
+      }
       break;
     }
   }
-  throw erro('O Gemini nao aceitou analisar o video.', 502, vistos);
+  throw erro('O Gemini nao conseguiu analisar este trecho.', 502, vistos);
 }
 
-// Quando a resposta e grande, o Google pode redirecionar para um endereco
-// temporario que ja traz a propria autorizacao embutida. Se a chave for junto
-// nesse redirecionamento, o Google reclama de "credenciais duplicadas".
-// Por isso o redirecionamento e seguido a mao, sem a chave.
-async function buscarInteracao(url, cabecalhos, relato = [], nome = '') {
-  let r = await fetch(url, { headers: cabecalhos, redirect: 'manual' });
-  for (let saltos = 0; saltos < 3 && r.status >= 300 && r.status < 400; saltos++) {
-    const destino = r.headers.get('location');
-    if (!destino) break;
-    const proximo = new URL(destino, url);
-    relato.push(`${nome}: redirecionou para ${proximo.host}`);
-    // O endereco temporario ja traz a propria autorizacao: vai sem a chave
-    proximo.searchParams.delete('key');
-    const semChave = { ...cabecalhos };
-    delete semChave['x-goog-api-key'];
-    r = await fetch(proximo.toString(), { headers: semChave, redirect: 'manual' });
-  }
-  return r;
+// Analisa um trecho do video (alguns minutos), dentro do limite de 60s
+async function acaoAnalisarTrecho({ uri, tipo, inicio, fim }, chave) {
+  if (!/^https:\/\/generativelanguage\.googleapis\.com\//.test(uri || '')) throw erro('Video invalido.', 400);
+  inicio = Math.max(0, Math.floor(Number(inicio) || 0));
+  fim = Math.ceil(Number(fim) || 0);
+  if (!(fim > inicio)) throw erro('Trecho invalido.', 400);
+
+  const prazo = Date.now() + 54_000;
+  const r = await chamarGeminiDireto(chave, (variacao) => {
+    // Um quadro a cada 5 s basta para ler os slides. Se o Google recusar
+    // algum ajuste, as variacoes seguintes tiram os opcionais (o recorte fica).
+    const processing = { type: 'static', start_offset: inicio, end_offset: fim };
+    if (variacao < 2) processing.fps = 0.2;
+    const video = { type: 'video', uri, mime_type: tipo || 'video/mp4', processing };
+    if (variacao === 0) video.media_resolution = 'high';
+    return [video, { type: 'text', text: promptTrecho(inicio, fim) }];
+  }, prazo);
+
+  // Se o Gemini devolveu tempos contados a partir do inicio do trecho (e nao
+  // do video inteiro), corrige somando o inicio do trecho.
+  const listas = [r.dados.slides || [], r.dados.transcricao || []];
+  const tempos = listas.flat().map(x => seg(x.inicio)).filter(t => t != null);
+  const relativo = inicio >= 30 && tempos.length && tempos.some(t => t < inicio - 5);
+  const ajustar = arr => arr.map(x => {
+    let t = seg(x.inicio); if (t == null) t = inicio;
+    if (relativo) t += inicio;
+    t = Math.min(Math.max(t, inicio), fim);
+    return { ...x, inicio: hms(t) };
+  });
+
+  return {
+    slides: ajustar(r.dados.slides || []),
+    transcricao: ajustar(r.dados.transcricao || []),
+    uso: r.uso, modelo: r.modelo, variacao: r.variacao
+  };
 }
 
-async function acaoResultado({ id }, chave) {
-  if (!/^[A-Za-z0-9_.\/-]+$/.test(id || '')) throw erro('Analise invalida.', 400);
-  const caminho = id.startsWith('interactions/') ? id : `interactions/${id}`;
-  const base = `${GEMINI_BASE}/v1beta/${caminho}`;
+// Titulo, resumo, topicos e temas, a partir do texto ja transcrito (barato)
+async function acaoResumir({ transcricao, slides }, chave) {
+  const linhas = (arr, campo) => (Array.isArray(arr) ? arr : [])
+    .map(x => `[${x.inicio}] ${String(x[campo] || '').slice(0, 800)}`).join('\n');
+  const texto = `TRANSCRICAO:\n${linhas(transcricao, 'texto')}\n\nSLIDES:\n${linhas(slides, 'texto')}`.slice(0, 400_000);
 
-  // O Google recusou a consulta com "credenciais duplicadas". Para descobrir
-  // qual forma ele aceita, tenta algumas, da mais provavel para a menos, e
-  // guarda o que aconteceu em cada uma para mostrar na tela se todas falharem.
-  const tentativas = [
-    { nome: 'cabecalho+versao', url: base,                                   cab: { 'x-goog-api-key': chave, 'Api-Revision': API_REVISION } },
-    { nome: 'url+versao',       url: `${base}?key=${encodeURIComponent(chave)}`, cab: { 'Api-Revision': API_REVISION } },
-    { nome: 'url',              url: `${base}?key=${encodeURIComponent(chave)}`, cab: {} },
-    { nome: 'cabecalho',        url: base,                                   cab: { 'x-goog-api-key': chave } },
-    // O identificador da analise pode ja carregar a propria autorizacao
-    { nome: 'sem-chave+versao', url: base,                                   cab: { 'Api-Revision': API_REVISION } },
-    { nome: 'sem-chave',        url: base,                                   cab: {} }
-  ];
-
-  // Formato do identificador (sem revelar o conteudo), para diagnostico
-  const relato = [`id: ${id.length} caracteres, comeca com "${id.slice(0, 6)}", ` +
-                  `contem ponto: ${id.includes('.') ? 'sim' : 'nao'}, contem barra: ${id.includes('/') ? 'sim' : 'nao'}`];
-  let r = null, texto = '';
-  for (const t of tentativas) {
-    const resp = await buscarInteracao(t.url, t.cab, relato, t.nome);
-    const corpo = await resp.text();
-    if (resp.ok) { r = resp; texto = corpo; break; }
-    relato.push(`${t.nome}: ${resp.status} ${mensagemGoogle(corpo).slice(0, 120)}`);
-    // Erros que nao dependem da forma de autorizar: nao adianta insistir
-    if (resp.status === 404 || resp.status >= 500) { r = resp; texto = corpo; break; }
-  }
-
-  if (!r || !r.ok) {
-    console.error('[curso resultado]', relato.join(' | '));
-    const status = r?.status || 400;
-    throw erro(`Nao consegui consultar a analise (${status}). [v4]`,
-               status === 404 || status >= 500 ? 503 : 502, relato);
-  }
-  const d = JSON.parse(texto);
-  const inter = d.interaction || d;
-  const status = String(inter.status || '').toLowerCase();
-
-  if (['in_progress', 'queued', 'pending', 'running'].includes(status)) {
-    return { pronto: false, status };
-  }
-  if (['failed', 'cancelled', 'canceled', 'error'].includes(status)) {
-    const motivo = inter.error?.message || inter.status_message || status;
-    throw erro(`O Gemini nao conseguiu terminar a analise: ${motivo}`, 502);
-  }
-
-  const saida = textoDaInteracao(inter);
-  if (!saida) return { pronto: false, status: status || 'sem_saida' };
-
-  const uso = resumirUso(inter);
-  let dados;
-  try {
-    dados = lerJson(saida);
-  } catch {
-    // Devolve o texto cru para nao perder a analise ja paga
-    return { pronto: true, uso, dados: null, textoCru: saida.slice(0, 200_000) };
-  }
-  return { pronto: true, uso, dados };
+  const r = await chamarGeminiDireto(chave, () => [
+    { type: 'text', text: texto },
+    { type: 'text', text: PROMPT_RESUMO }
+  ], Date.now() + 54_000);
+  return { ...r.dados, uso: r.uso, modelo: r.modelo };
 }
 
 async function acaoApagar({ nome }, chave) {
@@ -463,16 +455,16 @@ export default async function handler(req, res) {
       case 'enviar-parte':   saida = await acaoEnviarParte(corpo); break;
       case 'iniciar-envio':
       case 'estado-arquivo':
-      case 'analisar':
-      case 'resultado':
+      case 'analisar-trecho':
+      case 'resumir':
       case 'apagar': {
         if (!chave) throw erro('GEMINI_API_KEY nao configurada na Vercel.', 500);
         const mapa = {
-          'iniciar-envio':  acaoIniciarEnvio,
-          'estado-arquivo': acaoEstadoArquivo,
-          'analisar':       acaoAnalisar,
-          'resultado':      acaoResultado,
-          'apagar':         acaoApagar
+          'iniciar-envio':   acaoIniciarEnvio,
+          'estado-arquivo':  acaoEstadoArquivo,
+          'analisar-trecho': acaoAnalisarTrecho,
+          'resumir':         acaoResumir,
+          'apagar':          acaoApagar
         };
         saida = await mapa[corpo.acao](corpo, chave);
         break;
