@@ -1154,6 +1154,70 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 @media (prefers-reduced-motion: reduce) {
   .page.active { animation: none; }
 }
+/* ── CURSOS ── */
+.cur-intro { font-size: 13px; color: var(--text-2); max-width: 680px; line-height: 1.6; margin: -.25rem 0 1rem; }
+.cur-abrir { margin-bottom: 1rem; }
+.cur-abrir label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+.cur-abrir-linha { display: flex; gap: 8px; }
+.cur-abrir-linha input { flex: 1; min-width: 0; padding: 9px 12px; font-size: 13px; }
+.cur-dica { font-size: 11.5px; color: var(--text-3); margin-top: 6px; line-height: 1.5; }
+.cur-aviso { margin-top: .75rem; padding: .625rem .75rem; border-radius: var(--radius); font-size: 12.5px; line-height: 1.5;
+  background: #FFFBEA; border: 1px solid #FCD34D; color: #92400E; }
+.cur-aviso.erro { background: var(--red-l); border-color: #F5B5AA; color: #8E2A1B; }
+
+.cur-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.cur-col-video, .cur-col-texto { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.cur-col-texto { position: sticky; top: 1rem; }
+
+/* Sala de laudo: o vídeo fica num fundo escuro, como na estação de trabalho */
+.cur-video-box { background: #0D101C; border-radius: var(--radius-xl); overflow: hidden; aspect-ratio: 16 / 9; display: flex; }
+.cur-video-box video { width: 100%; height: 100%; background: #0D101C; outline: none; }
+.cur-video-barra { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-top: -.25rem; }
+.cur-nome { font-size: 14px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.cur-vel { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.cur-vel button { font-family: var(--font); font-size: 11.5px; font-weight: 600; color: var(--text-3); background: none; border: none;
+  border-radius: 6px; padding: 4px 8px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.cur-vel button:hover { color: var(--text); }
+.cur-vel button.active { color: var(--primary); background: var(--primary-l); }
+
+.cur-analise #cur-analise-inicio { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.cur-analise-txt { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--text-2); flex: 1; min-width: 220px; }
+.cur-analise-txt strong { font-size: 13.5px; color: var(--text); }
+.cur-etapa { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.cur-barra { height: 6px; background: var(--border-2); border-radius: 6px; overflow: hidden; }
+.cur-barra div { height: 100%; width: 0; background: var(--primary); border-radius: 6px; transition: width .4s; }
+.cur-barra.indef div { width: 30%; animation: cur-indef 1.4s ease-in-out infinite; }
+@keyframes cur-indef { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+
+.cur-resumo h2 { font-size: 17px; font-weight: 700; letter-spacing: -.02em; margin-bottom: .5rem; }
+.cur-resumo p { font-size: 13px; color: var(--text-2); line-height: 1.65; }
+.cur-temas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: .875rem; }
+.cur-tema { font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: var(--primary-l); color: var(--primary-d); }
+.cur-custo { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--border-2); font-size: 11.5px; color: var(--text-3); line-height: 1.6; font-variant-numeric: tabular-nums; }
+.cur-custo strong { color: var(--text-2); }
+
+.cur-painel { padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 2rem); }
+.cur-abas { display: flex; border-bottom: 1px solid var(--border); padding: 0 .75rem; }
+.cur-abas button { font-family: var(--font); font-size: 12.5px; font-weight: 600; color: var(--text-3); background: none; border: none;
+  padding: .8rem .6rem .7rem; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.cur-abas button.active { color: var(--primary); border-bottom-color: var(--primary); }
+#cur-busca { margin: .75rem .9rem .25rem; padding: 7px 10px; font-size: 12.5px; }
+.cur-lista { overflow-y: auto; padding: .25rem .4rem .75rem; flex: 1; }
+.cur-item { display: flex; gap: .6rem; padding: .45rem .5rem; border-radius: 8px; cursor: pointer; font-size: 13px; line-height: 1.55; }
+.cur-item:hover { background: var(--surface-2); }
+.cur-item.atual { background: var(--primary-l); }
+.cur-tempo { flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--primary); font-variant-numeric: tabular-nums; padding-top: 2px; min-width: 38px; }
+.cur-item mark { background: #FFE58F; color: inherit; border-radius: 2px; padding: 0 1px; }
+.cur-vazio { font-size: 12.5px; color: var(--text-3); padding: 1.5rem 1rem; text-align: center; }
+
+@media (max-width: 1000px) {
+  .cur-layout { grid-template-columns: 1fr; }
+  .cur-col-texto { position: static; }
+  .cur-painel { max-height: 70vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cur-barra.indef div { animation: none; width: 100%; opacity: .5; }
+}
 </style>
 </head>
 <body>
@@ -1211,6 +1275,9 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     </button>
     <button class="nav-item" data-page="receitas" onclick="navigate('receitas')">
       <i class="ti ti-chef-hat"></i> Receitas
+    </button>
+    <button class="nav-item" data-page="cursos" onclick="navigate('cursos')">
+      <i class="ti ti-school"></i> Cursos
     </button>
     <div class="nav-label" style="margin-top:auto">Configurações</div>
     <button class="nav-item" data-page="categories" onclick="navigate('categories')">
@@ -1577,15 +1644,15 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 
         <div class="panel">
           <div class="panel-header">
-            <span class="panel-title">Autorização do Gmail</span>
+            <span class="panel-title">Autorização do Google</span>
           </div>
           <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
-            Conecte sua conta Google para que o app possa buscar faturas automaticamente.
-            Caso o botão "Sincronizar Gmail" esteja retornando erro, clique aqui para renovar a autorização.
+            Conecte sua conta Google para que o app possa buscar faturas no Gmail e tocar as aulas
+            guardadas no seu Drive (aba Cursos). Caso o Gmail ou o Drive retornem erro, clique aqui para renovar a autorização.
           </p>
           <div id="gmail-auth-status" style="margin-bottom:.875rem;font-size:13px"></div>
-          <button class="btn btn-primary" onclick="window.location.href='/api/gmail-auth'">
-            <i class="ti ti-brand-google"></i> Autorizar Gmail
+          <button class="btn btn-primary" onclick="window.location.href='/api/gmail-callback?iniciar=1'">
+            <i class="ti ti-brand-google"></i> Autorizar Google
           </button>
         </div>
       </div>
@@ -1722,6 +1789,82 @@ tr.duplicate-row:hover { background: #FFF6D6; }
       </div>
 
       <div id="rec-grid"><div class="loading-msg">Carregando...</div></div>
+    </div>
+
+    <!-- PAGE: CURSOS (fase de teste) -->
+    <div id="page-cursos" class="page">
+      <div class="page-header">
+        <h1 class="page-title">Cursos</h1>
+      </div>
+
+      <p class="cur-intro">
+        Teste: abra uma aula guardada no seu Google Drive, assista aqui e peça ao Gemini para transcrever,
+        ler os slides e sugerir os temas. O resultado fica salvo só neste navegador por enquanto.
+      </p>
+
+      <div class="card cur-abrir">
+        <label for="cur-link">Link do vídeo no Drive</label>
+        <div class="cur-abrir-linha">
+          <input type="text" id="cur-link" placeholder="https://drive.google.com/file/d/..."
+                 onkeydown="if (event.key === 'Enter') abrirAulaCurso()">
+          <button class="btn btn-primary" id="cur-abrir-btn" onclick="abrirAulaCurso()">
+            <i class="ti ti-player-play"></i> Abrir aula
+          </button>
+        </div>
+        <div class="cur-dica">No Drive, clique com o botão direito no vídeo → Compartilhar → Copiar link. O vídeo pode continuar privado.</div>
+        <div id="cur-aviso" class="cur-aviso" style="display:none"></div>
+      </div>
+
+      <div id="cur-aula" style="display:none">
+        <div class="cur-layout">
+          <div class="cur-col-video">
+            <div class="cur-video-box">
+              <video id="cur-video" controls preload="metadata" playsinline></video>
+            </div>
+            <div class="cur-video-barra">
+              <div class="cur-nome" id="cur-nome"></div>
+              <div class="cur-vel" id="cur-vel">
+                <button data-v="1" class="active" onclick="velocidadeCurso(1)">1x</button>
+                <button data-v="1.25" onclick="velocidadeCurso(1.25)">1,25x</button>
+                <button data-v="1.5" onclick="velocidadeCurso(1.5)">1,5x</button>
+                <button data-v="1.75" onclick="velocidadeCurso(1.75)">1,75x</button>
+                <button data-v="2" onclick="velocidadeCurso(2)">2x</button>
+              </div>
+            </div>
+
+            <div class="card cur-analise">
+              <div id="cur-analise-inicio">
+                <div class="cur-analise-txt">
+                  <strong>Analisar com Gemini</strong>
+                  <span id="cur-estimativa">O Gemini assiste à aula inteira e devolve transcrição, slides, tópicos e temas.</span>
+                </div>
+                <button class="btn btn-primary" id="cur-analisar-btn" onclick="analisarAulaCurso()">
+                  <i class="ti ti-sparkles"></i> Analisar aula
+                </button>
+              </div>
+              <div id="cur-progresso" style="display:none">
+                <div class="cur-etapa" id="cur-etapa">Preparando…</div>
+                <div class="cur-barra"><div id="cur-barra-fill"></div></div>
+                <div class="cur-dica">Pode deixar a aba aberta e fazer outra coisa. Não feche nem recarregue a página até terminar.</div>
+              </div>
+            </div>
+
+            <div id="cur-resumo-box"></div>
+          </div>
+
+          <div class="cur-col-texto">
+            <div class="card cur-painel" id="cur-painel" style="display:none">
+              <div class="cur-abas">
+                <button class="active" data-aba="transcricao" onclick="abaCurso('transcricao')">Transcrição</button>
+                <button data-aba="slides" onclick="abaCurso('slides')">Slides</button>
+                <button data-aba="topicos" onclick="abaCurso('topicos')">Tópicos</button>
+              </div>
+              <input type="text" id="cur-busca" placeholder="Buscar um termo nesta aula…" oninput="renderPainelCurso()">
+              <div id="cur-lista" class="cur-lista"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -2426,6 +2569,7 @@ function navigate(page) {
   if (page === 'employees')    initEmpNav();
   if (page === 'ir')           initIrNav();
   if (page === 'receitas')     loadReceitasPage();
+  if (page === 'cursos')       loadCursosPage();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3479,7 +3623,7 @@ async function runGmailSync(days = 50) {
 
     if (!data.success) {
       if (data.error?.includes('gmail-auth') || data.error?.includes('autorizado')) {
-        if (confirm('Gmail não autorizado. Abrir tela de autorização?')) window.open('/api/gmail-auth', '_blank');
+        if (confirm('Gmail não autorizado. Abrir tela de autorização?')) window.open('/api/gmail-callback?iniciar=1', '_blank');
       } else {
         alert('Erro:\n' + (data.error || data.log?.join('\n')));
       }
@@ -6516,6 +6660,417 @@ async function doLogout() {
     if (e.key === 'Enter') doLogin();
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// CURSOS (fase de teste)
+// O vídeo fica privado no Drive. O player pede o vídeo a um endereço do
+// próprio app (/__drive/ID) e o service worker (sw.js) busca no Drive com a
+// sua autorização. Para a análise, o vídeo vai do Drive direto para o Gemini
+// pelos servidores (api/curso.js), em pedaços.
+// ─────────────────────────────────────────────────────────────
+const CUR_CACHE      = 'financas-drive';
+const CUR_PRECO_IN   = 0.75;   // US$ por milhão de tokens (Gemini Flash, pago, até 31/12/2026)
+const CUR_PRECO_OUT  = 3.75;
+let curAula      = null;       // { id, nome, tamanho, tipo, duracaoMs }
+let curAnalise   = null;       // resultado do Gemini
+let curAba       = 'transcricao';
+let curTokenAte  = 0;
+let curTokenTimer = null;
+let curOcupado   = false;
+
+async function cursoApi(acao, dados = {}) {
+  const res = await fetch('/api/curso', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ acao, ...dados })
+  });
+  let corpo = {};
+  try { corpo = await res.json(); } catch { /* resposta vazia */ }
+  if (!res.ok) {
+    const e = new Error(corpo.error || `Erro ${res.status}`);
+    e.status = res.status;
+    throw e;
+  }
+  return corpo;
+}
+
+function loadCursosPage() {
+  if (!('serviceWorker' in navigator)) {
+    avisoCurso('Este navegador não permite tocar vídeos privados do Drive dentro do app.', true);
+  }
+}
+
+function avisoCurso(msg, erro = false) {
+  const el = document.getElementById('cur-aviso');
+  if (!msg) { el.style.display = 'none'; return; }
+  el.className = 'cur-aviso' + (erro ? ' erro' : '');
+  el.innerHTML = msg;
+  el.style.display = 'block';
+}
+
+function extrairIdDrive(link) {
+  const t = String(link || '').trim();
+  const m = t.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/) ||
+            t.match(/[?&]id=([A-Za-z0-9_-]{10,})/) ||
+            t.match(/^([A-Za-z0-9_-]{20,})$/);
+  return m ? m[1] : null;
+}
+
+// Entrega ao service worker uma chave temporária (1h) do Drive
+async function garantirTokenDrive(forcar = false) {
+  if (!forcar && Date.now() < curTokenAte - 5 * 60_000) return;
+  const { access_token, expires_in } = await cursoApi('token');
+  const cache = await caches.open(CUR_CACHE);
+  await cache.put('/__drive-token', new Response(access_token));
+  curTokenAte = Date.now() + (expires_in || 3600) * 1000;
+
+  // Renova sozinho enquanto a aba estiver aberta
+  clearTimeout(curTokenTimer);
+  curTokenTimer = setTimeout(() => garantirTokenDrive(true).catch(() => {}), Math.max(60_000, (expires_in || 3600) * 1000 - 10 * 60_000));
+}
+
+function formatarTamanho(b) {
+  if (!b) return '';
+  if (b >= 1e9) return (b / 1e9).toFixed(2).replace('.', ',') + ' GB';
+  return Math.round(b / 1e6) + ' MB';
+}
+
+function formatarTempoCurso(seg) {
+  seg = Math.max(0, Math.floor(seg || 0));
+  const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = seg % 60;
+  const mm = String(m).padStart(h ? 2 : 1, '0'), ss = String(s).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function lerTempoCurso(txt) {
+  const p = String(txt || '').trim().split(':').map(Number);
+  if (p.some(isNaN)) return 0;
+  return p.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+async function abrirAulaCurso() {
+  const id = extrairIdDrive(document.getElementById('cur-link').value);
+  avisoCurso('');
+  if (!id) { avisoCurso('Não reconheci esse link. Cole o link de compartilhamento do vídeo no Drive.', true); return; }
+
+  if (!navigator.serviceWorker?.controller) {
+    avisoCurso('O ajudante do app ainda não está ativo nesta aba. Recarregue a página (F5) e abra a aula de novo.', true);
+    return;
+  }
+
+  const btn = document.getElementById('cur-abrir-btn');
+  btn.disabled = true;
+  try {
+    await garantirTokenDrive();
+    const info = await cursoApi('info', { id });
+    if (!/^video\//.test(info.tipo || '')) {
+      avisoCurso(`"${escHtml(info.nome)}" não é um vídeo (${escHtml(info.tipo)}).`, true);
+      return;
+    }
+    curAula = info;
+    curAnalise = null;
+
+    document.getElementById('cur-nome').textContent = info.nome;
+    document.getElementById('cur-nome').title = `${info.nome} — ${formatarTamanho(info.tamanho)}`;
+    const video = document.getElementById('cur-video');
+    video.src = `/__drive/${info.id}`;
+    video.playbackRate = 1;
+    marcarVelocidade(1);
+    document.getElementById('cur-aula').style.display = 'block';
+
+    // Resultado já pago em análise anterior desta aula, guardado neste navegador
+    try {
+      const salvo = localStorage.getItem('curso-analise-' + info.id);
+      if (salvo) curAnalise = JSON.parse(salvo);
+    } catch { /* sem armazenamento local */ }
+
+    atualizarEstimativaCurso();
+    renderAnaliseCurso();
+  } catch (e) {
+    const msg = e.status === 403
+      ? `${escHtml(e.message)} <br><a href="/api/gmail-callback?iniciar=1">Autorizar Google agora</a>`
+      : escHtml(e.message);
+    avisoCurso(msg, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Se a chave temporária venceu no meio da aula, renova e continua de onde parou
+(function iniciarPlayerCurso() {
+  const video = document.getElementById('cur-video');
+  if (!video) return;
+  let tentou = false;
+  let voltarPara = null;
+  video.addEventListener('error', async () => {
+    if (!curAula || tentou) {
+      if (curAula) avisoCurso('O vídeo não carregou. Confira se o arquivo é MP4 e se a autorização do Google inclui o Drive.', true);
+      return;
+    }
+    tentou = true;
+    const pos = video.currentTime;
+    try {
+      await garantirTokenDrive(true);
+      voltarPara = pos;
+      video.src = `/__drive/${curAula.id}?r=${Date.now()}`;
+    } catch (e) { avisoCurso(escHtml(e.message), true); }
+  });
+  video.addEventListener('loadedmetadata', () => {
+    tentou = false;
+    if (voltarPara != null) { video.currentTime = voltarPara; voltarPara = null; video.play().catch(() => {}); }
+    atualizarEstimativaCurso();
+  });
+  video.addEventListener('timeupdate', destacarTrechoAtual);
+})();
+
+function marcarVelocidade(v) {
+  document.querySelectorAll('#cur-vel button').forEach(b => b.classList.toggle('active', Number(b.dataset.v) === v));
+}
+
+function velocidadeCurso(v) {
+  document.getElementById('cur-video').playbackRate = v;
+  marcarVelocidade(v);
+}
+
+function pularCurso(seg) {
+  const video = document.getElementById('cur-video');
+  video.currentTime = seg;
+  video.play().catch(() => {});
+}
+
+function duracaoAulaSeg() {
+  const v = document.getElementById('cur-video');
+  if (v && isFinite(v.duration) && v.duration > 0) return v.duration;
+  return (curAula?.duracaoMs || 0) / 1000;
+}
+
+// Estimativa: 1 quadro a cada 5 s em alta resolução + áudio ≈ 84 tokens/s de entrada;
+// saída (transcrição + slides + raciocínio) ≈ 30 mil tokens por hora.
+function estimarCustoCurso(seg) {
+  const entrada = seg * 84;
+  const saida = (seg / 3600) * 30000;
+  return (entrada * CUR_PRECO_IN + saida * CUR_PRECO_OUT) / 1e6;
+}
+
+function atualizarEstimativaCurso() {
+  const el = document.getElementById('cur-estimativa');
+  if (!el) return;
+  const seg = duracaoAulaSeg();
+  if (curAnalise) {
+    el.textContent = 'Esta aula já foi analisada. Analisar de novo gera uma nova cobrança.';
+  } else if (seg) {
+    const usd = estimarCustoCurso(seg);
+    el.textContent = `Aula de ${formatarTempoCurso(seg)}. Custo estimado: cerca de US$ ${usd.toFixed(2).replace('.', ',')}.`;
+  }
+  document.getElementById('cur-analisar-btn').innerHTML = curAnalise
+    ? '<i class="ti ti-refresh"></i> Analisar de novo'
+    : '<i class="ti ti-sparkles"></i> Analisar aula';
+}
+
+function etapaCurso(texto, pct = null) {
+  document.getElementById('cur-etapa').textContent = texto;
+  const barra = document.getElementById('cur-barra-fill').parentElement;
+  if (pct == null) {
+    barra.classList.add('indef');
+    document.getElementById('cur-barra-fill').style.width = '';
+  } else {
+    barra.classList.remove('indef');
+    document.getElementById('cur-barra-fill').style.width = Math.round(pct) + '%';
+  }
+}
+
+const esperarCurso = ms => new Promise(r => setTimeout(r, ms));
+
+async function analisarAulaCurso() {
+  if (!curAula || curOcupado) return;
+  const seg = duracaoAulaSeg();
+  const est = seg ? ` (estimativa: cerca de US$ ${estimarCustoCurso(seg).toFixed(2).replace('.', ',')})` : '';
+  const pergunta = (curAnalise ? 'Esta aula já tem uma análise guardada. Analisar de novo gera nova cobrança' : 'O Gemini vai assistir à aula inteira. Isso tem custo no plano pago')
+                 + est + '. Continuar?';
+  if (!confirm(pergunta)) return;
+
+  curOcupado = true;
+  avisoCurso('');
+  document.getElementById('cur-analise-inicio').style.display = 'none';
+  document.getElementById('cur-progresso').style.display = 'block';
+
+  let arquivoGemini = null;
+  try {
+    // 1. Copia o vídeo do Drive para o Gemini, em pedaços
+    etapaCurso('Enviando o vídeo do Drive para o Gemini…', 0);
+    const envio = await cursoApi('iniciar-envio', { id: curAula.id });
+    let offset = 0, falhasSeguidas = 0;
+    while (true) {
+      let parte;
+      try {
+        parte = await cursoApi('enviar-parte', {
+          id: curAula.id, enderecoEnvio: envio.enderecoEnvio, offset, tamanho: envio.tamanho
+        });
+        falhasSeguidas = 0;
+      } catch (e) {
+        // Uma falha de rede num pedaço não perde o que já foi enviado: tenta de novo
+        if (++falhasSeguidas > 3 || e.status === 400 || e.status === 401) throw e;
+        await esperarCurso(3000 * falhasSeguidas);
+        continue;
+      }
+      offset = parte.offset;
+      etapaCurso(`Enviando o vídeo do Drive para o Gemini… ${formatarTamanho(offset)} de ${formatarTamanho(envio.tamanho)}`,
+                 (offset / envio.tamanho) * 100);
+      if (parte.terminou) { arquivoGemini = parte.arquivo; break; }
+    }
+
+    // 2. Espera o Gemini preparar o vídeo
+    etapaCurso('O Gemini está preparando o vídeo…');
+    let estado = arquivoGemini.estado, uri = arquivoGemini.uri, tipo = arquivoGemini.tipo;
+    const limitePrep = Date.now() + 15 * 60_000;
+    while (estado !== 'ACTIVE') {
+      if (estado === 'FAILED') throw new Error('O Gemini não conseguiu ler esse arquivo de vídeo.');
+      if (Date.now() > limitePrep) throw new Error('O Gemini demorou demais para preparar o vídeo. Tente de novo mais tarde.');
+      await esperarCurso(4000);
+      const st = await cursoApi('estado-arquivo', { nome: arquivoGemini.nome });
+      estado = st.estado; uri = st.uri || uri; tipo = st.tipo || tipo;
+    }
+
+    // 3. Pede a análise (roda em segundo plano no Google)
+    etapaCurso('O Gemini está assistindo à aula. Isso costuma levar alguns minutos…');
+    const pedido = await cursoApi('analisar', { uri, tipo });
+    const inicio = Date.now();
+    let resultado = null;
+    while (!resultado) {
+      if (Date.now() - inicio > 40 * 60_000) throw new Error('A análise passou de 40 minutos sem terminar. Tente de novo mais tarde.');
+      await esperarCurso(8000);
+      let r;
+      try { r = await cursoApi('resultado', { id: pedido.id }); }
+      catch (e) { if (e.status >= 500 && e.status !== 502) continue; throw e; }
+      const min = Math.floor((Date.now() - inicio) / 60000);
+      etapaCurso(`O Gemini está assistindo à aula… ${min ? min + ' min' : 'começando'}`);
+      if (r.pronto) resultado = r;
+    }
+
+    curAnalise = {
+      dados: resultado.dados,
+      textoCru: resultado.textoCru || null,
+      uso: resultado.uso,
+      modelo: pedido.modelo,
+      ajuste: pedido.ajuste,
+      em: new Date().toISOString()
+    };
+    try { localStorage.setItem('curso-analise-' + curAula.id, JSON.stringify(curAnalise)); }
+    catch { toast('Análise pronta, mas não coube no armazenamento do navegador.', 'error'); }
+
+    toast('Análise da aula pronta');
+    renderAnaliseCurso();
+  } catch (e) {
+    console.error('[cursos]', e);
+    avisoCurso(escHtml(e.message), true);
+    document.getElementById('cur-link').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } finally {
+    if (arquivoGemini?.nome) cursoApi('apagar', { nome: arquivoGemini.nome }).catch(() => {});
+    curOcupado = false;
+    document.getElementById('cur-progresso').style.display = 'none';
+    document.getElementById('cur-analise-inicio').style.display = 'flex';
+    atualizarEstimativaCurso();
+  }
+}
+
+function renderAnaliseCurso() {
+  const box = document.getElementById('cur-resumo-box');
+  const painel = document.getElementById('cur-painel');
+  if (!curAnalise) { box.innerHTML = ''; painel.style.display = 'none'; return; }
+
+  const d = curAnalise.dados;
+  const u = curAnalise.uso || {};
+  const fmt = n => Number(n || 0).toLocaleString('pt-BR');
+  const custo = `
+    <div class="cur-custo">
+      <strong>Custo desta análise: US$ ${Number(u.custoUSD || 0).toFixed(2).replace('.', ',')}</strong><br>
+      Tokens — entrada: ${fmt(u.entrada + (u.ferramenta || 0))} · saída: ${fmt(u.saida)} · raciocínio: ${fmt(u.raciocinio)}<br>
+      Modelo: ${escHtml(curAnalise.modelo || '')} (${escHtml(curAnalise.ajuste || '')}) · ${new Date(curAnalise.em).toLocaleString('pt-BR')}
+    </div>`;
+
+  if (!d) {
+    box.innerHTML = `<div class="card cur-resumo"><h2>Análise recebida fora do formato</h2>
+      <p>O Gemini respondeu, mas não no formato esperado. O texto bruto está guardado; me mande um print desta mensagem.</p>${custo}</div>`;
+    painel.style.display = 'none';
+    return;
+  }
+
+  box.innerHTML = `
+    <div class="card cur-resumo">
+      <h2>${escHtml(d.titulo || curAula?.nome || 'Aula')}</h2>
+      <p>${escHtml(d.resumo || '')}</p>
+      <div class="cur-temas">${(d.temas || []).map(t => `<span class="cur-tema">${escHtml(t)}</span>`).join('')}</div>
+      ${custo}
+    </div>`;
+  painel.style.display = 'flex';
+  renderPainelCurso();
+}
+
+function abaCurso(aba) {
+  curAba = aba;
+  document.querySelectorAll('.cur-abas button').forEach(b => b.classList.toggle('active', b.dataset.aba === aba));
+  renderPainelCurso();
+}
+
+function normalizarBusca(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// Destaca o termo buscado ignorando acentos e maiúsculas
+function destacarTermo(texto, termo) {
+  const seguro = escHtml(texto);
+  if (!termo) return seguro;
+  const base = normalizarBusca(texto);
+  const alvo = normalizarBusca(termo);
+  let saida = '', i = 0, pos;
+  // Trabalha no texto original para não perder acentos
+  while ((pos = base.indexOf(alvo, i)) !== -1) {
+    saida += escHtml(texto.slice(i, pos)) + '<mark>' + escHtml(texto.slice(pos, pos + alvo.length)) + '</mark>';
+    i = pos + alvo.length;
+  }
+  return saida + escHtml(texto.slice(i));
+}
+
+function renderPainelCurso() {
+  const lista = document.getElementById('cur-lista');
+  const d = curAnalise?.dados;
+  if (!d) { lista.innerHTML = ''; return; }
+
+  const termo = document.getElementById('cur-busca').value.trim();
+  const fonte = {
+    transcricao: (d.transcricao || []).map(x => ({ t: x.inicio, txt: x.texto })),
+    slides:      (d.slides || []).map(x => ({ t: x.inicio, txt: x.texto })),
+    topicos:     (d.topicos || []).map(x => ({ t: x.inicio, txt: x.titulo }))
+  }[curAba] || [];
+
+  const alvo = normalizarBusca(termo);
+  const itens = alvo ? fonte.filter(x => normalizarBusca(x.txt).includes(alvo)) : fonte;
+
+  if (!itens.length) {
+    lista.innerHTML = `<div class="cur-vazio">${termo ? `Nenhum trecho com "${escHtml(termo)}" nesta aba.` : 'Nada nesta aba.'}</div>`;
+    return;
+  }
+  lista.innerHTML = itens.map(x => {
+    const seg = lerTempoCurso(x.t);
+    return `<div class="cur-item" data-seg="${seg}" onclick="pularCurso(${seg})">
+      <span class="cur-tempo">${escHtml(formatarTempoCurso(seg))}</span>
+      <span>${destacarTermo(x.txt || '', termo)}</span>
+    </div>`;
+  }).join('');
+  destacarTrechoAtual();
+}
+
+// Na transcrição, acompanha o vídeo destacando o trecho que está tocando
+function destacarTrechoAtual() {
+  if (curAba !== 'transcricao') return;
+  const video = document.getElementById('cur-video');
+  const itens = [...document.querySelectorAll('#cur-lista .cur-item')];
+  if (!itens.length) return;
+  const agora = video.currentTime;
+  let atual = null;
+  for (const el of itens) { if (Number(el.dataset.seg) <= agora) atual = el; else break; }
+  itens.forEach(el => el.classList.toggle('atual', el === atual));
+}
 
 // ─────────────────────────────────────────────────────────────
 // APP INSTALADO NO CELULAR (compartilhamento)
