@@ -1,13 +1,14 @@
 import { requireAuth } from './_auth.js';
 
 // api/curso.js
-// Aba "Cursos" (fase de teste): toca aulas guardadas no Google Drive e manda
+// Aba "Cursos": toca aulas guardadas no Google Drive e manda
 // o video para o Gemini assistir (audio + slides).
 //
 // O navegador chama esta funcao varias vezes, uma "acao" por vez, porque a
 // Vercel corta cada chamada aos 60s. Nenhuma acao demora mais que alguns segundos:
 //   token           -> chave temporaria (1h) do Drive, para o player tocar o video
 //   info            -> nome, tamanho e tipo do arquivo no Drive
+//   listar-pasta    -> modulos (subpastas) e aulas (videos) da pasta do curso
 //   iniciar-envio   -> abre o envio do video para a area de arquivos do Gemini
 //   enviar-parte    -> copia um pedaco do video, do Drive direto para o Gemini
 //   estado-arquivo  -> o Gemini ja terminou de preparar o video?
@@ -221,6 +222,63 @@ async function acaoInfo({ id }) {
     tipo: f.mimeType,
     duracaoMs: Number(f.videoMediaMetadata?.durationMillis || 0)
   };
+}
+
+// Le a pasta principal do curso: cada subpasta vira um modulo e cada video
+// dentro dela vira uma aula. Videos soltos na pasta principal tambem entram.
+async function listarFilhos(token, pastaId) {
+  const itens = [];
+  let pagina = '';
+  do {
+    const q = encodeURIComponent(`'${pastaId}' in parents and trashed = false`);
+    const campos = encodeURIComponent('nextPageToken, files(id,name,mimeType,size,videoMediaMetadata(durationMillis))');
+    const r = await fetch(
+      `${DRIVE_BASE}/files?q=${q}&fields=${campos}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true` +
+      (pagina ? `&pageToken=${encodeURIComponent(pagina)}` : ''),
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!r.ok) {
+      const t = await r.text();
+      console.error('[curso listar]', r.status, t.slice(0, 300));
+      throw erro(`O Drive recusou a leitura da pasta (${r.status}).`, 502);
+    }
+    const d = await r.json();
+    itens.push(...(d.files || []));
+    pagina = d.nextPageToken || '';
+  } while (pagina);
+  return itens;
+}
+
+const ordemNatural = (a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true, sensitivity: 'base' });
+const PASTA = 'application/vnd.google-apps.folder';
+
+function resumoVideo(f) {
+  return {
+    id: f.id,
+    nome: f.name,
+    tamanho: Number(f.size || 0),
+    tipo: f.mimeType,
+    duracaoSeg: f.videoMediaMetadata?.durationMillis ? Number(f.videoMediaMetadata.durationMillis) / 1000 : null
+  };
+}
+
+async function acaoListarPasta({ id }) {
+  validarId(id);
+  const g = await exigirDrive();
+  const pasta = await infoDrive(g.token, id);
+  if (pasta.mimeType !== PASTA) throw erro('Esse link nao e de uma pasta do Drive. Use o link da pasta principal do curso.', 422);
+
+  const filhos = (await listarFilhos(g.token, id)).sort(ordemNatural);
+  const subpastas = filhos.filter(f => f.mimeType === PASTA);
+  const soltos = filhos.filter(f => /^video\//.test(f.mimeType || ''));
+
+  const modulos = await Promise.all(subpastas.map(async (sp) => {
+    const dentro = (await listarFilhos(g.token, sp.id)).sort(ordemNatural);
+    return { id: sp.id, nome: sp.name, videos: dentro.filter(f => /^video\//.test(f.mimeType || '')).map(resumoVideo) };
+  }));
+  if (soltos.length) modulos.unshift({ id: id, nome: 'Aulas avulsas', videos: soltos.map(resumoVideo) });
+
+  return { nome: pasta.name, modulos };
 }
 
 async function acaoIniciarEnvio({ id }, chave) {
@@ -456,6 +514,7 @@ export default async function handler(req, res) {
     switch (corpo.acao) {
       case 'token':          saida = await acaoToken(); break;
       case 'info':           saida = await acaoInfo(corpo); break;
+      case 'listar-pasta':   saida = await acaoListarPasta(corpo); break;
       case 'enviar-parte':   saida = await acaoEnviarParte(corpo); break;
       case 'iniciar-envio':
       case 'estado-arquivo':
