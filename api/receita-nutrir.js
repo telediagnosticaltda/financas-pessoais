@@ -1,5 +1,5 @@
 import { requireAuth } from './_auth.js';
-import { tratarLaudo } from './_laudo.js';
+import { tratarLaudo, checarLaudo, resumirAnterior } from './_laudo.js';
 
 // api/receita-nutrir.js
 // Estima calorias e proteina por porcao a partir da lista de ingredientes.
@@ -43,11 +43,16 @@ Como estimar:
 - Nao explique nada. Nao escreva texto fora do JSON.`;
 
 export default async function handler(req, res) {
-  // Mesma funcao, dois servicos (limite de 12 funcoes do plano gratuito da Vercel):
-  // /api/receita-nutrir?tipo=laudo -> editor de laudos
-  if (new URL(req.url, 'http://localhost').searchParams.get('tipo') === 'laudo') {
-    return tratarLaudo(req, res);
-  }
+  // Mesma funcao, varios servicos (limite de 12 funcoes do plano gratuito da Vercel):
+  //   ?tipo=laudo           -> editor de laudos: aplica o ditado
+  //   ?tipo=laudo-checar    -> editor de laudos: confere o laudo pronto
+  //   ?tipo=laudo-anterior  -> editor de laudos: resume o laudo do exame anterior
+  const servicoLaudo = {
+    'laudo': tratarLaudo,
+    'laudo-checar': checarLaudo,
+    'laudo-anterior': resumirAnterior
+  }[new URL(req.url, 'http://localhost').searchParams.get('tipo')];
+  if (servicoLaudo) return servicoLaudo(req, res);
 
   if (!(await requireAuth(req, res))) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
