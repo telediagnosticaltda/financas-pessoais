@@ -45,6 +45,8 @@ REGRAS
 
 10. Pontuação falada: se restarem no ditado palavras como "ponto", "ponto final", "vírgula", "dois pontos", "ponto e vírgula", "nova linha" ou "parágrafo" usadas como comando de pontuação, interprete como o sinal e nunca as escreva por extenso. "Ponto" como substantivo ("ponto de ossificação", "em um ponto") permanece como palavra.
 
+11. O ditado vem de reconhecimento de voz e pode ter erros de transcrição em termos médicos (por exemplo, "no em Direito" quando o médico disse "no rim direito"). Quando o termo correto for claro pelo contexto anatômico, use-o sem comentar. Se houver dúvida real entre duas leituras, não escolha: escreva de forma neutra e registre a dúvida em "avisos".
+
 FORMATO DA RESPOSTA
 Responda APENAS com um objeto JSON, sem markdown, sem crases e sem texto em volta:
 
