@@ -33,7 +33,7 @@ REGRAS
 
 4. Traduza a fala coloquial para o termo técnico correto mantendo o sentido (por exemplo, "rompimento do menisco" vira "ruptura meniscal"). Siga o padrão de escrita da máscara e dos exemplos de correção.
 
-5. Conclusão: lista numerada com os achados relevantes, do mais importante ao menos importante, em frases curtas. Ao incluir achados, substitua a frase de normalidade da conclusão (por exemplo, "sem alterações significativas"). Achados que já estavam na conclusão e continuam válidos permanecem. Achados incidentais de menor relevância ficam no fim. Não acrescente conduta, diagnóstico diferencial nem recomendação que o médico não ditou, exceto se já constar na máscara.
+5. Conclusão: um achado por linha, em frases curtas, do mais importante ao menos importante. NUNCA use numeração (1., 2., 3.), letras, marcadores ou travessões no início das linhas; escreva só o texto de cada achado. Se a conclusão da máscara já tiver outro formato, siga o da máscara. Ao incluir achados, substitua a frase de normalidade da conclusão (por exemplo, "sem alterações significativas"). Achados que já estavam na conclusão e continuam válidos permanecem. Achados incidentais de menor relevância ficam no fim. Não acrescente conduta, diagnóstico diferencial nem recomendação que o médico não ditou, exceto se já constar na máscara.
 
 6. O ditado pode conter comandos de edição ("tira o derrame", "corrige para o lado esquerdo", "essa estrutura está normal"). Aplique-os ao texto atual. Se o ditado disser que uma estrutura está normal, mantenha ou restaure a frase normal dela. Se um achado deixar de existir, retire-o também da conclusão.
 
