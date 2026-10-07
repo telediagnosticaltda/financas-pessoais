@@ -390,12 +390,16 @@ async function acaoAnalisarTrecho({ uri, tipo, inicio, fim }, chave) {
 
   const prazo = Date.now() + 54_000;
   const r = await chamarGeminiDireto(chave, (variacao) => {
-    // Um quadro a cada 5 s basta para ler os slides. Se o Google recusar
-    // algum ajuste, as variacoes seguintes tiram os opcionais (o recorte fica).
-    const processing = { type: 'static', start_offset: inicio, end_offset: fim };
+    // Formato conforme a referencia oficial da API de interacoes (VideoContent):
+    //  - recorte: processing.start_offset / end_offset sao TEXTO com "s" no fim
+    //    (ex.: "300s"), nao numeros;
+    //  - qualidade da imagem: o campo se chama "resolution" (low/medium/high/ultra_high).
+    // Um quadro a cada 5 s basta para ler os slides. Se o Google recusar algum
+    // ajuste opcional, as variacoes seguintes o retiram (o recorte sempre fica).
+    const processing = { type: 'static', start_offset: `${inicio}s`, end_offset: `${fim}s` };
     if (variacao < 2) processing.fps = 0.2;
     const video = { type: 'video', uri, mime_type: tipo || 'video/mp4', processing };
-    if (variacao === 0) video.media_resolution = 'high';
+    if (variacao === 0) video.resolution = 'high';
     return [video, { type: 'text', text: promptTrecho(inicio, fim) }];
   }, prazo);
 
