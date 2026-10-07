@@ -26,6 +26,9 @@
     },
     "api/inicio.js": {
       "maxDuration": 30
+    },
+    "api/curso.js": {
+      "maxDuration": 60
     }
   }
 }
