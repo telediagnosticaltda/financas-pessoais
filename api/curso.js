@@ -360,15 +360,18 @@ async function acaoAnalisar({ uri, tipo }, chave) {
 // temporario que ja traz a propria autorizacao embutida. Se a chave for junto
 // nesse redirecionamento, o Google reclama de "credenciais duplicadas".
 // Por isso o redirecionamento e seguido a mao, sem a chave.
-async function buscarInteracao(url, cabecalhos) {
+async function buscarInteracao(url, cabecalhos, relato = [], nome = '') {
   let r = await fetch(url, { headers: cabecalhos, redirect: 'manual' });
   for (let saltos = 0; saltos < 3 && r.status >= 300 && r.status < 400; saltos++) {
     const destino = r.headers.get('location');
     if (!destino) break;
-    const proximo = new URL(destino, url).toString();
+    const proximo = new URL(destino, url);
+    relato.push(`${nome}: redirecionou para ${proximo.host}`);
+    // O endereco temporario ja traz a propria autorizacao: vai sem a chave
+    proximo.searchParams.delete('key');
     const semChave = { ...cabecalhos };
     delete semChave['x-goog-api-key'];
-    r = await fetch(proximo, { headers: semChave, redirect: 'manual' });
+    r = await fetch(proximo.toString(), { headers: semChave, redirect: 'manual' });
   }
   return r;
 }
@@ -376,27 +379,34 @@ async function buscarInteracao(url, cabecalhos) {
 async function acaoResultado({ id }, chave) {
   if (!/^[A-Za-z0-9_.\/-]+$/.test(id || '')) throw erro('Analise invalida.', 400);
   const caminho = id.startsWith('interactions/') ? id : `interactions/${id}`;
-  const url = `${GEMINI_BASE}/v1beta/${caminho}`;
+  const base = `${GEMINI_BASE}/v1beta/${caminho}`;
 
-  // Consulta com o cabecalho de versao; se o Google recusar, tenta sem ele
-  let r = await buscarInteracao(url, { 'x-goog-api-key': chave, 'Api-Revision': API_REVISION });
-  let texto = await r.text();
-  if (r.status === 400) {
-    const msg1 = mensagemGoogle(texto);
-    const r2 = await buscarInteracao(url, { 'x-goog-api-key': chave });
-    const texto2 = await r2.text();
-    if (r2.ok) { r = r2; texto = texto2; }
-    else {
-      console.error('[curso resultado]', r.status, msg1, '| sem revisao:', r2.status, mensagemGoogle(texto2));
-      throw erro(`Nao consegui consultar a analise (${r.status}): ${msg1.slice(0, 200) || 'sem detalhes'}`, 502);
-    }
+  // O Google recusou a consulta com "credenciais duplicadas". Para descobrir
+  // qual forma ele aceita, tenta algumas, da mais provavel para a menos, e
+  // guarda o que aconteceu em cada uma para mostrar na tela se todas falharem.
+  const tentativas = [
+    { nome: 'cabecalho+versao', url: base,                                   cab: { 'x-goog-api-key': chave, 'Api-Revision': API_REVISION } },
+    { nome: 'url+versao',       url: `${base}?key=${encodeURIComponent(chave)}`, cab: { 'Api-Revision': API_REVISION } },
+    { nome: 'url',              url: `${base}?key=${encodeURIComponent(chave)}`, cab: {} },
+    { nome: 'cabecalho',        url: base,                                   cab: { 'x-goog-api-key': chave } }
+  ];
+
+  const relato = [];
+  let r = null, texto = '';
+  for (const t of tentativas) {
+    const resp = await buscarInteracao(t.url, t.cab, relato, t.nome);
+    const corpo = await resp.text();
+    if (resp.ok) { r = resp; texto = corpo; break; }
+    relato.push(`${t.nome}: ${resp.status} ${mensagemGoogle(corpo).slice(0, 120)}`);
+    // Erros que nao dependem da forma de autorizar: nao adianta insistir
+    if (resp.status === 404 || resp.status >= 500) { r = resp; texto = corpo; break; }
   }
-  if (!r.ok) {
-    const msg = mensagemGoogle(texto);
-    console.error('[curso resultado]', r.status, msg.slice(0, 300));
-    // 404/5xx podem ser passageiros logo apos a criacao: o navegador tenta de novo
-    throw erro(`Nao consegui consultar a analise (${r.status}): ${msg.slice(0, 200) || 'sem detalhes'}`,
-               r.status === 404 || r.status >= 500 ? 503 : 502);
+
+  if (!r || !r.ok) {
+    console.error('[curso resultado]', relato.join(' | '));
+    const status = r?.status || 400;
+    throw erro(`Nao consegui consultar a analise (${status}). [v3]`,
+               status === 404 || status >= 500 ? 503 : 502, relato);
   }
   const d = JSON.parse(texto);
   const inter = d.interaction || d;
