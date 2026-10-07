@@ -1,5 +1,5 @@
 import { requireAuth } from './_auth.js';
-import { tratarLaudo, checarLaudo, resumirAnterior } from './_laudo.js';
+import { tratarLaudo, checarLaudo, resumirAnterior, discutirCaso, consolidarDiscussao } from './_laudo.js';
 
 // api/receita-nutrir.js
 // Estima calorias e proteina por porcao a partir da lista de ingredientes.
@@ -47,10 +47,14 @@ export default async function handler(req, res) {
   //   ?tipo=laudo           -> editor de laudos: aplica o ditado
   //   ?tipo=laudo-checar    -> editor de laudos: confere o laudo pronto
   //   ?tipo=laudo-anterior  -> editor de laudos: resume o laudo do exame anterior
+  //   ?tipo=laudo-discutir  -> editor de laudos: conversa sobre o caso (Claude ou Gemini)
+  //   ?tipo=laudo-consolidar-> editor de laudos: extrai a conclusao do medico da discussao
   const servicoLaudo = {
     'laudo': tratarLaudo,
     'laudo-checar': checarLaudo,
-    'laudo-anterior': resumirAnterior
+    'laudo-anterior': resumirAnterior,
+    'laudo-discutir': discutirCaso,
+    'laudo-consolidar': consolidarDiscussao
   }[new URL(req.url, 'http://localhost').searchParams.get('tipo')];
   if (servicoLaudo) return servicoLaudo(req, res);
 
