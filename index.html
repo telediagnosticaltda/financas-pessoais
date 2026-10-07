@@ -1073,24 +1073,31 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .home-date { font-size: 13px; color: var(--text-2); margin-top: 4px; }
 .home-date::first-letter { text-transform: uppercase; }
 
-.quotes {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-xl); box-shadow: var(--shadow);
-  margin-bottom: 1rem; overflow: hidden;
+.home-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
+.home-main { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+
+.quotes { padding: 1.1rem 1.25rem 1rem; position: sticky; top: 1rem; }
+.q-periods { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: .5rem; }
+.q-period {
+  font-family: var(--font); font-size: 11.5px; font-weight: 600; color: var(--text-3);
+  background: none; border: none; border-radius: 6px; padding: 4px 7px; cursor: pointer;
 }
-.quote { padding: 1rem 1.4rem; }
-.quote + .quote { border-left: 1px solid var(--border-2); }
+.q-period:hover { color: var(--text); background: var(--surface-2); }
+.q-period.active { color: var(--primary); background: var(--primary-l); }
+.quote { padding: .9rem 0 .5rem; }
+.quote + .quote { border-top: 1px solid var(--border-2); }
 .quote-name { font-size: 12px; font-weight: 600; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
 .quote-name i { font-size: 16px; color: var(--text-3); }
-.quote-val { font-size: 21px; font-weight: 700; letter-spacing: -.03em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.quote-val { font-size: 22px; font-weight: 700; letter-spacing: -.03em; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .quote-chg { font-size: 12px; font-weight: 600; margin-top: 1px; font-variant-numeric: tabular-nums; }
 .quote-chg.up { color: var(--green); }
 .quote-chg.down { color: var(--red); }
-.quote-chg.flat { color: var(--text-3); }
-.quotes-foot { font-size: 11px; color: var(--text-3); margin: -.5rem 0 1rem .25rem; }
+.quote-chg.flat { color: var(--text-3); font-weight: 500; }
+.quote-chart { position: relative; height: 86px; margin-top: .5rem; }
+.quote-chart .q-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11.5px; color: var(--text-3); text-align: center; }
+.quotes-foot { font-size: 11px; color: var(--text-3); margin-top: .5rem; line-height: 1.4; }
 
-.home-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
 .sum-row { display: flex; gap: 2rem; flex-wrap: wrap; }
 .sum-label { font-size: 12px; color: var(--text-2); font-weight: 500; }
@@ -1135,12 +1142,14 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 
 .home-panel-sub { font-size: 12px; color: var(--text-3); }
 
+.news-star { color: #D97706; font-size: 11px; margin-left: 2px; }
+@media (max-width: 1100px) {
+  .home-layout { grid-template-columns: 1fr; }
+  .home-side { order: -1; }
+  .quotes { position: static; }
+}
 @media (max-width: 900px) {
   .home-grid, .news-list { grid-template-columns: 1fr; }
-}
-@media (max-width: 620px) {
-  .quotes { grid-template-columns: 1fr; }
-  .quote + .quote { border-left: none; border-top: 1px solid var(--border-2); }
 }
 @media (prefers-reduced-motion: reduce) {
   .page.active { animation: none; }
@@ -1230,47 +1239,40 @@ tr.duplicate-row:hover { background: #FFF6D6; }
         </button>
       </div>
 
-      <div class="quotes" id="home-quotes">
-        <div class="quote">
-          <div class="quote-name"><i class="ti ti-currency-dollar"></i> Dólar</div>
-          <div class="quote-val" id="q-usd">—</div>
-          <div class="quote-chg flat" id="q-usd-chg">&nbsp;</div>
-        </div>
-        <div class="quote">
-          <div class="quote-name"><i class="ti ti-currency-bitcoin"></i> Bitcoin em reais</div>
-          <div class="quote-val" id="q-btcbrl">—</div>
-          <div class="quote-chg flat" id="q-btcbrl-chg">&nbsp;</div>
-        </div>
-        <div class="quote">
-          <div class="quote-name"><i class="ti ti-currency-bitcoin"></i> Bitcoin em dólar</div>
-          <div class="quote-val" id="q-btcusd">—</div>
-          <div class="quote-chg flat" id="q-btcusd-chg">&nbsp;</div>
-        </div>
-      </div>
-      <div class="quotes-foot" id="q-foot">Buscando cotações...</div>
-
-      <div class="home-grid">
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title" id="sum-title">Este mês</span>
-            <span class="panel-link" onclick="navigate('dashboard')">Abrir Finanças</span>
+      <div class="home-layout">
+        <div class="home-main">
+          <div class="home-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <span class="panel-title" id="sum-title">Este mês</span>
+                <span class="panel-link" onclick="navigate('dashboard')">Abrir Finanças</span>
+              </div>
+              <div id="home-sum"><div class="loading-msg">Carregando...</div></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <span class="panel-title">Prazos e pendências</span>
+              </div>
+              <div id="home-due"><div class="loading-msg">Carregando...</div></div>
+            </div>
           </div>
-          <div id="home-sum"><div class="loading-msg">Carregando...</div></div>
-        </div>
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title">Prazos e pendências</span>
-          </div>
-          <div id="home-due"><div class="loading-msg">Carregando...</div></div>
-        </div>
-      </div>
 
-      <div class="panel">
-        <div class="panel-header" style="flex-wrap:wrap;gap:.75rem">
-          <span class="panel-title">Notícias</span>
-          <div class="news-filter" id="news-filter"></div>
+          <div class="panel">
+            <div class="panel-header" style="flex-wrap:wrap;gap:.75rem">
+              <span class="panel-title">Notícias</span>
+              <div class="news-filter" id="news-filter"></div>
+            </div>
+            <div id="home-news"><div class="loading-msg">Carregando manchetes...</div></div>
+          </div>
         </div>
-        <div id="home-news"><div class="loading-msg">Carregando manchetes...</div></div>
+
+        <aside class="home-side">
+          <div class="panel quotes">
+            <div class="q-periods" id="q-periods"></div>
+            <div id="q-list"></div>
+            <div class="quotes-foot" id="q-foot">Buscando cotações...</div>
+          </div>
+        </aside>
       </div>
     </div>
 
@@ -2444,7 +2446,7 @@ async function loadBase() {
 // ─────────────────────────────────────────────────────────────
 const MESES_LONGOS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 let homeNews = null;
-let homeNewsFonte = 'todas';
+let homeNewsFonte = 'principais';
 let homeNewsTodas = false;
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -2467,39 +2469,142 @@ function loadHome() {
   loadNoticias();
 }
 
-// ── Cotações (AwesomeAPI, gratuita, consultada direto pelo navegador) ──
-async function loadCotacoes() {
-  const foot = document.getElementById('q-foot');
-  try {
-    const r = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,BTC-BRL,BTC-USD');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
-    const usd = d.USDBRL, btcBrl = d.BTCBRL;
-    let btcUsd = d.BTCUSD;
-    // Se o par BTC/USD vier vazio, calcula a partir dos outros dois
-    if (!btcUsd && usd && btcBrl) btcUsd = { bid: (+btcBrl.bid / +usd.bid), pctChange: null };
+// ── Cotações com gráfico (via /api/inicio; reserva: AwesomeAPI só para o preço) ──
+const Q_PERIODOS = [
+  ['1d','1D','em 24 h'], ['5d','5D','em 5 dias'], ['1m','1M','em 1 mês'], ['6m','6M','em 6 meses'],
+  ['ytd','YTD','no ano'], ['1a','1A','em 1 ano'], ['5a','5A','em 5 anos'], ['max','Máx.','em todo o histórico'],
+];
+const Q_ATIVOS = [
+  { id: 'usd',    nome: 'Dólar',            icone: 'ti-currency-dollar' },
+  { id: 'btcbrl', nome: 'Bitcoin em reais', icone: 'ti-currency-bitcoin' },
+  { id: 'btcusd', nome: 'Bitcoin em dólar', icone: 'ti-currency-bitcoin' },
+];
+let qPeriodo = '1d';
+const qCharts = {};
 
-    const num = (v, dec) => (+v).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-    mostrarCotacao('q-usd',    usd    && 'R$ '  + num(usd.bid, 3),    usd?.pctChange);
-    mostrarCotacao('q-btcbrl', btcBrl && 'R$ '  + num(btcBrl.bid, 0), btcBrl?.pctChange);
-    mostrarCotacao('q-btcusd', btcUsd && 'US$ ' + num(btcUsd.bid, 0), btcUsd?.pctChange);
+function fmtCot(id, v) {
+  const n = (x, d) => (+x).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  if (id === 'usd')    return 'R$ ' + n(v, 3);
+  if (id === 'btcbrl') return 'R$ ' + n(v, 0);
+  return 'US$ ' + n(v, 0);
+}
 
-    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    foot.textContent = `Variação em 24 horas. Atualizado às ${hora}.`;
-  } catch (err) {
-    console.warn('[cotações]', err);
-    foot.textContent = 'Cotações indisponíveis agora. Tentarei de novo em alguns minutos.';
+function montarCotacoes() {
+  document.getElementById('q-periods').innerHTML = Q_PERIODOS.map(([id, rot]) =>
+    `<button class="q-period ${id === qPeriodo ? 'active' : ''}" onclick="setQPeriodo('${id}')">${rot}</button>`).join('');
+  if (!document.getElementById('q-usd')) {
+    document.getElementById('q-list').innerHTML = Q_ATIVOS.map(a => `
+      <div class="quote">
+        <div class="quote-name"><i class="ti ${a.icone}"></i> ${a.nome}</div>
+        <div class="quote-val" id="q-${a.id}">—</div>
+        <div class="quote-chg flat" id="q-${a.id}-chg">&nbsp;</div>
+        <div class="quote-chart"><canvas id="q-${a.id}-canvas"></canvas><div class="q-msg" id="q-${a.id}-msg"></div></div>
+      </div>`).join('');
   }
 }
 
-function mostrarCotacao(id, valor, pct) {
-  document.getElementById(id).textContent = valor || '—';
-  const el = document.getElementById(id + '-chg');
-  if (pct == null || pct === '' || isNaN(+pct)) { el.className = 'quote-chg flat'; el.innerHTML = '&nbsp;'; return; }
-  const p = +pct;
-  el.className = 'quote-chg ' + (p > 0 ? 'up' : p < 0 ? 'down' : 'flat');
-  const seta = p > 0 ? '▲' : p < 0 ? '▼' : '';
-  el.textContent = `${seta} ${Math.abs(p).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`.trim();
+function setQPeriodo(p) {
+  qPeriodo = p;
+  loadCotacoes();
+}
+
+async function loadCotacoes() {
+  montarCotacoes();
+  const foot = document.getElementById('q-foot');
+  const rotulo = Q_PERIODOS.find(x => x[0] === qPeriodo)[2];
+  try {
+    const r = await fetch(`/api/inicio?tipo=cotacoes&periodo=${qPeriodo}`, { headers: await authHeaders() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const fontes = new Set();
+    d.ativos.forEach(a => {
+      if (a.fonte) fontes.add(a.fonte);
+      desenharCotacao(a, rotulo);
+    });
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    foot.textContent = `Atualizado às ${hora}. Fonte: ${[...fontes].join(', ') || '—'}.`;
+    // Se algum ativo ficou sem dados, tenta pelo menos o preço atual
+    if (d.ativos.some(a => !a.pontos.length)) precoReserva(d.ativos.filter(a => !a.pontos.length).map(a => a.id));
+  } catch (err) {
+    console.warn('[cotações]', err);
+    Q_ATIVOS.forEach(a => {
+      if (qCharts[a.id]) { qCharts[a.id].destroy(); delete qCharts[a.id]; }
+      document.getElementById(`q-${a.id}-msg`).textContent = 'Gráfico indisponível agora';
+    });
+    foot.textContent = 'Não consegui buscar o histórico. Mostrando só o preço atual.';
+    precoReserva(Q_ATIVOS.map(a => a.id));
+  }
+}
+
+function desenharCotacao(a, rotulo) {
+  const msg = document.getElementById(`q-${a.id}-msg`);
+  const chg = document.getElementById(`q-${a.id}-chg`);
+  if (qCharts[a.id]) { qCharts[a.id].destroy(); delete qCharts[a.id]; }
+
+  if (!a.pontos.length) {
+    msg.textContent = a.erro || 'Sem dados neste período';
+    chg.className = 'quote-chg flat'; chg.innerHTML = '&nbsp;';
+    return;
+  }
+  msg.textContent = '';
+  document.getElementById(`q-${a.id}`).textContent = fmtCot(a.id, a.preco);
+
+  const v = a.variacao ?? 0;
+  const cor = v > 0 ? '#16A376' : v < 0 ? '#D94F3A' : '#9BA3BC';
+  chg.className = 'quote-chg ' + (v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
+  const seta = v > 0 ? '▲' : v < 0 ? '▼' : '';
+  chg.textContent = `${seta} ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% ${rotulo}`.trim();
+
+  const intraday = qPeriodo === '1d' || qPeriodo === '5d';
+  const rotData = (ms) => new Date(ms).toLocaleString('pt-BR', intraday
+    ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }
+    : { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const ctx = document.getElementById(`q-${a.id}-canvas`).getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 86);
+  grad.addColorStop(0, cor + '33'); grad.addColorStop(1, cor + '00');
+
+  qCharts[a.id] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: a.pontos.map(p => rotData(p[0])),
+      datasets: [
+        { data: a.pontos.map(p => p[1]), borderColor: cor, backgroundColor: grad, fill: true,
+          borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 3, tension: 0 },
+        // Linha pontilhada no valor do início do período (como no Google)
+        { data: a.pontos.map(() => a.inicio), borderColor: '#C5CADF', borderDash: [3, 3],
+          borderWidth: 1, pointRadius: 0, pointHoverRadius: 0, fill: false },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: { display: false }, y: { display: false, grace: '5%' } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: (item) => item.datasetIndex === 0,
+          displayColors: false,
+          callbacks: {
+            title: (it) => it[0]?.label || '',
+            label: (it) => fmtCot(a.id, it.raw),
+          },
+        },
+      },
+    },
+  });
+}
+
+async function precoReserva(ids) {
+  try {
+    const r = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,BTC-BRL,BTC-USD');
+    if (!r.ok) return;
+    const d = await r.json();
+    const mapa = { usd: d.USDBRL, btcbrl: d.BTCBRL, btcusd: d.BTCUSD };
+    ids.forEach(id => {
+      if (mapa[id]?.bid) document.getElementById(`q-${id}`).textContent = fmtCot(id, mapa[id].bid);
+    });
+  } catch { /* sem preço de reserva; o "—" continua */ }
 }
 
 // ── Resumo do mês: até hoje, comparado ao mesmo trecho do mês passado ──
@@ -2595,12 +2700,12 @@ function abrirPagamentoFuncionaria(m, y) {
   navigate('employees');
 }
 
-// ── Notícias (via /api/noticias) ──
+// ── Notícias (via /api/inicio) ──
 async function loadNoticias(forcar = false) {
   const el = document.getElementById('home-news');
   if (homeNews && !forcar) { renderNoticias(); return; }
   try {
-    const r = await fetch('/api/noticias', { headers: await authHeaders() });
+    const r = await fetch('/api/inicio?tipo=noticias', { headers: await authHeaders() });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     homeNews = await r.json();
     renderNoticias();
@@ -2622,29 +2727,17 @@ function setNewsFonte(id) {
 
 function renderNoticias() {
   const el = document.getElementById('home-news');
-  const { fontes = [], noticias = [] } = homeNews || {};
+  const abas = homeNews?.abas || [];
+  if (!abas.find(a => a.id === homeNewsFonte)) homeNewsFonte = 'principais';
 
-  document.getElementById('news-filter').innerHTML =
-    [{ id: 'todas', nome: 'Todas', ok: true }, ...fontes].map(f => `
-      <button class="news-chip ${homeNewsFonte === f.id ? 'active' : ''} ${f.ok ? '' : 'off'}"
-        ${f.ok ? '' : 'disabled title="Portal indisponível agora"'}
-        onclick="setNewsFonte('${f.id}')">${escHtml(f.nome)}</button>`).join('');
+  document.getElementById('news-filter').innerHTML = abas.map(a => `
+    <button class="news-chip ${homeNewsFonte === a.id ? 'active' : ''} ${a.itens.length ? '' : 'off'}"
+      ${a.itens.length ? '' : 'disabled title="Portal indisponível agora"'}
+      onclick="setNewsFonte('${a.id}')">${escHtml(a.nome)}</button>`).join('');
 
-  let lista;
-  if (homeNewsFonte === 'todas') {
-    // Intercala os portais (a mais recente de cada um, depois a segunda...)
-    // para nenhum portal dominar o topo da lista
-    const porFonte = fontes.map(f => noticias
-      .filter(n => n.fonteId === f.id)
-      .sort((a, b) => (b.data || '').localeCompare(a.data || '')));
-    lista = [];
-    for (let i = 0; porFonte.some(g => g[i]); i++) porFonte.forEach(g => g[i] && lista.push(g[i]));
-  } else {
-    lista = noticias.filter(n => n.fonteId === homeNewsFonte);
-  }
-
+  const lista = abas.find(a => a.id === homeNewsFonte)?.itens || [];
   if (!lista.length) {
-    el.innerHTML = '<div class="empty"><i class="ti ti-news"></i><p>Nenhuma manchete deste portal agora.</p></div>';
+    el.innerHTML = '<div class="empty"><i class="ti ti-news"></i><p>Nenhuma manchete aqui agora.</p></div>';
     return;
   }
 
@@ -2653,7 +2746,8 @@ function renderNoticias() {
   el.innerHTML = `<div class="news-list">${visiveis.map(n => `
       <a class="news-item" href="${escHtml(n.link)}" target="_blank" rel="noopener noreferrer">
         <div class="news-title">${escHtml(n.titulo)}</div>
-        <div class="news-meta"><b>${escHtml(n.fonte)}</b>${n.data ? ' · ' + tempoAtras(n.data) : ''}</div>
+        <div class="news-meta"><b>${escHtml(n.fonte || '')}</b>${n.data ? ' · ' + tempoAtras(n.data) : ''}${
+          n.destaque ? ' <span class="news-star" title="Está entre as principais do dia">★ entre as principais</span>' : ''}</div>
       </a>`).join('')}</div>
     ${lista.length > LIMITE && !homeNewsTodas
       ? `<div class="news-more"><span class="panel-link" onclick="homeNewsTodas=true;renderNoticias()">Mostrar mais ${lista.length - LIMITE} manchetes</span></div>`
@@ -6514,7 +6608,7 @@ async function startApp() {
   }), 3000);
   // Cotações se atualizam a cada 5 minutos enquanto a tela inicial estiver aberta
   setInterval(() => {
-    if (currentPage === 'home' && !document.hidden) loadCotacoes();
+    if (currentPage === 'home' && !document.hidden && qPeriodo === '1d') loadCotacoes();
   }, 5 * 60 * 1000);
 }
 
