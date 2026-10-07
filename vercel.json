@@ -29,9 +29,6 @@
     },
     "api/curso.js": {
       "maxDuration": 60
-    },
-    "api/laudo-ditado.js": {
-      "maxDuration": 60
     }
   }
 }
