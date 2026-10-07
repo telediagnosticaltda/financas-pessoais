@@ -1,8 +1,33 @@
 // api/gmail-callback.js
-// Recebe o código do Google, troca por tokens e salva no Supabase
+// Faz as duas pontas da autorização do Google:
+//   - /api/gmail-callback?iniciar=1  -> manda você para a tela de permissão do Google
+//   - /api/gmail-callback?code=...   -> o Google volta aqui; troca o código por tokens e salva no Supabase
+// (Antes eram dois arquivos; viraram um só para caber no limite de funções do plano gratuito da Vercel.)
+//
+// Permissões pedidas: ler e-mails (faturas) e ler arquivos do Drive (aulas da aba Cursos).
+
+const ESCOPOS = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/drive.readonly'
+].join(' ');
 
 export default async function handler(req, res) {
-  const { code, error } = req.query;
+  const { code, error, iniciar } = req.query;
+
+  if (iniciar) {
+    const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+    if (!CLIENT_ID) {
+      return res.status(500).send('GOOGLE_CLIENT_ID não configurado nas variáveis de ambiente da Vercel.');
+    }
+    const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+      `client_id=${encodeURIComponent(CLIENT_ID)}` +
+      `&redirect_uri=${encodeURIComponent('https://financasfrancisco.vercel.app/api/gmail-callback')}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent(ESCOPOS)}` +
+      `&access_type=offline` +
+      `&prompt=consent`;
+    return res.redirect(authUrl);
+  }
 
   if (error || !code) {
     return res.status(400).send(`<h2>❌ Autorização negada: ${error || 'código não recebido'}</h2>`);
@@ -50,8 +75,8 @@ export default async function handler(req, res) {
 
     res.status(200).send(`
       <html><body style="font-family:sans-serif;text-align:center;padding:60px">
-        <h2>✅ Gmail conectado com sucesso!</h2>
-        <p>O app já pode acessar seus e-mails para importar faturas automaticamente.</p>
+        <h2>✅ Conta Google conectada com sucesso!</h2>
+        <p>O app já pode ler seus e-mails (faturas) e os vídeos das aulas no seu Drive.</p>
         <p>Pode fechar esta janela.</p>
       </body></html>
     `);
