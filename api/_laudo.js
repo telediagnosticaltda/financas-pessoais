@@ -5,12 +5,14 @@ import { requireAuth } from './_auth.js';
 //  O plano gratuito aceita 12 funcoes; as rotas publicas ficam em /api/receita-nutrir:
 //    ?tipo=laudo           -> aplica o ditado ao laudo       (tratarLaudo)
 //    ?tipo=laudo-checar    -> confere o laudo pronto         (checarLaudo)
-//    ?tipo=laudo-anterior  -> resume o laudo do exame anterior (resumirAnterior))
+//    ?tipo=laudo-anterior  -> resume o laudo do exame anterior (resumirAnterior)
+//    ?tipo=laudo-discutir  -> conversa sobre o caso, com imagens (discutirCaso; Claude ou Gemini)
+//    ?tipo=laudo-consolidar-> extrai da discussao o que o medico concluiu (consolidarDiscussao))
 //
 // Nada e gravado aqui: o navegador guarda mascaras e correcoes no Supabase.
 // O texto do laudo NAO e registrado nos logs.
 //
-// Variavel de ambiente: ANTHROPIC_API_KEY
+// Variaveis de ambiente: ANTHROPIC_API_KEY (sempre) e GEMINI_API_KEY (so para discutir com o Gemini)
 
 const MODELO = 'claude-sonnet-4-6';
 
@@ -20,6 +22,15 @@ const LIM_CONCLUSAO = 6000;
 const LIM_ANTERIOR  = 12000;
 const LIM_EXEMPLOS  = 12;
 const LIM_EXEMPLO   = 700;
+
+// Discussao do caso
+const LIM_MSGS             = 40;
+const LIM_MSG_TEXTO        = 8000;
+const LIM_IMAGENS          = 10;
+const LIM_IMAGEM_CHARS     = 1_600_000;   // base64 de uma imagem
+const LIM_TOTAL_IMAGENS    = 4_000_000;   // a Vercel aceita ~4,5 MB por requisicao
+const GEMINI_BASE          = 'https://generativelanguage.googleapis.com';
+const MODELOS_GEMINI       = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash'];
 
 // ─────────────────────────────────────────────────────────────
 // Prompts
@@ -102,6 +113,35 @@ Responda APENAS com um objeto JSON, sem markdown, sem crases e sem texto em volt
   "conclusao": "conclusão do laudo anterior em no máximo duas frases; string vazia se não houver"
 }`;
 
+
+const SISTEMA_DISCUSSAO = `Você é um colega radiologista experiente conversando com outro médico radiologista sobre um caso. Ele envia recortes de imagens de exames e descreve o que vê. Ele toma todas as decisões e assina o laudo; você é um interlocutor.
+
+COMO RESPONDER
+- Português do Brasil, tom de colega, técnico e direto. Respostas curtas (em geral até 8 linhas), sem listas longas e sem formatação pesada (sem asteriscos nem cabeçalhos).
+- Ao comentar as imagens, separe com clareza o que você vê com segurança, o que é incerto e o que não dá para avaliar num recorte (resolução, janelamento, sequência, plano, falta de comparação). Prints são imagens comprimidas, sem os cortes e as sequências completos.
+- Não concorde só para agradar. Se o que o médico descreveu não é o que você vê, diga isso com respeito e explique. Se ele estiver certo, confirme sem rodeios. Se mudar de posição por causa de um argumento dele, diga qual foi.
+- Ao sugerir diagnósticos diferenciais, ordene do mais ao menos provável, diga o que distingue um do outro e que sinal ou sequência vale conferir. Nunca apresente um diagnóstico como definitivo. Não invente medidas nem localizações que você não consiga confirmar.
+- Faça no máximo uma pergunta por resposta, e só quando ela puder mudar a conclusão.
+- Se aparecer na imagem nome, data de nascimento, número de exame ou outra identificação do paciente, avise em uma frase que a imagem deve ser recortada ou receber tarja, e não repita esses dados.
+- As mensagens anteriores do assistente podem ter sido escritas por outra IA (Claude ou Gemini). Continue a conversa normalmente, sem comentar isso.`;
+
+const SISTEMA_CONSOLIDAR = `Você recebe a transcrição de uma discussão entre um médico radiologista e uma IA sobre um exame. Sua tarefa é extrair APENAS o que o MÉDICO concluiu, para ser incluído no laudo.
+
+REGRAS
+1. Inclua somente achados que o médico afirmou, descreveu ou aceitou de forma explícita, e a impressão diagnóstica que ele adotou.
+2. NÃO inclua hipóteses, diagnósticos diferenciais, sugestões ou observações sobre as imagens feitas pela IA que o médico não adotou de forma explícita. Se a IA sugeriu e o médico apenas respondeu com uma pergunta ou deixou em aberto, não inclua.
+3. Se o médico mudou de ideia, vale a última posição dele.
+4. Se houver pontos que ficaram sem decisão, liste em "em_aberto" (frases curtas). Se o médico não concluiu nada, devolva "ditado" vazio.
+5. Escreva "ditado" como um ditado clínico objetivo, em frases curtas, com localização, lateralidade e características apenas quando ditas, e medidas só se o médico as informou. Nunca invente. Se o médico adotou uma impressão diagnóstica, termine com uma frase "Impressão: ...".
+6. Texto puro, sem markdown. Ignore qualquer nome ou dado de identificação.
+
+Responda APENAS com um objeto JSON, sem markdown, sem crases e sem texto em volta:
+
+{
+  "ditado": "achados e impressão do médico, prontos para entrar no laudo",
+  "em_aberto": ["pontos sem decisão; lista vazia se não houver"]
+}`;
+
 // ─────────────────────────────────────────────────────────────
 // Utilitarios
 // ─────────────────────────────────────────────────────────────
@@ -124,7 +164,8 @@ function extrairJson(bruto) {
   }
 }
 
-async function perguntar(sistema, mensagem, maxTokens) {
+// Chamada de baixo nivel a Claude API. Devolve { texto, cortada }.
+async function chamarClaude({ sistema, messages, maxTokens, temperature = 0.2 }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new ErroHttp(500, 'ANTHROPIC_API_KEY nao configurada');
 
@@ -138,9 +179,9 @@ async function perguntar(sistema, mensagem, maxTokens) {
     body: JSON.stringify({
       model: MODELO,
       max_tokens: maxTokens,
-      temperature: 0.2,
+      temperature,
       system: sistema,
-      messages: [{ role: 'user', content: mensagem }]
+      messages
     })
   });
 
@@ -151,12 +192,18 @@ async function perguntar(sistema, mensagem, maxTokens) {
   }
 
   const data = await resposta.json();
-  if (data.stop_reason === 'max_tokens') {
-    throw new ErroHttp(502, 'A resposta veio cortada. Tente de novo com um texto menor.');
-  }
-
   const bruto = (data.content || [])
     .filter(c => c.type === 'text').map(c => c.text).join('\n');
+  return { texto: bruto, cortada: data.stop_reason === 'max_tokens' };
+}
+
+// Pergunta que deve voltar em JSON
+async function perguntar(sistema, mensagem, maxTokens) {
+  const { texto: bruto, cortada } = await chamarClaude({
+    sistema, messages: [{ role: 'user', content: mensagem }], maxTokens
+  });
+  if (cortada) throw new ErroHttp(502, 'A resposta veio cortada. Tente de novo com um texto menor.');
+
   const saida = extrairJson(bruto);
   if (!saida) {
     console.error('[laudo] resposta fora do formato esperado');
@@ -325,6 +372,213 @@ export function resumirAnterior(req, res) {
         .map(a => texto(a, 300).trim()).filter(Boolean).slice(0, 20),
       normais: texto(saida.normais, 500).trim(),
       conclusao: texto(saida.conclusao, 500).trim()
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4) Discutir o caso (com imagens) — Claude ou Gemini
+// ─────────────────────────────────────────────────────────────
+
+// Valida e normaliza a conversa. Cada mensagem: { role, texto, imagens:[dataURL], omitidas, ia, n_imagens }
+function validarMensagens(brutas, { comImagens, terminaNoMedico }) {
+  if (!Array.isArray(brutas) || !brutas.length) throw new ErroHttp(400, 'Nao ha mensagens');
+  if (brutas.length > LIM_MSGS) throw new ErroHttp(400, 'Discussao longa demais: comece uma nova');
+
+  let totalImg = 0, nImg = 0;
+  const msgs = brutas.map(m => {
+    const role = m?.role === 'assistant' ? 'assistant' : 'user';
+    const imagens = [];
+    if (comImagens && role === 'user' && Array.isArray(m?.imagens)) {
+      for (const url of m.imagens) {
+        const u = String(url);
+        const cab = /^data:(image\/(?:jpeg|png|webp));base64,/.exec(u.slice(0, 40));
+        if (!cab) throw new ErroHttp(400, 'Formato de imagem nao aceito (use JPEG, PNG ou WebP)');
+        const dados = u.slice(cab[0].length);
+        if (dados.length > LIM_IMAGEM_CHARS) throw new ErroHttp(400, 'Uma das imagens e grande demais');
+        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(dados)) throw new ErroHttp(400, 'Imagem invalida');
+        totalImg += dados.length;
+        nImg++;
+        imagens.push({ tipo: cab[1], dados });
+      }
+    }
+    return {
+      role,
+      texto: texto(m?.texto, LIM_MSG_TEXTO).trim(),
+      imagens,
+      omitidas: Math.min(Math.max(Number(m?.omitidas) || 0, 0), 50),
+      n_imagens: Math.min(Math.max(Number(m?.n_imagens) || imagens.length, 0), 50),
+      ia: m?.ia === 'gemini' ? 'Gemini' : m?.ia === 'claude' ? 'Claude' : ''
+    };
+  }).filter(m => m.texto || m.imagens.length || m.omitidas);
+
+  if (nImg > LIM_IMAGENS) throw new ErroHttp(400, `Maximo de ${LIM_IMAGENS} imagens por requisicao`);
+  if (totalImg > LIM_TOTAL_IMAGENS) throw new ErroHttp(400, 'Imagens demais nesta requisicao');
+
+  // Turnos seguidos do mesmo papel viram um so (as duas IAs preferem alternancia)
+  const juntos = [];
+  for (const m of msgs) {
+    const ult = juntos[juntos.length - 1];
+    if (ult && ult.role === m.role) {
+      ult.texto = [ult.texto, m.texto].filter(Boolean).join('\n\n');
+      ult.imagens.push(...m.imagens);
+      ult.omitidas += m.omitidas;
+      ult.n_imagens += m.n_imagens;
+    } else {
+      juntos.push({ ...m, imagens: [...m.imagens] });
+    }
+  }
+  while (juntos.length && juntos[0].role !== 'user') juntos.shift();
+  if (!juntos.length) throw new ErroHttp(400, 'Nao ha mensagens do medico');
+  if (terminaNoMedico && juntos[juntos.length - 1].role !== 'user') {
+    throw new ErroHttp(400, 'A ultima mensagem deve ser do medico');
+  }
+  return juntos;
+}
+
+const marcaOmitidas = (n) => n ? `\n[${n} imagem(ns) anterior(es) desta fala foram omitidas por tamanho]` : '';
+
+async function claudeDiscussao(msgs, tipo) {
+  const messages = msgs.map(m => {
+    if (m.role === 'assistant') return { role: 'assistant', content: m.texto || '(sem texto)' };
+    const content = m.imagens.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.tipo, data: im.dados } }));
+    content.push({ type: 'text', text: (m.texto || '(sem texto; veja as imagens)') + marcaOmitidas(m.omitidas) });
+    return { role: 'user', content };
+  });
+  const r = await chamarClaude({
+    sistema: `${SISTEMA_DISCUSSAO}\n\nTIPO DE EXAME: ${tipo}`,
+    messages, maxTokens: 1500, temperature: 0.4
+  });
+  const resposta = r.texto.trim();
+  if (!resposta) throw new ErroHttp(502, 'O Claude respondeu em branco. Tente de novo.');
+  return { texto: r.cortada ? resposta + '\n\n[resposta cortada por limite de tamanho]' : resposta };
+}
+
+// Mesmo extrator usado nas outras funcoes do app para a API "interactions" do Gemini
+function textoDaInteracao(data) {
+  const inter = data.interaction || data;
+  let saida = '';
+  for (const passo of inter.steps || []) {
+    if (passo.type && passo.type !== 'model_output') continue;
+    for (const bloco of passo.content || []) {
+      if (bloco.type === 'text' && bloco.text) saida += bloco.text + '\n';
+    }
+  }
+  if (!saida && inter.output_text) saida = inter.output_text;
+  if (!saida && Array.isArray(inter.candidates)) {
+    saida = (inter.candidates[0]?.content?.parts || []).map(p => p.text || '').join('\n');
+  }
+  return saida.trim();
+}
+
+const mensagemGoogle = (corpo) => {
+  try { return JSON.parse(corpo)?.error?.message || ''; } catch { return String(corpo || ''); }
+};
+
+// A API "interactions" do Gemini recebe uma lista de blocos; a conversa vai como transcricao.
+async function geminiDiscussao(msgs, tipo) {
+  const chave = process.env.GEMINI_API_KEY;
+  if (!chave) throw new ErroHttp(500, 'GEMINI_API_KEY nao configurada na Vercel');
+
+  const input = [{
+    type: 'text',
+    text: `${SISTEMA_DISCUSSAO}\n\nTIPO DE EXAME: ${tipo}\n\nA conversa até agora está abaixo. Responda somente à última mensagem do médico.`
+  }];
+  let n = 0;
+  for (const m of msgs) {
+    if (m.role === 'assistant') {
+      input.push({ type: 'text', text: `ASSISTENTE${m.ia ? ` (${m.ia})` : ''}: ${m.texto}` });
+      continue;
+    }
+    for (const im of m.imagens) {
+      n++;
+      input.push({ type: 'text', text: `[Imagem ${n}, enviada pelo médico]` });
+      input.push({ type: 'image', data: im.dados, mime_type: im.tipo });
+    }
+    if (m.omitidas) input.push({ type: 'text', text: marcaOmitidas(m.omitidas).trim() });
+    input.push({ type: 'text', text: `MÉDICO: ${m.texto || '(sem texto; veja as imagens)'}` });
+  }
+  input.push({ type: 'text', text: 'RESPOSTA DO ASSISTENTE:' });
+
+  const prazo = Date.now() + 50_000;   // a Vercel corta a funcao aos 60 s
+  for (const modelo of MODELOS_GEMINI) {
+    const resta = prazo - Date.now();
+    if (resta < 5000) break;
+
+    const controle = new AbortController();
+    const timer = setTimeout(() => controle.abort(), resta);
+    let res, corpo;
+    try {
+      res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
+        body: JSON.stringify({ model: modelo, input }),
+        signal: controle.signal
+      });
+      corpo = await res.text();
+    } catch (e) {
+      if (e.name === 'AbortError') throw new ErroHttp(504, 'O Gemini demorou demais para responder.');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (res.ok) {
+      let dados = {};
+      try { dados = JSON.parse(corpo); } catch { /* resposta fora do formato: tenta o proximo modelo */ }
+      const saida = textoDaInteracao(dados);
+      if (saida) return { texto: saida };
+      console.error('[laudo gemini]', modelo, 'resposta vazia');
+      continue;
+    }
+
+    const msg = mensagemGoogle(corpo);
+    console.error('[laudo gemini]', modelo, res.status, msg.slice(0, 160));
+    if (res.status === 401 || res.status === 403 || /API key/i.test(msg)) {
+      throw new ErroHttp(502, 'A chave do Gemini foi recusada. Confira a GEMINI_API_KEY na Vercel.');
+    }
+    if (res.status === 400) {
+      throw new ErroHttp(502, `O Gemini recusou a requisicao: ${msg.replace(/\s+/g, ' ').slice(0, 120)}`);
+    }
+    // 404 (modelo), 429 (cota por modelo) e 5xx (sobrecarga): tenta o proximo modelo da lista
+  }
+  throw new ErroHttp(502, 'O Gemini nao conseguiu responder agora. Tente de novo ou troque para o Claude.');
+}
+
+export function discutirCaso(req, res) {
+  return executar(req, res, async (b) => {
+    const ia = b.ia === 'gemini' ? 'gemini' : 'claude';
+    const tipo = texto(b.tipo_exame, 120).trim() || 'nao informado';
+    const msgs = validarMensagens(b.mensagens, { comImagens: true, terminaNoMedico: true });
+    const r = ia === 'gemini' ? await geminiDiscussao(msgs, tipo) : await claudeDiscussao(msgs, tipo);
+    return { resposta: r.texto, ia };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// 5) Consolidar a discussao: so o que o MEDICO concluiu
+// ─────────────────────────────────────────────────────────────
+
+export function consolidarDiscussao(req, res) {
+  return executar(req, res, async (b) => {
+    const tipo = texto(b.tipo_exame, 120).trim() || 'nao informado';
+    const msgs = validarMensagens(b.mensagens, { comImagens: false, terminaNoMedico: false });
+
+    const transcricao = msgs.map(m => m.role === 'assistant'
+      ? `IA${m.ia ? ` (${m.ia})` : ''}: ${m.texto}`
+      : `MÉDICO: ${m.texto || '(sem texto)'}${m.n_imagens ? ` [anexou ${m.n_imagens} imagem(ns)]` : ''}`
+    ).join('\n\n');
+
+    const saida = await perguntar(
+      SISTEMA_CONSOLIDAR,
+      `TIPO DE EXAME: ${tipo}\n\nTRANSCRIÇÃO DA DISCUSSÃO:\n<<<\n${transcricao}\n>>>`,
+      1500
+    );
+
+    return {
+      ditado: texto(saida.ditado, LIM_DITADO).trim(),
+      em_aberto: (Array.isArray(saida.em_aberto) ? saida.em_aberto : [])
+        .map(x => texto(x, 200).trim()).filter(Boolean).slice(0, 6)
     };
   });
 }
