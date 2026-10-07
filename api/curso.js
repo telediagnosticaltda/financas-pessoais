@@ -29,6 +29,10 @@ const DRIVE_BASE  = 'https://www.googleapis.com/drive/v3';
 
 const MODELOS_GEMINI = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'];
 
+// Versao do formato da API de interacoes. A documentacao atual do Google manda
+// este cabecalho na criacao e na consulta das analises em segundo plano.
+const API_REVISION = '2026-05-20';
+
 // Pedaco copiado por chamada. Precisa ser multiplo de 256 KB (exigencia do
 // envio em partes do Google). 32 MB cabe com folga nos 60s da Vercel.
 const PEDACO = 32 * 1024 * 1024;
@@ -317,7 +321,7 @@ async function acaoAnalisar({ uri, tipo }, chave) {
     for (const ajuste of variacoes) {
       const res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave, 'Api-Revision': API_REVISION },
         body: JSON.stringify({
           model: modelo,
           background: true,
@@ -355,11 +359,27 @@ async function acaoAnalisar({ uri, tipo }, chave) {
 async function acaoResultado({ id }, chave) {
   if (!/^[A-Za-z0-9_.\/-]+$/.test(id || '')) throw erro('Analise invalida.', 400);
   const caminho = id.startsWith('interactions/') ? id : `interactions/${id}`;
-  const r = await fetch(`${GEMINI_BASE}/v1beta/${caminho}`, { headers: { 'x-goog-api-key': chave } });
-  const texto = await r.text();
+  const url = `${GEMINI_BASE}/v1beta/${caminho}`;
+
+  // Consulta com o cabecalho de versao; se o Google recusar, tenta sem ele
+  let r = await fetch(url, { headers: { 'x-goog-api-key': chave, 'Api-Revision': API_REVISION } });
+  let texto = await r.text();
+  if (r.status === 400) {
+    const msg1 = mensagemGoogle(texto);
+    const r2 = await fetch(url, { headers: { 'x-goog-api-key': chave } });
+    const texto2 = await r2.text();
+    if (r2.ok) { r = r2; texto = texto2; }
+    else {
+      console.error('[curso resultado]', r.status, msg1, '| sem revisao:', r2.status, mensagemGoogle(texto2));
+      throw erro(`Nao consegui consultar a analise (${r.status}): ${msg1.slice(0, 200) || 'sem detalhes'}`, 502);
+    }
+  }
   if (!r.ok) {
-    console.error('[curso resultado]', r.status, texto.slice(0, 300));
-    throw erro(`Nao consegui consultar a analise (${r.status}).`, 502);
+    const msg = mensagemGoogle(texto);
+    console.error('[curso resultado]', r.status, msg.slice(0, 300));
+    // 404/5xx podem ser passageiros logo apos a criacao: o navegador tenta de novo
+    throw erro(`Nao consegui consultar a analise (${r.status}): ${msg.slice(0, 200) || 'sem detalhes'}`,
+               r.status === 404 || r.status >= 500 ? 503 : 502);
   }
   const d = JSON.parse(texto);
   const inter = d.interaction || d;
