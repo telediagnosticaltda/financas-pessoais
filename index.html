@@ -1218,6 +1218,79 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 @media (prefers-reduced-motion: reduce) {
   .cur-barra.indef div { animation: none; width: 100%; opacity: .5; }
 }
+/* ── CURSOS (versão completa) ── */
+.cur-voltar { padding: 7px 9px; }
+.cur-btn-peq { padding: 5px 10px; font-size: 12px; }
+.cur-btn-peq i { font-size: 14px; }
+.cur-cursos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.cur-curso-card { cursor: pointer; display: flex; flex-direction: column; gap: .6rem; }
+.cur-curso-card h3 { font-size: 15px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+.cur-curso-meta { font-size: 12px; color: var(--text-2); line-height: 1.6; font-variant-numeric: tabular-nums; }
+.cur-progresso { height: 5px; background: var(--border-2); border-radius: 5px; overflow: hidden; }
+.cur-progresso div { height: 100%; background: var(--green); border-radius: 5px; }
+
+.cur-resumo-curso { font-size: 12.5px; color: var(--text-2); margin: -.25rem 0 1rem; font-variant-numeric: tabular-nums; }
+.cur-temas-filtro { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
+.cur-temas-filtro button { font-family: var(--font); font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; }
+.cur-temas-filtro button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.cur-fila { margin-bottom: 1rem; }
+.cur-fila-topo { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 4px; }
+.cur-etapa-sub { font-size: 12px; color: var(--text-2); margin-bottom: 8px; min-height: 18px; }
+
+.cur-modulo { margin-bottom: .75rem; padding: 0; overflow: hidden; }
+.cur-modulo-cab { display: flex; align-items: center; gap: .6rem; padding: .85rem 1.1rem; cursor: pointer; user-select: none; }
+.cur-modulo-cab i.ti-chevron-right { transition: transform .15s; color: var(--text-3); }
+.cur-modulo.aberto .cur-modulo-cab i.ti-chevron-right { transform: rotate(90deg); }
+.cur-modulo-nome { font-weight: 700; font-size: 14px; flex: 1; min-width: 0; }
+.cur-modulo-meta { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cur-modulo-aulas { display: none; border-top: 1px solid var(--border-2); }
+.cur-modulo.aberto .cur-modulo-aulas { display: block; }
+.cur-aula-linha { display: flex; align-items: center; gap: .7rem; padding: .6rem 1.1rem; cursor: pointer; border-bottom: 1px solid var(--border-2); }
+.cur-aula-linha:last-child { border-bottom: none; }
+.cur-aula-linha:hover { background: var(--surface-2); }
+.cur-aula-linha.fora { opacity: .45; }
+.cur-aula-icone { font-size: 18px; flex-shrink: 0; width: 20px; text-align: center; }
+.cur-aula-icone.assistida { color: var(--green); }
+.cur-aula-icone.andamento { color: var(--primary); }
+.cur-aula-icone.pendente { color: var(--text-3); }
+.cur-aula-info { flex: 1; min-width: 0; }
+.cur-aula-nome { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cur-aula-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.cur-aula-tags span { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--primary-l); color: var(--primary-d); }
+.cur-aula-dir { display: flex; align-items: center; gap: .6rem; font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.cur-st { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+.cur-st.pendente { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
+.cur-st.analisando { background: #FFF6DB; color: #8A6100; }
+.cur-st.erro { background: var(--red-l); color: var(--red); }
+
+.cur-res-aula { margin-bottom: .75rem; padding: .9rem 1.1rem; }
+.cur-res-cab { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .4rem; cursor: pointer; }
+.cur-res-cab strong { font-size: 13.5px; }
+.cur-res-cab span { font-size: 11.5px; color: var(--text-3); }
+.cur-res-tipo { font-size: 10px; font-weight: 700; color: var(--text-3); margin-right: 4px; }
+
+.cur-aula-modulo { font-size: 11.5px; color: var(--text-3); font-weight: 600; }
+.cur-aula-titulo { font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cur-assistida { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.cur-assistida input { width: 15px; height: 15px; accent-color: var(--green); }
+
+.cur-notas-topo { display: flex; align-items: center; gap: .6rem; margin-bottom: .6rem; }
+.cur-notas-topo strong { font-size: 13.5px; }
+.cur-notas-status { font-size: 11px; color: var(--text-3); flex: 1; }
+#cur-notas-txt { width: 100%; resize: vertical; min-height: 120px; font-family: var(--font); font-size: 13px; line-height: 1.6; padding: 10px 12px; }
+.cur-notas-ver { font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-wrap: break-word; min-height: 60px; cursor: text;
+  padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
+.cur-notas-ver.vazio { color: var(--text-3); }
+.cur-notas-ver .cur-t { color: var(--primary); font-weight: 600; cursor: pointer; font-variant-numeric: tabular-nums; }
+.cur-notas-ver .cur-t:hover { text-decoration: underline; }
+
+.cur-tema-ed { display: inline-flex; align-items: center; gap: 4px; }
+.cur-tema-ed button { background: none; border: none; color: inherit; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; opacity: .6; }
+.cur-tema-ed button:hover { opacity: 1; }
+.cur-tema-add { font-family: var(--font); font-size: 11.5px; padding: 3px 6px; border-radius: 20px; border: 1px dashed var(--border); background: var(--surface); color: var(--text-2); }
+.cur-acoes-aula { display: flex; gap: .5rem; margin-top: .9rem; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -1791,38 +1864,93 @@ tr.duplicate-row:hover { background: #FFF6D6; }
       <div id="rec-grid"><div class="loading-msg">Carregando...</div></div>
     </div>
 
-    <!-- PAGE: CURSOS (fase de teste) -->
+    <!-- PAGE: CURSOS -->
     <div id="page-cursos" class="page">
-      <div class="page-header">
-        <h1 class="page-title">Cursos</h1>
-      </div>
 
-      <p class="cur-intro">
-        Teste: abra uma aula guardada no seu Google Drive, assista aqui e peça ao Gemini para transcrever,
-        ler os slides e sugerir os temas. O resultado fica salvo só neste navegador por enquanto.
-      </p>
-
-      <div class="card cur-abrir">
-        <label for="cur-link">Link do vídeo no Drive</label>
-        <div class="cur-abrir-linha">
-          <input type="text" id="cur-link" placeholder="https://drive.google.com/file/d/..."
-                 onkeydown="if (event.key === 'Enter') abrirAulaCurso()">
-          <button class="btn btn-primary" id="cur-abrir-btn" onclick="abrirAulaCurso()">
-            <i class="ti ti-player-play"></i> Abrir aula
-          </button>
+      <!-- Lista de cursos -->
+      <div id="cur-v-lista">
+        <div class="page-header">
+          <h1 class="page-title">Cursos</h1>
         </div>
-        <div class="cur-dica">No Drive, clique com o botão direito no vídeo → Compartilhar → Copiar link. O vídeo pode continuar privado.</div>
+        <div class="card cur-abrir">
+          <label for="cur-pasta-link">Adicionar curso: link da pasta principal no Drive</label>
+          <div class="cur-abrir-linha">
+            <input type="text" id="cur-pasta-link" placeholder="https://drive.google.com/drive/folders/..."
+                   onkeydown="if (event.key === 'Enter') adicionarCurso()">
+            <button class="btn btn-primary" id="cur-add-btn" onclick="adicionarCurso()">
+              <i class="ti ti-folder-plus"></i> Adicionar curso
+            </button>
+          </div>
+          <div class="cur-dica">Cada subpasta vira um módulo e cada vídeo dentro dela vira uma aula, na ordem dos nomes. Numere os nomes (01, 02…) para garantir a sequência.</div>
+        </div>
         <div id="cur-aviso" class="cur-aviso" style="display:none"></div>
+        <div id="cur-lista-cursos"><div class="loading-msg">Carregando...</div></div>
       </div>
 
-      <div id="cur-aula" style="display:none">
+      <!-- Um curso -->
+      <div id="cur-v-curso" style="display:none">
+        <div class="page-header">
+          <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
+            <button class="btn btn-ghost cur-voltar" onclick="mostrarListaCursos()" title="Voltar"><i class="ti ti-arrow-left"></i></button>
+            <h1 class="page-title" id="cur-curso-nome" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></h1>
+          </div>
+          <div class="header-right">
+            <button class="btn btn-ghost" id="cur-sync-btn" onclick="sincronizarCursoAtual()">
+              <i class="ti ti-refresh"></i> Sincronizar
+            </button>
+            <button class="btn btn-primary" id="cur-fila-btn" onclick="analisarPendentes()">
+              <i class="ti ti-sparkles"></i> <span id="cur-fila-txt">Analisar pendentes</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="cur-aviso-curso" class="cur-aviso" style="display:none;margin-bottom:1rem"></div>
+
+        <div class="card cur-fila" id="cur-fila" style="display:none">
+          <div class="cur-fila-topo">
+            <div class="cur-etapa" id="cur-fila-etapa"></div>
+            <button class="btn btn-ghost" id="cur-fila-pausar" onclick="pausarFila()"><i class="ti ti-player-pause"></i> Pausar</button>
+          </div>
+          <div class="cur-etapa-sub" id="cur-fila-sub"></div>
+          <div class="cur-barra"><div id="cur-fila-barra"></div></div>
+          <div class="cur-dica">Deixe esta aba aberta enquanto a fila roda. Se fechar, as partes prontas ficam guardadas e a fila continua de onde parou.</div>
+        </div>
+
+        <div class="cur-resumo-curso" id="cur-resumo-curso"></div>
+
+        <div class="filters-bar">
+          <input type="text" id="cur-busca-curso" placeholder="Buscar no curso inteiro: fala, slides e suas anotações…"
+                 oninput="buscarNoCursoDebounce()" style="flex:1;min-width:200px;max-width:460px;padding:8px 11px;font-size:12.5px">
+        </div>
+        <div class="cur-temas-filtro" id="cur-temas-filtro"></div>
+
+        <div id="cur-resultados" style="display:none"></div>
+        <div id="cur-modulos"></div>
+      </div>
+
+      <!-- Uma aula -->
+      <div id="cur-v-aula" style="display:none">
+        <div class="page-header">
+          <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
+            <button class="btn btn-ghost cur-voltar" onclick="voltarAoCurso()" title="Voltar ao curso"><i class="ti ti-arrow-left"></i></button>
+            <div style="min-width:0">
+              <div class="cur-aula-modulo" id="cur-aula-modulo"></div>
+              <h1 class="page-title cur-aula-titulo" id="cur-aula-titulo"></h1>
+            </div>
+          </div>
+        </div>
+
+        <div id="cur-aviso-aula" class="cur-aviso" style="display:none;margin-bottom:1rem"></div>
+
         <div class="cur-layout">
           <div class="cur-col-video">
             <div class="cur-video-box">
               <video id="cur-video" controls preload="metadata" playsinline></video>
             </div>
             <div class="cur-video-barra">
-              <div class="cur-nome" id="cur-nome"></div>
+              <label class="cur-assistida">
+                <input type="checkbox" id="cur-assistida" onchange="marcarAssistida(this.checked)"> Assistida
+              </label>
               <div class="cur-vel" id="cur-vel">
                 <button data-v="1" class="active" onclick="velocidadeCurso(1)">1x</button>
                 <button data-v="1.25" onclick="velocidadeCurso(1.25)">1,25x</button>
@@ -1832,41 +1960,37 @@ tr.duplicate-row:hover { background: #FFF6D6; }
               </div>
             </div>
 
-            <div class="card cur-analise">
-              <div id="cur-analise-inicio">
-                <div class="cur-analise-txt">
-                  <strong>Analisar com Gemini</strong>
-                  <span id="cur-estimativa">O Gemini assiste à aula inteira e devolve transcrição, slides, tópicos e temas.</span>
-                </div>
-                <button class="btn btn-primary" id="cur-analisar-btn" onclick="analisarAulaCurso()">
-                  <i class="ti ti-sparkles"></i> Analisar aula
+            <div class="card cur-notas">
+              <div class="cur-notas-topo">
+                <strong>Anotações</strong>
+                <span class="cur-notas-status" id="cur-notas-status"></span>
+                <button class="btn btn-ghost cur-btn-peq" onmousedown="event.preventDefault()" onclick="inserirTempoNota()" title="Coloca o momento atual do vídeo na anotação">
+                  <i class="ti ti-clock-plus"></i> Inserir tempo
                 </button>
               </div>
-              <div id="cur-progresso" style="display:none">
-                <div class="cur-etapa" id="cur-etapa">Preparando…</div>
-                <div class="cur-barra"><div id="cur-barra-fill"></div></div>
-                <div class="cur-dica">Pode deixar a aba aberta e fazer outra coisa. Não feche nem recarregue a página até terminar.</div>
-              </div>
+              <textarea id="cur-notas-txt" rows="6" style="display:none"
+                        placeholder="Suas anotações desta aula. Use [12:30] para marcar um momento do vídeo."
+                        oninput="notaMudou()" onblur="mostrarNotaFormatada()"></textarea>
+              <div id="cur-notas-ver" class="cur-notas-ver" onclick="editarNota(event)"></div>
             </div>
 
-            <div id="cur-resumo-box"></div>
+            <div class="card cur-resumo" id="cur-resumo-aula"></div>
           </div>
 
           <div class="cur-col-texto">
-            <div class="card cur-painel" id="cur-painel" style="display:none">
+            <div class="card cur-painel" id="cur-painel">
               <div class="cur-abas">
                 <button class="active" data-aba="transcricao" onclick="abaCurso('transcricao')">Transcrição</button>
                 <button data-aba="slides" onclick="abaCurso('slides')">Slides</button>
                 <button data-aba="topicos" onclick="abaCurso('topicos')">Tópicos</button>
               </div>
-              <input type="text" id="cur-busca" placeholder="Buscar um termo nesta aula…" oninput="renderPainelCurso()">
+              <input type="text" id="cur-busca" placeholder="Buscar nesta aula…" oninput="renderPainelCurso()">
               <div id="cur-lista" class="cur-lista"></div>
             </div>
           </div>
         </div>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -6662,22 +6786,38 @@ async function doLogout() {
 });
 
 // ─────────────────────────────────────────────────────────────
-// CURSOS (fase de teste)
-// O vídeo fica privado no Drive. O player pede o vídeo a um endereço do
-// próprio app (/__drive/ID) e o service worker (sw.js) busca no Drive com a
-// sua autorização. Para a análise, o vídeo vai do Drive direto para o Gemini
-// pelos servidores (api/curso.js), em pedaços.
+// CURSOS
+// Vídeos privados no Google Drive. O player pede o vídeo a /__drive/ID e o
+// service worker (sw.js) busca no Drive com a sua autorização. A análise
+// manda o vídeo do Drive para o Gemini pelos servidores (api/curso.js) e
+// processa em trechos de 5 minutos. Tudo fica salvo no Supabase.
 // ─────────────────────────────────────────────────────────────
 const CUR_CACHE      = 'financas-drive';
 const CUR_PRECO_IN   = 0.75;   // US$ por milhão de tokens (Gemini Flash, pago, até 31/12/2026)
 const CUR_PRECO_OUT  = 3.75;
-let curAula      = null;       // { id, nome, tamanho, tipo, duracaoMs }
-let curAnalise   = null;       // resultado do Gemini
-let curAba       = 'transcricao';
-let curTokenAte  = 0;
-let curTokenTimer = null;
-let curOcupado   = false;
+const CUR_TRECHO     = 300;    // segundos por chamada ao Gemini
+const CUR_SIMULTANEOS = 3;     // trechos analisados ao mesmo tempo
+const CUR_TEMAS = [
+  'Ombro', 'Cotovelo', 'Punho e mão', 'Quadril e pelve', 'Joelho', 'Tornozelo e pé', 'Coluna',
+  'Trauma e fraturas', 'Tumores ósseos e de partes moles', 'Artropatias e reumatologia', 'Infecção',
+  'Doenças ósseas metabólicas', 'Musculoesquelético pediátrico', 'Técnica e física (RM/US/TC)'
+];
 
+let curCursos       = [];
+let curCurso        = null;     // curso aberto
+let curAulas        = [];       // aulas do curso aberto
+let curAula         = null;     // aula aberta
+let curTrechos      = { fala: [], slide: [] };
+let curAba          = 'transcricao';
+let curTemaFiltro   = '';
+let curModAbertos   = new Set();
+let curTokenAte     = 0;
+let curTokenTimer   = null;
+let curFila         = { rodando: false, pausar: false };
+let curNotaTimer    = null;
+let curPosSalvaEm   = 0;
+
+// ── Utilidades ──
 async function cursoApi(acao, dados = {}) {
   const res = await fetch('/api/curso', {
     method: 'POST',
@@ -6695,39 +6835,29 @@ async function cursoApi(acao, dados = {}) {
   return corpo;
 }
 
-function loadCursosPage() {
-  if (!('serviceWorker' in navigator)) {
-    avisoCurso('Este navegador não permite tocar vídeos privados do Drive dentro do app.', true);
-  }
-}
-
-function avisoCurso(msg, erro = false) {
-  const el = document.getElementById('cur-aviso');
+function avisoEm(idEl, msg, erro = false) {
+  const el = document.getElementById(idEl);
+  if (!el) return;
   if (!msg) { el.style.display = 'none'; return; }
   el.className = 'cur-aviso' + (erro ? ' erro' : '');
   el.innerHTML = msg;
   el.style.display = 'block';
 }
 
+function msgErroCurso(e) {
+  let m = escHtml(e.message || String(e));
+  if (e.status === 403) m += ' <a href="/api/gmail-callback?iniciar=1">Autorizar Google agora</a>';
+  if (e.detalhes?.length) m += '<br><span style="font-size:11.5px;opacity:.85">' + e.detalhes.map(escHtml).join('<br>') + '</span>';
+  return m;
+}
+
 function extrairIdDrive(link) {
   const t = String(link || '').trim();
-  const m = t.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/) ||
+  const m = t.match(/\/folders\/([A-Za-z0-9_-]{10,})/) ||
+            t.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/) ||
             t.match(/[?&]id=([A-Za-z0-9_-]{10,})/) ||
             t.match(/^([A-Za-z0-9_-]{20,})$/);
   return m ? m[1] : null;
-}
-
-// Entrega ao service worker uma chave temporária (1h) do Drive
-async function garantirTokenDrive(forcar = false) {
-  if (!forcar && Date.now() < curTokenAte - 5 * 60_000) return;
-  const { access_token, expires_in } = await cursoApi('token');
-  const cache = await caches.open(CUR_CACHE);
-  await cache.put('/__drive-token', new Response(access_token));
-  curTokenAte = Date.now() + (expires_in || 3600) * 1000;
-
-  // Renova sozinho enquanto a aba estiver aberta
-  clearTimeout(curTokenTimer);
-  curTokenTimer = setTimeout(() => garantirTokenDrive(true).catch(() => {}), Math.max(60_000, (expires_in || 3600) * 1000 - 10 * 60_000));
 }
 
 function formatarTamanho(b) {
@@ -6743,392 +6873,28 @@ function formatarTempoCurso(seg) {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+function formatarDuracaoLonga(seg) {
+  seg = Math.round(seg || 0);
+  const h = Math.floor(seg / 3600), m = Math.round((seg % 3600) / 60);
+  return h ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`;
+}
+
 function lerTempoCurso(txt) {
   const p = String(txt || '').trim().split(':').map(Number);
-  if (p.some(isNaN)) return 0;
+  if (!p.length || p.some(isNaN)) return 0;
   return p.reduce((acc, n) => acc * 60 + n, 0);
-}
-
-async function abrirAulaCurso() {
-  const id = extrairIdDrive(document.getElementById('cur-link').value);
-  avisoCurso('');
-  if (!id) { avisoCurso('Não reconheci esse link. Cole o link de compartilhamento do vídeo no Drive.', true); return; }
-
-  if (!navigator.serviceWorker?.controller) {
-    avisoCurso('O ajudante do app ainda não está ativo nesta aba. Recarregue a página (F5) e abra a aula de novo.', true);
-    return;
-  }
-
-  const btn = document.getElementById('cur-abrir-btn');
-  btn.disabled = true;
-  try {
-    await garantirTokenDrive();
-    const info = await cursoApi('info', { id });
-    if (!/^video\//.test(info.tipo || '')) {
-      avisoCurso(`"${escHtml(info.nome)}" não é um vídeo (${escHtml(info.tipo)}).`, true);
-      return;
-    }
-    curAula = info;
-    curAnalise = null;
-
-    document.getElementById('cur-nome').textContent = info.nome;
-    document.getElementById('cur-nome').title = `${info.nome} — ${formatarTamanho(info.tamanho)}`;
-    const video = document.getElementById('cur-video');
-    video.src = `/__drive/${info.id}`;
-    video.playbackRate = 1;
-    marcarVelocidade(1);
-    document.getElementById('cur-aula').style.display = 'block';
-
-    // Resultado já pago em análise anterior desta aula, guardado neste navegador
-    try {
-      const salvo = localStorage.getItem('curso-analise-' + info.id);
-      if (salvo) curAnalise = JSON.parse(salvo);
-    } catch { /* sem armazenamento local */ }
-
-    atualizarEstimativaCurso();
-    renderAnaliseCurso();
-  } catch (e) {
-    const msg = e.status === 403
-      ? `${escHtml(e.message)} <br><a href="/api/gmail-callback?iniciar=1">Autorizar Google agora</a>`
-      : escHtml(e.message);
-    avisoCurso(msg, true);
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-// Se a chave temporária venceu no meio da aula, renova e continua de onde parou
-(function iniciarPlayerCurso() {
-  const video = document.getElementById('cur-video');
-  if (!video) return;
-  let tentou = false;
-  let voltarPara = null;
-  video.addEventListener('error', async () => {
-    if (!curAula || tentou) {
-      if (curAula) avisoCurso('O vídeo não carregou. Confira se o arquivo é MP4 e se a autorização do Google inclui o Drive.', true);
-      return;
-    }
-    tentou = true;
-    const pos = video.currentTime;
-    try {
-      await garantirTokenDrive(true);
-      voltarPara = pos;
-      video.src = `/__drive/${curAula.id}?r=${Date.now()}`;
-    } catch (e) { avisoCurso(escHtml(e.message), true); }
-  });
-  video.addEventListener('loadedmetadata', () => {
-    tentou = false;
-    if (voltarPara != null) { video.currentTime = voltarPara; voltarPara = null; video.play().catch(() => {}); }
-    atualizarEstimativaCurso();
-  });
-  video.addEventListener('timeupdate', destacarTrechoAtual);
-})();
-
-function marcarVelocidade(v) {
-  document.querySelectorAll('#cur-vel button').forEach(b => b.classList.toggle('active', Number(b.dataset.v) === v));
-}
-
-function velocidadeCurso(v) {
-  document.getElementById('cur-video').playbackRate = v;
-  marcarVelocidade(v);
-}
-
-function pularCurso(seg) {
-  const video = document.getElementById('cur-video');
-  video.currentTime = seg;
-  video.play().catch(() => {});
-}
-
-function duracaoAulaSeg() {
-  const v = document.getElementById('cur-video');
-  if (v && isFinite(v.duration) && v.duration > 0) return v.duration;
-  return (curAula?.duracaoMs || 0) / 1000;
-}
-
-// Estimativa: 1 quadro a cada 5 s em alta resolução + áudio ≈ 84 tokens/s de entrada;
-// saída (transcrição + slides + raciocínio) ≈ 30 mil tokens por hora.
-function estimarCustoCurso(seg) {
-  const entrada = seg * 84;
-  const saida = (seg / 3600) * 30000;
-  return (entrada * CUR_PRECO_IN + saida * CUR_PRECO_OUT) / 1e6;
-}
-
-function atualizarEstimativaCurso() {
-  const el = document.getElementById('cur-estimativa');
-  if (!el) return;
-  const seg = duracaoAulaSeg();
-  if (curAnalise) {
-    el.textContent = 'Esta aula já foi analisada. Analisar de novo gera uma nova cobrança.';
-  } else if (seg) {
-    const usd = estimarCustoCurso(seg);
-    el.textContent = `Aula de ${formatarTempoCurso(seg)}. Custo estimado: cerca de US$ ${usd.toFixed(2).replace('.', ',')}.`;
-  }
-  const pend = parcialCurso();
-  if (pend) el.textContent = 'Há uma análise em andamento. Continuar não cobra de novo as partes já analisadas.';
-  document.getElementById('cur-analisar-btn').innerHTML = pend
-    ? '<i class="ti ti-player-track-next"></i> Continuar análise'
-    : curAnalise
-      ? '<i class="ti ti-refresh"></i> Analisar de novo'
-      : '<i class="ti ti-sparkles"></i> Analisar aula';
-}
-
-function etapaCurso(texto, pct = null) {
-  document.getElementById('cur-etapa').textContent = texto;
-  const barra = document.getElementById('cur-barra-fill').parentElement;
-  if (pct == null) {
-    barra.classList.add('indef');
-    document.getElementById('cur-barra-fill').style.width = '';
-  } else {
-    barra.classList.remove('indef');
-    document.getElementById('cur-barra-fill').style.width = Math.round(pct) + '%';
-  }
-}
-
-const esperarCurso = ms => new Promise(r => setTimeout(r, ms));
-
-// Análise em andamento desta aula (trechos já pagos ficam guardados aqui)
-function parcialCurso(id = curAula?.id) {
-  try { return JSON.parse(localStorage.getItem('curso-parcial-' + id) || 'null'); }
-  catch { return null; }
-}
-function salvarParcialCurso(id, p) {
-  try { localStorage.setItem('curso-parcial-' + id, JSON.stringify(p)); } catch { /* segue */ }
-}
-
-function somarUsoCurso(a, b) {
-  const out = { ...(a || {}) };
-  for (const k of ['entrada', 'ferramenta', 'saida', 'raciocinio', 'custoUSD']) {
-    out[k] = Number(out[k] || 0) + Number(b?.[k] || 0);
-  }
-  out.custoUSD = Number(out.custoUSD.toFixed(4));
-  return out;
-}
-
-// Copia o vídeo do Drive para a área temporária do Gemini e espera ficar pronto
-async function enviarVideoGeminiCurso(aulaId) {
-  etapaCurso('Enviando o vídeo do Drive para o Gemini…', 0);
-  const envio = await cursoApi('iniciar-envio', { id: aulaId });
-  let offset = 0, falhasSeguidas = 0, arquivo = null;
-  while (true) {
-    let parte;
-    try {
-      parte = await cursoApi('enviar-parte', {
-        id: aulaId, enderecoEnvio: envio.enderecoEnvio, offset, tamanho: envio.tamanho
-      });
-      falhasSeguidas = 0;
-    } catch (e) {
-      if (++falhasSeguidas > 3 || e.status === 400 || e.status === 401) throw e;
-      await esperarCurso(3000 * falhasSeguidas);
-      continue;
-    }
-    offset = parte.offset;
-    etapaCurso(`Enviando o vídeo do Drive para o Gemini… ${formatarTamanho(offset)} de ${formatarTamanho(envio.tamanho)}`,
-               (offset / envio.tamanho) * 100);
-    if (parte.terminou) { arquivo = parte.arquivo; break; }
-  }
-
-  etapaCurso('O Gemini está preparando o vídeo…');
-  let estado = arquivo.estado;
-  const limite = Date.now() + 15 * 60_000;
-  while (estado !== 'ACTIVE') {
-    if (estado === 'FAILED') throw new Error('O Gemini não conseguiu ler esse arquivo de vídeo.');
-    if (Date.now() > limite) throw new Error('O Gemini demorou demais para preparar o vídeo. Tente de novo mais tarde.');
-    await esperarCurso(4000);
-    const st = await cursoApi('estado-arquivo', { nome: arquivo.nome });
-    estado = st.estado; arquivo.uri = st.uri || arquivo.uri; arquivo.tipo = st.tipo || arquivo.tipo;
-  }
-  return arquivo;
-}
-
-const CUR_TRECHO = 300;          // segundos por chamada ao Gemini
-const CUR_SIMULTANEOS = 3;       // trechos analisados ao mesmo tempo
-
-async function analisarAulaCurso() {
-  if (!curAula || curOcupado) return;
-  const aulaId = curAula.id;
-  try { localStorage.removeItem('curso-pendente-' + aulaId); } catch { /* versão antiga */ }
-
-  const duracao = duracaoAulaSeg();
-  if (!duracao) { avisoCurso('Espere o vídeo carregar (aparecer a duração) e tente de novo.', true); return; }
-
-  let parcial = parcialCurso(aulaId);
-  // A área temporária do Gemini apaga o vídeo em cerca de 48h
-  if (parcial && Date.now() - parcial.enviadoEm > 40 * 3600_000) { parcial = null; }
-
-  if (!parcial) {
-    const est = ` (estimativa: cerca de US$ ${estimarCustoCurso(duracao).toFixed(2).replace('.', ',')})`;
-    const pergunta = (curAnalise ? 'Esta aula já tem uma análise guardada. Analisar de novo gera nova cobrança' : 'O Gemini vai assistir à aula inteira. Isso tem custo no plano pago')
-                   + est + '. Continuar?';
-    if (!confirm(pergunta)) return;
-  }
-
-  curOcupado = true;
-  avisoCurso('');
-  document.getElementById('cur-analise-inicio').style.display = 'none';
-  document.getElementById('cur-progresso').style.display = 'block';
-
-  try {
-    if (!parcial) {
-      const arquivo = await enviarVideoGeminiCurso(aulaId);
-      const trechos = [];
-      for (let t = 0; t < duracao; t += CUR_TRECHO) {
-        trechos.push({ inicio: t, fim: Math.min(t + CUR_TRECHO, Math.ceil(duracao)), res: null });
-      }
-      parcial = { arquivo, enviadoEm: Date.now(), duracao, trechos, uso: {}, modelo: '' };
-      salvarParcialCurso(aulaId, parcial);
-    }
-
-    // Analisa os trechos que faltam, alguns ao mesmo tempo
-    const feitoSeg = () => parcial.trechos.filter(t => t.res).reduce((a, t) => a + (t.fim - t.inicio), 0);
-    const mostrar = () => etapaCurso(
-      `O Gemini está assistindo à aula… ${formatarTempoCurso(feitoSeg())} de ${formatarTempoCurso(parcial.duracao)}`,
-      (feitoSeg() / parcial.duracao) * 100);
-    mostrar();
-
-    let erroFatal = null;
-    const proximo = () => parcial.trechos.find(t => !t.res && !t.ocupado);
-    async function trabalhador() {
-      let t;
-      while (!erroFatal && (t = proximo())) {
-        t.ocupado = true;
-        let tentativas = 0;
-        while (!t.res && !erroFatal) {
-          try {
-            const r = await cursoApi('analisar-trecho', {
-              uri: parcial.arquivo.uri, tipo: parcial.arquivo.tipo, inicio: t.inicio, fim: t.fim
-            });
-            t.res = { slides: r.slides, transcricao: r.transcricao };
-            parcial.uso = somarUsoCurso(parcial.uso, r.uso);
-            parcial.modelo = r.modelo;
-          } catch (e) {
-            if (e.status === 504 && t.fim - t.inicio >= 90) {
-              // Trecho pesado demais para 60s: divide ao meio
-              const meio = Math.round((t.inicio + t.fim) / 2);
-              const idx = parcial.trechos.indexOf(t);
-              const novo = { inicio: meio, fim: t.fim, res: null };
-              t.fim = meio;
-              parcial.trechos.splice(idx + 1, 0, novo);
-              continue;
-            }
-            if (e.status === 410) { erroFatal = e; break; }
-            if (++tentativas <= 3 && (e.status >= 500 || e.status === 429)) {
-              await esperarCurso(5000 * tentativas);
-              continue;
-            }
-            erroFatal = e;
-          }
-        }
-        delete t.ocupado;
-        salvarParcialCurso(aulaId, parcial);
-        mostrar();
-      }
-    }
-    await Promise.all(Array.from({ length: CUR_SIMULTANEOS }, trabalhador));
-    parcial.trechos.forEach(t => delete t.ocupado);
-    salvarParcialCurso(aulaId, parcial);
-
-    if (erroFatal) {
-      if (erroFatal.status === 410) {
-        try { localStorage.removeItem('curso-parcial-' + aulaId); } catch { /* segue */ }
-        throw new Error('O vídeo expirou na área temporária do Gemini. Clique em "Analisar aula" para enviar de novo.');
-      }
-      throw erroFatal;
-    }
-
-    // Junta os trechos e pede título, resumo, tópicos e temas
-    const ordenar = arr => arr.sort((a, b) => lerTempoCurso(a.inicio) - lerTempoCurso(b.inicio));
-    const transcricao = ordenar(parcial.trechos.flatMap(t => t.res.transcricao || []));
-    const slides = ordenar(parcial.trechos.flatMap(t => t.res.slides || []));
-
-    etapaCurso('Montando resumo, tópicos e temas…');
-    const resumo = await cursoApi('resumir', { transcricao, slides });
-
-    curAnalise = {
-      dados: {
-        titulo: resumo.titulo, resumo: resumo.resumo, temas: resumo.temas || [],
-        topicos: resumo.topicos || [], slides, transcricao
-      },
-      uso: somarUsoCurso(parcial.uso, resumo.uso),
-      modelo: parcial.modelo,
-      ajuste: `${parcial.trechos.length} trechos`,
-      em: new Date().toISOString()
-    };
-    try { localStorage.setItem('curso-analise-' + aulaId, JSON.stringify(curAnalise)); }
-    catch { toast('Análise pronta, mas não coube no armazenamento do navegador.', 'error'); }
-    try { localStorage.removeItem('curso-parcial-' + aulaId); } catch { /* segue */ }
-    cursoApi('apagar', { nome: parcial.arquivo.nome }).catch(() => {});
-
-    toast('Análise da aula pronta');
-    renderAnaliseCurso();
-  } catch (e) {
-    console.error('[cursos]', e);
-    const det = e.detalhes?.length
-      ? '<br><span style="font-size:11.5px;opacity:.85">' + e.detalhes.map(escHtml).join('<br>') + '</span>'
-      : '';
-    const continuar = parcialCurso(aulaId)
-      ? '<br>As partes já analisadas ficaram guardadas. Clique em <strong>Continuar análise</strong> para seguir de onde parou, sem pagar de novo por elas.'
-      : '';
-    avisoCurso(escHtml(e.message) + det + continuar, true);
-    document.getElementById('cur-link').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } finally {
-    curOcupado = false;
-    document.getElementById('cur-progresso').style.display = 'none';
-    document.getElementById('cur-analise-inicio').style.display = 'flex';
-    atualizarEstimativaCurso();
-  }
-}
-
-function renderAnaliseCurso() {
-  const box = document.getElementById('cur-resumo-box');
-  const painel = document.getElementById('cur-painel');
-  if (!curAnalise) { box.innerHTML = ''; painel.style.display = 'none'; return; }
-
-  const d = curAnalise.dados;
-  const u = curAnalise.uso || {};
-  const fmt = n => Number(n || 0).toLocaleString('pt-BR');
-  const custo = `
-    <div class="cur-custo">
-      <strong>Custo desta análise: US$ ${Number(u.custoUSD || 0).toFixed(2).replace('.', ',')}</strong><br>
-      Tokens — entrada: ${fmt(u.entrada + (u.ferramenta || 0))} · saída: ${fmt(u.saida)} · raciocínio: ${fmt(u.raciocinio)}<br>
-      Modelo: ${escHtml(curAnalise.modelo || '')} (${escHtml(curAnalise.ajuste || '')}) · ${new Date(curAnalise.em).toLocaleString('pt-BR')}
-    </div>`;
-
-  if (!d) {
-    box.innerHTML = `<div class="card cur-resumo"><h2>Análise recebida fora do formato</h2>
-      <p>O Gemini respondeu, mas não no formato esperado. O texto bruto está guardado; me mande um print desta mensagem.</p>${custo}</div>`;
-    painel.style.display = 'none';
-    return;
-  }
-
-  box.innerHTML = `
-    <div class="card cur-resumo">
-      <h2>${escHtml(d.titulo || curAula?.nome || 'Aula')}</h2>
-      <p>${escHtml(d.resumo || '')}</p>
-      <div class="cur-temas">${(d.temas || []).map(t => `<span class="cur-tema">${escHtml(t)}</span>`).join('')}</div>
-      ${custo}
-    </div>`;
-  painel.style.display = 'flex';
-  renderPainelCurso();
-}
-
-function abaCurso(aba) {
-  curAba = aba;
-  document.querySelectorAll('.cur-abas button').forEach(b => b.classList.toggle('active', b.dataset.aba === aba));
-  renderPainelCurso();
 }
 
 function normalizarBusca(t) {
   return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-// Destaca o termo buscado ignorando acentos e maiúsculas
 function destacarTermo(texto, termo) {
-  const seguro = escHtml(texto);
-  if (!termo) return seguro;
+  texto = String(texto || '');
+  if (!termo) return escHtml(texto);
   const base = normalizarBusca(texto);
   const alvo = normalizarBusca(termo);
   let saida = '', i = 0, pos;
-  // Trabalha no texto original para não perder acentos
   while ((pos = base.indexOf(alvo, i)) !== -1) {
     saida += escHtml(texto.slice(i, pos)) + '<mark>' + escHtml(texto.slice(pos, pos + alvo.length)) + '</mark>';
     i = pos + alvo.length;
@@ -7136,36 +6902,606 @@ function destacarTermo(texto, termo) {
   return saida + escHtml(texto.slice(i));
 }
 
+const esperarCurso = ms => new Promise(r => setTimeout(r, ms));
+
+function estimarCustoCurso(seg) {
+  // 1 quadro a cada 5 s + áudio ≈ 84 tokens/s; saída ≈ 30 mil tokens por hora
+  return (seg * 84 * CUR_PRECO_IN + (seg / 3600) * 30000 * CUR_PRECO_OUT) / 1e6;
+}
+const usd = v => 'US$ ' + Number(v || 0).toFixed(2).replace('.', ',');
+
+// Chave temporária (1h) do Drive para o service worker tocar os vídeos
+async function garantirTokenDrive(forcar = false) {
+  if (!forcar && Date.now() < curTokenAte - 5 * 60_000) return;
+  const { access_token, expires_in } = await cursoApi('token');
+  const cache = await caches.open(CUR_CACHE);
+  await cache.put('/__drive-token', new Response(access_token));
+  curTokenAte = Date.now() + (expires_in || 3600) * 1000;
+  clearTimeout(curTokenTimer);
+  curTokenTimer = setTimeout(() => garantirTokenDrive(true).catch(() => {}),
+                             Math.max(60_000, (expires_in || 3600) * 1000 - 10 * 60_000));
+}
+
+function mostrarVistaCurso(qual) {
+  document.getElementById('cur-v-lista').style.display = qual === 'lista' ? 'block' : 'none';
+  document.getElementById('cur-v-curso').style.display = qual === 'curso' ? 'block' : 'none';
+  document.getElementById('cur-v-aula').style.display  = qual === 'aula'  ? 'block' : 'none';
+  if (qual !== 'aula') {
+    const v = document.getElementById('cur-video');
+    if (v && !v.paused) v.pause();
+  }
+  window.scrollTo({ top: 0 });
+}
+
+// ─────────────────────────────────────────────────────────────
+// LISTA DE CURSOS
+// ─────────────────────────────────────────────────────────────
+function loadCursosPage() {
+  if (curAula && document.getElementById('cur-v-aula').style.display === 'block') return;
+  if (curCurso && document.getElementById('cur-v-curso').style.display === 'block') { renderCurso(); return; }
+  mostrarListaCursos();
+}
+
+async function mostrarListaCursos() {
+  curCurso = null; curAula = null;
+  mostrarVistaCurso('lista');
+  const box = document.getElementById('cur-lista-cursos');
+  const { data: cursos, error } = await db.from('cursos').select('*').order('criado_em');
+  if (error) {
+    box.innerHTML = `<div class="cur-aviso erro">Não consegui ler os cursos. Você já rodou o SQL das tabelas de Cursos no Supabase? (${escHtml(error.message)})</div>`;
+    return;
+  }
+  curCursos = cursos || [];
+  if (!curCursos.length) {
+    box.innerHTML = '<div class="empty"><i class="ti ti-school"></i><p>Nenhum curso ainda. Cole acima o link da pasta principal do curso no Drive.</p></div>';
+    return;
+  }
+  const { data: resumo } = await db.from('curso_aulas')
+    .select('curso_id,assistida,status_analise,duracao_seg,no_drive').eq('no_drive', true);
+  box.innerHTML = '<div class="cur-cursos">' + curCursos.map(c => {
+    const aulas = (resumo || []).filter(a => a.curso_id === c.id);
+    const total = aulas.length;
+    const vistas = aulas.filter(a => a.assistida).length;
+    const analisadas = aulas.filter(a => a.status_analise === 'analisada').length;
+    const horas = aulas.reduce((s, a) => s + Number(a.duracao_seg || 0), 0);
+    return `<div class="card cur-curso-card" onclick="abrirCurso('${c.id}')">
+      <h3>${escHtml(c.nome)}</h3>
+      <div class="cur-curso-meta">${total} aulas${horas ? ' · ' + formatarDuracaoLonga(horas) : ''}<br>
+        ${vistas} assistidas · ${analisadas} analisadas</div>
+      <div class="cur-progresso"><div style="width:${total ? Math.round(vistas / total * 100) : 0}%"></div></div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+async function adicionarCurso() {
+  const id = extrairIdDrive(document.getElementById('cur-pasta-link').value);
+  avisoEm('cur-aviso', '');
+  if (!id) { avisoEm('cur-aviso', 'Não reconheci esse link. Cole o link da pasta principal do curso no Drive.', true); return; }
+  const btn = document.getElementById('cur-add-btn');
+  btn.disabled = true;
+  try {
+    const curso = await sincronizarCurso(id);
+    document.getElementById('cur-pasta-link').value = '';
+    toast('Curso adicionado');
+    await abrirCurso(curso.id);
+  } catch (e) {
+    console.error('[cursos]', e);
+    avisoEm('cur-aviso', msgErroCurso(e), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Lê a pasta no Drive e atualiza curso + aulas no Supabase
+async function sincronizarCurso(pastaId) {
+  const lido = await cursoApi('listar-pasta', { id: pastaId });
+
+  const { data: cursoSalvo, error: e1 } = await db.from('cursos')
+    .upsert({ drive_pasta_id: pastaId, nome: lido.nome, sincronizado_em: new Date().toISOString() },
+            { onConflict: 'drive_pasta_id' })
+    .select().single();
+  if (e1) throw new Error('Não consegui salvar o curso: ' + e1.message);
+
+  const { data: existentes } = await db.from('curso_aulas')
+    .select('id,drive_arquivo_id,duracao_seg').eq('curso_id', cursoSalvo.id);
+  const porArquivo = new Map((existentes || []).map(a => [a.drive_arquivo_id, a]));
+
+  const linhas = [];
+  const vistos = new Set();
+  lido.modulos.forEach((m, mi) => {
+    m.videos.forEach((v, vi) => {
+      vistos.add(v.id);
+      const antiga = porArquivo.get(v.id);
+      linhas.push({
+        curso_id: cursoSalvo.id,
+        drive_arquivo_id: v.id,
+        modulo: m.nome,
+        modulo_ordem: mi,
+        ordem: vi,
+        nome: v.nome,
+        tamanho: v.tamanho || null,
+        tipo: v.tipo,
+        duracao_seg: v.duracaoSeg || antiga?.duracao_seg || null,
+        no_drive: true,
+        atualizado_em: new Date().toISOString()
+      });
+    });
+  });
+
+  for (let i = 0; i < linhas.length; i += 200) {
+    const { error } = await db.from('curso_aulas').upsert(linhas.slice(i, i + 200), { onConflict: 'drive_arquivo_id' });
+    if (error) throw new Error('Não consegui salvar as aulas: ' + error.message);
+  }
+
+  // Vídeos que saíram da pasta: ficam marcados (não apagamos análises e anotações)
+  const sumiram = (existentes || []).filter(a => !vistos.has(a.drive_arquivo_id)).map(a => a.id);
+  if (sumiram.length) await db.from('curso_aulas').update({ no_drive: false }).in('id', sumiram);
+
+  await importarAnalisesDoTeste(cursoSalvo.id);
+  return cursoSalvo;
+}
+
+// Análises feitas na tela de teste (guardadas no navegador) vão para o banco
+async function importarAnalisesDoTeste(cursoId) {
+  const { data: aulas } = await db.from('curso_aulas')
+    .select('*').eq('curso_id', cursoId).neq('status_analise', 'analisada');
+  for (const aula of aulas || []) {
+    let salvo = null;
+    try { salvo = JSON.parse(localStorage.getItem('curso-analise-' + aula.drive_arquivo_id) || 'null'); } catch { /* segue */ }
+    if (!salvo?.dados) continue;
+    try {
+      await salvarAnaliseAula(aula, salvo);
+      localStorage.removeItem('curso-analise-' + aula.drive_arquivo_id);
+    } catch (e) { console.error('[cursos importar]', e); }
+  }
+}
+
+async function sincronizarCursoAtual() {
+  if (!curCurso) return;
+  const btn = document.getElementById('cur-sync-btn');
+  btn.disabled = true;
+  avisoEm('cur-aviso-curso', '');
+  try {
+    await sincronizarCurso(curCurso.drive_pasta_id);
+    await abrirCurso(curCurso.id);
+    toast('Curso sincronizado com o Drive');
+  } catch (e) {
+    avisoEm('cur-aviso-curso', msgErroCurso(e), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TELA DO CURSO
+// ─────────────────────────────────────────────────────────────
+async function abrirCurso(id) {
+  const { data: curso } = await db.from('cursos').select('*').eq('id', id).single();
+  if (!curso) return;
+  curCurso = curso;
+  await recarregarAulas();
+  if (!curModAbertos.size && curAulas.length) curModAbertos.add(curAulas[0].modulo);
+  curTemaFiltro = '';
+  document.getElementById('cur-busca-curso').value = '';
+  mostrarVistaCurso('curso');
+  renderCurso();
+}
+
+async function recarregarAulas() {
+  const { data } = await db.from('curso_aulas')
+    .select('id,curso_id,modulo,modulo_ordem,ordem,drive_arquivo_id,nome,tamanho,tipo,duracao_seg,no_drive,status_analise,erro_analise,titulo,resumo,temas,topicos,custo_usd,modelo,analisada_em,assistida,posicao_seg,anotacoes')
+    .eq('curso_id', curCurso.id)
+    .order('modulo_ordem').order('ordem');
+  curAulas = data || [];
+}
+
+function aulasPendentes() {
+  return curAulas.filter(a => a.no_drive && a.status_analise !== 'analisada');
+}
+
+function renderCurso() {
+  if (!curCurso) return;
+  document.getElementById('cur-curso-nome').textContent = curCurso.nome;
+
+  const ativas = curAulas.filter(a => a.no_drive);
+  const vistas = ativas.filter(a => a.assistida).length;
+  const analisadas = ativas.filter(a => a.status_analise === 'analisada').length;
+  const horas = ativas.reduce((s, a) => s + Number(a.duracao_seg || 0), 0);
+  const gasto = curAulas.reduce((s, a) => s + Number(a.custo_usd || 0), 0);
+  document.getElementById('cur-resumo-curso').textContent =
+    `${ativas.length} aulas${horas ? ' · ' + formatarDuracaoLonga(horas) : ''} · ${vistas} assistidas · ${analisadas} analisadas` +
+    (gasto ? ` · gasto com análises: ${usd(gasto)}` : '');
+
+  // Botão da fila
+  const pend = aulasPendentes();
+  const segPend = pend.reduce((s, a) => s + Number(a.duracao_seg || 0), 0);
+  const btn = document.getElementById('cur-fila-btn');
+  btn.style.display = curFila.rodando ? 'none' : '';
+  document.getElementById('cur-fila-txt').textContent = pend.length
+    ? `Analisar pendentes (${pend.length}${segPend ? ', ~' + usd(estimarCustoCurso(segPend)) : ''})`
+    : 'Tudo analisado';
+  btn.disabled = !pend.length;
+
+  // Filtro por tema
+  const temas = [...new Set(curAulas.flatMap(a => a.temas || []))]
+    .sort((a, b) => CUR_TEMAS.indexOf(a) - CUR_TEMAS.indexOf(b));
+  document.getElementById('cur-temas-filtro').innerHTML = temas.length
+    ? `<button class="${curTemaFiltro ? '' : 'active'}" onclick="filtrarTemaCurso('')">Todos os temas</button>` +
+      temas.map(t => `<button class="${curTemaFiltro === t ? 'active' : ''}" onclick="filtrarTemaCurso(${escHtml(JSON.stringify(t))})">${escHtml(t)}</button>`).join('')
+    : '';
+
+  renderModulos();
+}
+
+function filtrarTemaCurso(t) { curTemaFiltro = t; renderCurso(); }
+
+function iconeAula(a) {
+  if (a.assistida) return '<i class="ti ti-circle-check-filled cur-aula-icone assistida" title="Assistida"></i>';
+  if (Number(a.posicao_seg) > 5) return '<i class="ti ti-player-play-filled cur-aula-icone andamento" title="Em andamento"></i>';
+  return '<i class="ti ti-circle cur-aula-icone pendente"></i>';
+}
+
+function selosAula(a) {
+  if (a.status_analise === 'analisada') return '';
+  if (a.status_analise === 'analisando') return '<span class="cur-st analisando">analisando</span>';
+  if (a.status_analise === 'erro') return `<span class="cur-st erro" title="${escHtml(a.erro_analise || '')}">erro na análise</span>`;
+  return '<span class="cur-st pendente">não analisada</span>';
+}
+
+function renderModulos() {
+  const box = document.getElementById('cur-modulos');
+  let aulas = curAulas;
+  if (curTemaFiltro) aulas = aulas.filter(a => (a.temas || []).includes(curTemaFiltro));
+  if (!aulas.length) {
+    box.innerHTML = curAulas.length
+      ? '<div class="empty"><p>Nenhuma aula com esse tema.</p></div>'
+      : '<div class="empty"><i class="ti ti-folder-off"></i><p>Nenhum vídeo encontrado nas subpastas. Confira a pasta no Drive e clique em Sincronizar.</p></div>';
+    return;
+  }
+  const modulos = [];
+  for (const a of aulas) {
+    let m = modulos.find(x => x.nome === a.modulo);
+    if (!m) { m = { nome: a.modulo, aulas: [] }; modulos.push(m); }
+    m.aulas.push(a);
+  }
+  box.innerHTML = modulos.map(m => {
+    const aberto = curTemaFiltro || curModAbertos.has(m.nome);
+    const vistas = m.aulas.filter(a => a.assistida).length;
+    const dur = m.aulas.reduce((s, a) => s + Number(a.duracao_seg || 0), 0);
+    return `<div class="card cur-modulo ${aberto ? 'aberto' : ''}">
+      <div class="cur-modulo-cab" onclick="alternarModulo(${escHtml(JSON.stringify(m.nome))})">
+        <i class="ti ti-chevron-right"></i>
+        <span class="cur-modulo-nome">${escHtml(m.nome)}</span>
+        <span class="cur-modulo-meta">${vistas}/${m.aulas.length} assistidas${dur ? ' · ' + formatarDuracaoLonga(dur) : ''}</span>
+      </div>
+      <div class="cur-modulo-aulas">
+        ${m.aulas.map(a => `
+          <div class="cur-aula-linha ${a.no_drive ? '' : 'fora'}" onclick="abrirAula('${a.id}')"
+               title="${a.no_drive ? '' : 'Este vídeo não está mais na pasta do Drive'}">
+            ${iconeAula(a)}
+            <div class="cur-aula-info">
+              <div class="cur-aula-nome">${escHtml(a.titulo || a.nome)}</div>
+              ${(a.temas || []).length ? `<div class="cur-aula-tags">${a.temas.map(t => `<span>${escHtml(t)}</span>`).join('')}</div>` : ''}
+            </div>
+            <div class="cur-aula-dir">
+              ${(a.anotacoes || '').trim() ? '<i class="ti ti-notes" title="Tem anotações"></i>' : ''}
+              ${selosAula(a)}
+              ${a.duracao_seg ? formatarTempoCurso(a.duracao_seg) : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function alternarModulo(nome) {
+  if (curModAbertos.has(nome)) curModAbertos.delete(nome); else curModAbertos.add(nome);
+  renderModulos();
+}
+
+// ── Busca no curso inteiro ──
+let curBuscaTimer = null;
+function buscarNoCursoDebounce() {
+  clearTimeout(curBuscaTimer);
+  curBuscaTimer = setTimeout(buscarNoCurso, 350);
+}
+
+async function buscarNoCurso() {
+  const termo = document.getElementById('cur-busca-curso').value.trim();
+  const res = document.getElementById('cur-resultados');
+  const mods = document.getElementById('cur-modulos');
+  const filtro = document.getElementById('cur-temas-filtro');
+  if (termo.length < 2) { res.style.display = 'none'; mods.style.display = ''; filtro.style.display = ''; return; }
+
+  res.style.display = 'block'; mods.style.display = 'none'; filtro.style.display = 'none';
+  res.innerHTML = '<div class="loading-msg">Buscando…</div>';
+
+  const alvo = normalizarBusca(termo).replace(/[%_\\]/g, ' ');
+  const { data, error } = await db.from('curso_trechos')
+    .select('aula_id,tipo,inicio_seg,texto')
+    .eq('curso_id', curCurso.id)
+    .ilike('texto_busca', `%${alvo}%`)
+    .order('inicio_seg')
+    .limit(300);
+  if (error) { res.innerHTML = `<div class="cur-aviso erro">${escHtml(error.message)}</div>`; return; }
+
+  const grupos = new Map();
+  const add = (aulaId, item) => {
+    if (!grupos.has(aulaId)) grupos.set(aulaId, []);
+    grupos.get(aulaId).push(item);
+  };
+  for (const t of data || []) add(t.aula_id, { tipo: t.tipo, seg: Number(t.inicio_seg), texto: t.texto });
+
+  // Anotações (ficam na própria aula)
+  for (const a of curAulas) {
+    const linhas = (a.anotacoes || '').split('\n').filter(l => normalizarBusca(l).includes(normalizarBusca(termo)));
+    for (const l of linhas) {
+      const m = l.match(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/);
+      add(a.id, { tipo: 'nota', seg: m ? lerTempoCurso(m[1]) : null, texto: l });
+    }
+  }
+
+  if (!grupos.size) { res.innerHTML = `<div class="empty"><p>Nada encontrado para "${escHtml(termo)}".</p></div>`; return; }
+
+  const ordem = curAulas.map(a => a.id);
+  const ids = [...grupos.keys()].sort((x, y) => ordem.indexOf(x) - ordem.indexOf(y));
+  const rotulo = { fala: 'FALA', slide: 'SLIDE', nota: 'NOTA' };
+  res.innerHTML = `<div class="cur-resumo-curso">${(data || []).length >= 300 ? 'Mais de 300 trechos; refine a busca.' : ''}</div>` +
+    ids.map(id => {
+      const a = curAulas.find(x => x.id === id);
+      if (!a) return '';
+      const itens = grupos.get(id);
+      return `<div class="card cur-res-aula">
+        <div class="cur-res-cab" onclick="abrirAula('${a.id}')">
+          <strong>${escHtml(a.titulo || a.nome)}</strong><span>${escHtml(a.modulo)} · ${itens.length} ${itens.length === 1 ? 'trecho' : 'trechos'}</span>
+        </div>
+        ${itens.slice(0, 12).map(it => `
+          <div class="cur-item" onclick="abrirAula('${a.id}', ${it.seg == null ? 'null' : it.seg})">
+            <span class="cur-tempo">${it.seg == null ? '' : formatarTempoCurso(it.seg)}</span>
+            <span><span class="cur-res-tipo">${rotulo[it.tipo] || ''}</span>${destacarTermo(it.texto, termo)}</span>
+          </div>`).join('')}
+        ${itens.length > 12 ? `<div class="cur-dica" style="padding-left:.5rem">e mais ${itens.length - 12} — abra a aula e busque nela.</div>` : ''}
+      </div>`;
+    }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────
+// TELA DA AULA
+// ─────────────────────────────────────────────────────────────
+async function abrirAula(id, seg = null) {
+  const aula = curAulas.find(a => a.id === id);
+  if (!aula) return;
+  curAula = aula;
+  avisoEm('cur-aviso-aula', '');
+
+  document.getElementById('cur-aula-modulo').textContent = aula.modulo;
+  document.getElementById('cur-aula-titulo').textContent = aula.titulo || aula.nome;
+  document.getElementById('cur-aula-titulo').title = aula.nome;
+  document.getElementById('cur-assistida').checked = !!aula.assistida;
+  document.getElementById('cur-busca').value = '';
+  mostrarVistaCurso('aula');
+
+  // Anotações
+  document.getElementById('cur-notas-txt').value = aula.anotacoes || '';
+  document.getElementById('cur-notas-status').textContent = '';
+  mostrarNotaFormatada();
+
+  // Transcrição e slides
+  curTrechos = { fala: [], slide: [] };
+  renderResumoAula();
+  renderPainelCurso();
+  if (aula.status_analise === 'analisada') {
+    const { data } = await db.from('curso_trechos').select('tipo,inicio_seg,texto')
+      .eq('aula_id', aula.id).order('inicio_seg').limit(5000);
+    for (const t of data || []) (curTrechos[t.tipo] || (curTrechos[t.tipo] = [])).push({ seg: Number(t.inicio_seg), texto: t.texto });
+    renderPainelCurso();
+  }
+
+  // Vídeo
+  if (!navigator.serviceWorker?.controller) {
+    avisoEm('cur-aviso-aula', 'O ajudante do app ainda não está ativo nesta aba. Recarregue a página (F5) e abra a aula de novo.', true);
+    return;
+  }
+  try {
+    await garantirTokenDrive();
+  } catch (e) {
+    avisoEm('cur-aviso-aula', msgErroCurso(e), true);
+    return;
+  }
+  const video = document.getElementById('cur-video');
+  video.dataset.inicio = seg != null ? String(seg) : String(Number(aula.posicao_seg) > 5 && !aula.assistida ? aula.posicao_seg : 0);
+  video.dataset.tocar = seg != null ? '1' : '';
+  video.src = `/__drive/${aula.drive_arquivo_id}`;
+  curPosSalvaEm = Date.now();
+}
+
+async function voltarAoCurso() {
+  await salvarPosicaoAula(true);
+  await salvarNotaAgora();
+  curAula = null;
+  mostrarVistaCurso('curso');
+  renderCurso();
+}
+
+function marcarVelocidade(v) {
+  document.querySelectorAll('#cur-vel button').forEach(b => b.classList.toggle('active', Number(b.dataset.v) === v));
+}
+function velocidadeCurso(v) {
+  document.getElementById('cur-video').playbackRate = v;
+  marcarVelocidade(v);
+}
+function pularCurso(seg) {
+  const video = document.getElementById('cur-video');
+  video.currentTime = seg;
+  video.play().catch(() => {});
+}
+
+// Posição e "assistida"
+async function salvarPosicaoAula(forcar = false) {
+  if (!curAula) return;
+  const video = document.getElementById('cur-video');
+  if (!isFinite(video.currentTime) || video.currentTime <= 0) return;
+  if (!forcar && Date.now() - curPosSalvaEm < 10_000) return;
+  curPosSalvaEm = Date.now();
+  const pos = Math.floor(video.currentTime);
+  curAula.posicao_seg = pos;
+  const extra = {};
+  if (!curAula.assistida && isFinite(video.duration) && video.duration > 0 && pos / video.duration >= 0.9) {
+    curAula.assistida = true;
+    extra.assistida = true;
+    document.getElementById('cur-assistida').checked = true;
+    toast('Aula marcada como assistida');
+  }
+  if (!curAula.duracao_seg && isFinite(video.duration)) { curAula.duracao_seg = video.duration; extra.duracao_seg = video.duration; }
+  await db.from('curso_aulas').update({ posicao_seg: pos, ...extra }).eq('id', curAula.id);
+}
+
+async function marcarAssistida(sim) {
+  if (!curAula) return;
+  curAula.assistida = sim;
+  await db.from('curso_aulas').update({ assistida: sim }).eq('id', curAula.id);
+}
+
+// Anotações
+function notaMudou() {
+  document.getElementById('cur-notas-status').textContent = 'Salvando…';
+  clearTimeout(curNotaTimer);
+  curNotaTimer = setTimeout(salvarNotaAgora, 1200);
+}
+
+async function salvarNotaAgora() {
+  clearTimeout(curNotaTimer);
+  if (!curAula) return;
+  const texto = document.getElementById('cur-notas-txt').value;
+  if (texto === (curAula.anotacoes || '')) { document.getElementById('cur-notas-status').textContent = ''; return; }
+  const { error } = await db.from('curso_aulas').update({ anotacoes: texto }).eq('id', curAula.id);
+  if (error) { document.getElementById('cur-notas-status').textContent = 'Não salvou: ' + error.message; return; }
+  curAula.anotacoes = texto;
+  document.getElementById('cur-notas-status').textContent = 'Salvo';
+}
+
+function mostrarNotaFormatada() {
+  const txt = document.getElementById('cur-notas-txt');
+  const ver = document.getElementById('cur-notas-ver');
+  const texto = txt.value;
+  if (!texto.trim()) {
+    ver.classList.add('vazio');
+    ver.textContent = 'Clique aqui para escrever suas anotações desta aula. Use "Inserir tempo" para marcar um momento do vídeo.';
+  } else {
+    ver.classList.remove('vazio');
+    ver.innerHTML = escHtml(texto).replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g,
+      (_, t) => `<span class="cur-t" data-seg="${lerTempoCurso(t)}">[${t}]</span>`);
+  }
+  txt.style.display = 'none';
+  ver.style.display = 'block';
+  salvarNotaAgora();
+}
+
+function editarNota(ev) {
+  const t = ev?.target?.closest?.('.cur-t');
+  if (t) { pularCurso(Number(t.dataset.seg)); return; }
+  const txt = document.getElementById('cur-notas-txt');
+  document.getElementById('cur-notas-ver').style.display = 'none';
+  txt.style.display = 'block';
+  txt.focus();
+}
+
+function inserirTempoNota() {
+  const txt = document.getElementById('cur-notas-txt');
+  const video = document.getElementById('cur-video');
+  const marca = `[${formatarTempoCurso(video.currentTime || 0)}] `;
+  const estavaFechado = txt.style.display === 'none';
+  if (estavaFechado) {
+    document.getElementById('cur-notas-ver').style.display = 'none';
+    txt.style.display = 'block';
+    // Sem cursor posicionado: acrescenta numa linha nova no fim
+    const sep = txt.value && !txt.value.endsWith('\n') ? '\n' : '';
+    txt.value += sep + marca;
+    txt.focus();
+    txt.selectionStart = txt.selectionEnd = txt.value.length;
+  } else {
+    const ini = txt.selectionStart, fim = txt.selectionEnd;
+    txt.value = txt.value.slice(0, ini) + marca + txt.value.slice(fim);
+    txt.focus();
+    txt.selectionStart = txt.selectionEnd = ini + marca.length;
+  }
+  notaMudou();
+}
+
+// Resumo, temas e ações da aula
+function renderResumoAula() {
+  const a = curAula;
+  const box = document.getElementById('cur-resumo-aula');
+  if (!a) { box.innerHTML = ''; return; }
+
+  if (a.status_analise !== 'analisada') {
+    const seg = Number(a.duracao_seg || 0);
+    box.innerHTML = `<div class="cur-analise-txt">
+        <strong>${a.status_analise === 'erro' ? 'A análise desta aula falhou' : 'Aula ainda não analisada'}</strong>
+        <span>${a.status_analise === 'erro' ? escHtml(a.erro_analise || '') + ' ' : ''}
+          ${seg ? `Custo estimado: cerca de ${usd(estimarCustoCurso(seg))}.` : ''}</span>
+      </div>
+      <div class="cur-acoes-aula">
+        <button class="btn btn-primary" onclick="analisarAulaAtual()"><i class="ti ti-sparkles"></i> Analisar esta aula</button>
+      </div>`;
+    return;
+  }
+
+  const opcoes = CUR_TEMAS.filter(t => !(a.temas || []).includes(t));
+  box.innerHTML = `
+    <p>${escHtml(a.resumo || '')}</p>
+    <div class="cur-temas">
+      ${(a.temas || []).map(t => `<span class="cur-tema cur-tema-ed">${escHtml(t)}
+          <button title="Remover tema" onclick="removerTemaAula(${escHtml(JSON.stringify(t))})">×</button></span>`).join('')}
+      ${opcoes.length ? `<select class="cur-tema-add" onchange="adicionarTemaAula(this.value)">
+          <option value="">+ tema</option>${opcoes.map(t => `<option>${escHtml(t)}</option>`).join('')}
+        </select>` : ''}
+    </div>
+    <div class="cur-custo">Análise: ${usd(a.custo_usd)}${a.modelo ? ' · ' + escHtml(a.modelo) : ''}${a.analisada_em ? ' · ' + new Date(a.analisada_em).toLocaleDateString('pt-BR') : ''}</div>
+    <div class="cur-acoes-aula">
+      <button class="btn btn-ghost cur-btn-peq" onclick="analisarAulaAtual()"><i class="ti ti-refresh"></i> Analisar de novo</button>
+    </div>`;
+}
+
+async function salvarTemasAula(temas) {
+  curAula.temas = temas;
+  await db.from('curso_aulas').update({ temas }).eq('id', curAula.id);
+  renderResumoAula();
+}
+function removerTemaAula(t) { salvarTemasAula((curAula.temas || []).filter(x => x !== t)); }
+function adicionarTemaAula(t) { if (t) salvarTemasAula([...(curAula.temas || []), t]); }
+
+// Painel lateral
+function abaCurso(aba) {
+  curAba = aba;
+  document.querySelectorAll('.cur-abas button').forEach(b => b.classList.toggle('active', b.dataset.aba === aba));
+  renderPainelCurso();
+}
+
 function renderPainelCurso() {
   const lista = document.getElementById('cur-lista');
-  const d = curAnalise?.dados;
-  if (!d) { lista.innerHTML = ''; return; }
-
+  if (!curAula) { lista.innerHTML = ''; return; }
+  if (curAula.status_analise !== 'analisada') {
+    lista.innerHTML = '<div class="cur-vazio">A transcrição, os slides e os tópicos aparecem aqui depois que a aula for analisada.</div>';
+    return;
+  }
   const termo = document.getElementById('cur-busca').value.trim();
-  const fonte = {
-    transcricao: (d.transcricao || []).map(x => ({ t: x.inicio, txt: x.texto })),
-    slides:      (d.slides || []).map(x => ({ t: x.inicio, txt: x.texto })),
-    topicos:     (d.topicos || []).map(x => ({ t: x.inicio, txt: x.titulo }))
-  }[curAba] || [];
-
+  const fonte = curAba === 'topicos'
+    ? (curAula.topicos || []).map(x => ({ seg: lerTempoCurso(x.inicio), texto: x.titulo }))
+    : (curAba === 'slides' ? curTrechos.slide : curTrechos.fala) || [];
   const alvo = normalizarBusca(termo);
-  const itens = alvo ? fonte.filter(x => normalizarBusca(x.txt).includes(alvo)) : fonte;
-
+  const itens = alvo ? fonte.filter(x => normalizarBusca(x.texto).includes(alvo)) : fonte;
   if (!itens.length) {
     lista.innerHTML = `<div class="cur-vazio">${termo ? `Nenhum trecho com "${escHtml(termo)}" nesta aba.` : 'Nada nesta aba.'}</div>`;
     return;
   }
-  lista.innerHTML = itens.map(x => {
-    const seg = lerTempoCurso(x.t);
-    return `<div class="cur-item" data-seg="${seg}" onclick="pularCurso(${seg})">
-      <span class="cur-tempo">${escHtml(formatarTempoCurso(seg))}</span>
-      <span>${destacarTermo(x.txt || '', termo)}</span>
-    </div>`;
-  }).join('');
+  lista.innerHTML = itens.map(x => `<div class="cur-item" data-seg="${x.seg}" onclick="pularCurso(${x.seg})">
+      <span class="cur-tempo">${escHtml(formatarTempoCurso(x.seg))}</span>
+      <span>${destacarTermo(x.texto || '', termo)}</span>
+    </div>`).join('');
   destacarTrechoAtual();
 }
 
-// Na transcrição, acompanha o vídeo destacando o trecho que está tocando
 function destacarTrechoAtual() {
   if (curAba !== 'transcricao') return;
   const video = document.getElementById('cur-video');
@@ -7175,6 +7511,312 @@ function destacarTrechoAtual() {
   let atual = null;
   for (const el of itens) { if (Number(el.dataset.seg) <= agora) atual = el; else break; }
   itens.forEach(el => el.classList.toggle('atual', el === atual));
+}
+
+(function iniciarPlayerCurso() {
+  const video = document.getElementById('cur-video');
+  if (!video) return;
+  let tentou = false;
+  video.addEventListener('error', async () => {
+    if (!curAula || !video.src) return;
+    if (tentou) { avisoEm('cur-aviso-aula', 'O vídeo não carregou. Confira se o arquivo é MP4 e se a autorização do Google inclui o Drive.', true); return; }
+    tentou = true;
+    video.dataset.inicio = String(Math.floor(video.currentTime || Number(video.dataset.inicio) || 0));
+    try {
+      await garantirTokenDrive(true);
+      video.src = `/__drive/${curAula.drive_arquivo_id}?r=${Date.now()}`;
+    } catch (e) { avisoEm('cur-aviso-aula', msgErroCurso(e), true); }
+  });
+  video.addEventListener('loadedmetadata', () => {
+    tentou = false;
+    const ini = Number(video.dataset.inicio || 0);
+    if (ini > 0) video.currentTime = ini;
+    if (video.dataset.tocar) video.play().catch(() => {});
+    video.dataset.inicio = ''; video.dataset.tocar = '';
+    video.playbackRate = Number(document.querySelector('#cur-vel button.active')?.dataset.v || 1);
+  });
+  video.addEventListener('timeupdate', () => { destacarTrechoAtual(); salvarPosicaoAula(); });
+  video.addEventListener('pause', () => salvarPosicaoAula(true));
+  window.addEventListener('pagehide', () => { salvarPosicaoAula(true); salvarNotaAgora(); });
+})();
+
+// ─────────────────────────────────────────────────────────────
+// ANÁLISE (Gemini) — por trechos, com retomada
+// ─────────────────────────────────────────────────────────────
+function parcialCurso(arquivoId) {
+  try { return JSON.parse(localStorage.getItem('curso-parcial-' + arquivoId) || 'null'); }
+  catch { return null; }
+}
+function salvarParcialCurso(arquivoId, p) {
+  try { localStorage.setItem('curso-parcial-' + arquivoId, JSON.stringify(p)); } catch { /* segue */ }
+}
+
+function somarUsoCurso(a, b) {
+  const out = { ...(a || {}) };
+  for (const k of ['entrada', 'ferramenta', 'saida', 'raciocinio', 'custoUSD']) out[k] = Number(out[k] || 0) + Number(b?.[k] || 0);
+  out.custoUSD = Number(out.custoUSD.toFixed(4));
+  return out;
+}
+
+// Duração pelo próprio vídeo, quando o Drive não informa
+function obterDuracaoVideo(arquivoId) {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    const fim = (d) => { v.removeAttribute('src'); v.load(); resolve(d); };
+    const timer = setTimeout(() => fim(0), 30_000);
+    v.onloadedmetadata = () => { clearTimeout(timer); fim(isFinite(v.duration) ? v.duration : 0); };
+    v.onerror = () => { clearTimeout(timer); fim(0); };
+    v.src = `/__drive/${arquivoId}?d=${Date.now()}`;
+  });
+}
+
+async function enviarVideoGeminiCurso(arquivoId, progresso) {
+  progresso('Enviando o vídeo do Drive para o Gemini…', 0);
+  const envio = await cursoApi('iniciar-envio', { id: arquivoId });
+  let offset = 0, falhas = 0, arquivo = null;
+  while (true) {
+    let parte;
+    try {
+      parte = await cursoApi('enviar-parte', { id: arquivoId, enderecoEnvio: envio.enderecoEnvio, offset, tamanho: envio.tamanho });
+      falhas = 0;
+    } catch (e) {
+      if (++falhas > 3 || e.status === 400 || e.status === 401) throw e;
+      await esperarCurso(3000 * falhas);
+      continue;
+    }
+    offset = parte.offset;
+    progresso(`Enviando o vídeo para o Gemini… ${formatarTamanho(offset)} de ${formatarTamanho(envio.tamanho)}`, offset / envio.tamanho * 100);
+    if (parte.terminou) { arquivo = parte.arquivo; break; }
+  }
+  progresso('O Gemini está preparando o vídeo…', null);
+  let estado = arquivo.estado;
+  const limite = Date.now() + 15 * 60_000;
+  while (estado !== 'ACTIVE') {
+    if (estado === 'FAILED') throw new Error('O Gemini não conseguiu ler esse arquivo de vídeo.');
+    if (Date.now() > limite) throw new Error('O Gemini demorou demais para preparar o vídeo.');
+    await esperarCurso(4000);
+    const st = await cursoApi('estado-arquivo', { nome: arquivo.nome });
+    estado = st.estado; arquivo.uri = st.uri || arquivo.uri; arquivo.tipo = st.tipo || arquivo.tipo;
+  }
+  return arquivo;
+}
+
+// Analisa uma aula inteira. "progresso(texto, pct)" atualiza a tela.
+// Lança { pausado: true } se a fila for pausada no meio.
+async function analisarVideoCurso(aula, progresso) {
+  const arquivoId = aula.drive_arquivo_id;
+  let duracao = Number(aula.duracao_seg || 0);
+  if (!duracao) {
+    progresso('Lendo a duração do vídeo…', null);
+    await garantirTokenDrive();
+    duracao = await obterDuracaoVideo(arquivoId);
+    if (!duracao) throw new Error('Não consegui ler a duração do vídeo. Abra a aula uma vez e tente de novo.');
+    aula.duracao_seg = duracao;
+    await db.from('curso_aulas').update({ duracao_seg: duracao }).eq('id', aula.id);
+  }
+
+  let parcial = parcialCurso(arquivoId);
+  if (parcial && Date.now() - parcial.enviadoEm > 40 * 3600_000) parcial = null;   // o Gemini apaga em ~48h
+
+  if (!parcial) {
+    const arquivo = await enviarVideoGeminiCurso(arquivoId, progresso);
+    const trechos = [];
+    for (let t = 0; t < duracao; t += CUR_TRECHO) trechos.push({ inicio: t, fim: Math.min(t + CUR_TRECHO, Math.ceil(duracao)), res: null });
+    parcial = { arquivo, enviadoEm: Date.now(), duracao, trechos, uso: {}, modelo: '' };
+    salvarParcialCurso(arquivoId, parcial);
+  }
+
+  const feitoSeg = () => parcial.trechos.filter(t => t.res).reduce((s, t) => s + (t.fim - t.inicio), 0);
+  const mostrar = () => progresso(`O Gemini está assistindo… ${formatarTempoCurso(feitoSeg())} de ${formatarTempoCurso(parcial.duracao)}`,
+                                  feitoSeg() / parcial.duracao * 100);
+  mostrar();
+
+  let erroFatal = null;
+  const proximo = () => parcial.trechos.find(t => !t.res && !t.ocupado);
+  async function trabalhador() {
+    let t;
+    while (!erroFatal && !curFila.pausar && (t = proximo())) {
+      t.ocupado = true;
+      let tentativas = 0;
+      while (!t.res && !erroFatal) {
+        try {
+          const r = await cursoApi('analisar-trecho', { uri: parcial.arquivo.uri, tipo: parcial.arquivo.tipo, inicio: t.inicio, fim: t.fim });
+          t.res = { slides: r.slides, transcricao: r.transcricao };
+          parcial.uso = somarUsoCurso(parcial.uso, r.uso);
+          parcial.modelo = r.modelo;
+        } catch (e) {
+          if (e.status === 504 && t.fim - t.inicio >= 90) {
+            const meio = Math.round((t.inicio + t.fim) / 2);
+            parcial.trechos.splice(parcial.trechos.indexOf(t) + 1, 0, { inicio: meio, fim: t.fim, res: null });
+            t.fim = meio;
+            continue;
+          }
+          if (e.status === 410) { erroFatal = e; break; }
+          if (++tentativas <= 3 && (e.status >= 500 || e.status === 429)) { await esperarCurso(5000 * tentativas); continue; }
+          erroFatal = e;
+        }
+      }
+      delete t.ocupado;
+      salvarParcialCurso(arquivoId, parcial);
+      mostrar();
+    }
+  }
+  await Promise.all(Array.from({ length: CUR_SIMULTANEOS }, trabalhador));
+  parcial.trechos.forEach(t => delete t.ocupado);
+  salvarParcialCurso(arquivoId, parcial);
+
+  if (erroFatal) {
+    if (erroFatal.status === 410) {
+      localStorage.removeItem('curso-parcial-' + arquivoId);
+      throw new Error('O vídeo expirou na área temporária do Gemini; será enviado de novo na próxima tentativa.');
+    }
+    throw erroFatal;
+  }
+  if (parcial.trechos.some(t => !t.res)) throw { pausado: true };
+
+  const ordenar = arr => arr.sort((a, b) => lerTempoCurso(a.inicio) - lerTempoCurso(b.inicio));
+  const transcricao = ordenar(parcial.trechos.flatMap(t => t.res.transcricao || []));
+  const slides = ordenar(parcial.trechos.flatMap(t => t.res.slides || []));
+
+  progresso('Montando resumo, tópicos e temas…', 100);
+  const resumo = await cursoApi('resumir', { transcricao, slides });
+
+  const analise = {
+    dados: { titulo: resumo.titulo, resumo: resumo.resumo, temas: resumo.temas || [], topicos: resumo.topicos || [], slides, transcricao },
+    uso: somarUsoCurso(parcial.uso, resumo.uso),
+    modelo: parcial.modelo
+  };
+  return { analise, arquivoGemini: parcial.arquivo.nome };
+}
+
+// Grava a análise no banco: dados da aula + trechos para a busca
+async function salvarAnaliseAula(aula, analise) {
+  const d = analise.dados;
+  const temas = (d.temas || []).filter(t => CUR_TEMAS.includes(t));
+  const linhas = [
+    ...(d.transcricao || []).map(x => ({ tipo: 'fala',  inicio_seg: lerTempoCurso(x.inicio), texto: String(x.texto || '').trim() })),
+    ...(d.slides || []).map(x =>      ({ tipo: 'slide', inicio_seg: lerTempoCurso(x.inicio), texto: String(x.texto || '').trim() }))
+  ].filter(x => x.texto).map(x => ({ ...x, curso_id: aula.curso_id, aula_id: aula.id }));
+
+  const { error: e1 } = await db.from('curso_trechos').delete().eq('aula_id', aula.id);
+  if (e1) throw new Error('Não consegui limpar a análise anterior: ' + e1.message);
+  for (let i = 0; i < linhas.length; i += 500) {
+    const { error } = await db.from('curso_trechos').insert(linhas.slice(i, i + 500));
+    if (error) throw new Error('Não consegui salvar a transcrição: ' + error.message);
+  }
+
+  const campos = {
+    status_analise: 'analisada', erro_analise: null,
+    titulo: d.titulo || null, resumo: d.resumo || null, temas,
+    topicos: d.topicos || [],
+    custo_usd: Number(analise.uso?.custoUSD || 0),
+    modelo: analise.modelo || null,
+    analisada_em: new Date().toISOString()
+  };
+  const { error: e2 } = await db.from('curso_aulas').update(campos).eq('id', aula.id);
+  if (e2) throw new Error('Não consegui salvar a análise: ' + e2.message);
+  Object.assign(aula, campos);
+}
+
+// ── Fila ──
+function mostrarFila(sim) {
+  document.getElementById('cur-fila').style.display = sim ? 'block' : 'none';
+  document.getElementById('cur-fila-btn').style.display = sim ? 'none' : '';
+}
+function filaProgresso(etapa, sub, pct) {
+  document.getElementById('cur-fila-etapa').textContent = etapa;
+  document.getElementById('cur-fila-sub').textContent = sub || '';
+  const barra = document.getElementById('cur-fila-barra');
+  if (pct == null) { barra.parentElement.classList.add('indef'); barra.style.width = ''; }
+  else { barra.parentElement.classList.remove('indef'); barra.style.width = Math.round(pct) + '%'; }
+}
+function pausarFila() {
+  curFila.pausar = true;
+  document.getElementById('cur-fila-pausar').disabled = true;
+  filaProgresso('Pausando… termina os trechos em andamento e para.', document.getElementById('cur-fila-sub').textContent, null);
+}
+
+async function analisarPendentes() {
+  if (curFila.rodando || !curCurso) return;
+  const fila = aulasPendentes();
+  if (!fila.length) return;
+  const seg = fila.reduce((s, a) => s + Number(a.duracao_seg || 0), 0);
+  const semDuracao = fila.filter(a => !a.duracao_seg).length;
+  if (!confirm(`Analisar ${fila.length} aula(s) com o Gemini.\nCusto estimado: cerca de ${usd(estimarCustoCurso(seg))}` +
+               (semDuracao ? ` (fora ${semDuracao} aula(s) sem duração conhecida)` : '') +
+               '.\n\nPartes já analisadas antes não são cobradas de novo. Continuar?')) return;
+  await rodarFila(fila);
+}
+
+async function analisarAulaAtual() {
+  if (!curAula || curFila.rodando) return;
+  const seg = Number(curAula.duracao_seg || 0);
+  const msg = (curAula.status_analise === 'analisada' ? 'Analisar esta aula de novo gera nova cobrança' : 'Analisar esta aula')
+            + (seg ? ` (cerca de ${usd(estimarCustoCurso(seg))})` : '') + '. Continuar?';
+  if (!confirm(msg)) return;
+  const aula = curAula;
+  await voltarAoCurso();
+  await rodarFila([aula]);
+}
+
+async function rodarFila(fila) {
+  curFila = { rodando: true, pausar: false };
+  document.getElementById('cur-fila-pausar').disabled = false;
+  mostrarFila(true);
+  avisoEm('cur-aviso-curso', '');
+  const erros = [];
+  let feitas = 0;
+
+  try {
+    await garantirTokenDrive();
+    for (let i = 0; i < fila.length; i++) {
+      if (curFila.pausar) break;
+      const aula = fila[i];
+      const etapa = `Aula ${i + 1} de ${fila.length}: ${aula.nome}`;
+      aula.status_analise = 'analisando';
+      await db.from('curso_aulas').update({ status_analise: 'analisando' }).eq('id', aula.id);
+      renderModulos();
+      try {
+        const { analise, arquivoGemini } = await analisarVideoCurso(aula, (sub, pct) => filaProgresso(etapa, sub, pct));
+        await salvarAnaliseAula(aula, analise);
+        localStorage.removeItem('curso-parcial-' + aula.drive_arquivo_id);
+        cursoApi('apagar', { nome: arquivoGemini }).catch(() => {});
+        feitas++;
+      } catch (e) {
+        if (e?.pausado) {
+          aula.status_analise = 'pendente';
+          await db.from('curso_aulas').update({ status_analise: 'pendente' }).eq('id', aula.id);
+          break;
+        }
+        console.error('[cursos fila]', aula.nome, e);
+        const msg = String(e.message || e).slice(0, 300);
+        aula.status_analise = 'erro'; aula.erro_analise = msg;
+        await db.from('curso_aulas').update({ status_analise: 'erro', erro_analise: msg }).eq('id', aula.id);
+        erros.push({ aula, e });
+        // Problemas que afetam todas as aulas: para a fila
+        if ([401, 403, 429].includes(e.status)) break;
+      }
+      renderCurso();
+    }
+  } catch (e) {
+    erros.push({ aula: null, e });
+  } finally {
+    const pausou = curFila.pausar;
+    curFila = { rodando: false, pausar: false };
+    mostrarFila(false);
+    if (curCurso) { await recarregarAulas(); renderCurso(); }
+    if (erros.length) {
+      avisoEm('cur-aviso-curso',
+        `${feitas} aula(s) analisada(s). ${erros.length} com erro:<br>` +
+        erros.map(x => `<strong>${escHtml(x.aula?.nome || 'Fila')}</strong>: ${msgErroCurso(x.e)}`).join('<br>') +
+        '<br>Clique em "Analisar pendentes" para tentar de novo; o que já foi feito não é cobrado outra vez.', true);
+    } else if (pausou) {
+      toast(`Fila pausada (${feitas} aula(s) analisada(s))`);
+    } else if (feitas) {
+      toast(`${feitas} aula(s) analisada(s)`);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
