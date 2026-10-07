@@ -1380,6 +1380,31 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-corr-item .rm { float: right; }
 .lg-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; margin-bottom: .875rem; }
 .lg-check input { width: auto; }
+
+/* ── LAUDOS: conferência, exame anterior, mãos livres ── */
+.lg-trab { display: flex; flex-direction: column; gap: 1rem; }
+.lg-ant summary { cursor: pointer; font-size: 13px; font-weight: 700; list-style: none; display: flex; align-items: center; gap: 6px; }
+.lg-ant summary::-webkit-details-marker { display: none; }
+.lg-ant-tag { font-size: 10.5px; font-weight: 700; background: var(--green-l); color: var(--green); padding: 2px 8px; border-radius: 999px; }
+.lg-ant-corpo { margin-top: .875rem; }
+#lg-ant-texto { min-height: 120px; font-size: 13px; line-height: 1.55; }
+.lg-ant-resumo { margin-top: .75rem; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius); padding: .75rem .875rem; font-size: 12.5px; line-height: 1.55; }
+.lg-ant-resumo ul { margin: 4px 0 6px 1.1rem; padding: 0; }
+.lg-ant-resumo b { font-weight: 700; }
+
+.lg-conf { margin-bottom: 1rem; border-radius: var(--radius); padding: .75rem .875rem; font-size: 12.5px; line-height: 1.5; border: 1px solid var(--border); }
+.lg-conf.ok { background: var(--green-l); border-color: #B5E8D6; color: #0B7A57; }
+.lg-conf.alerta { background: #FFF8E1; border-color: #F3DB94; color: #5F4700; }
+.lg-conf-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
+.lg-conf-item { display: flex; gap: 8px; margin-top: 8px; }
+.lg-sev { flex: none; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; height: fit-content; margin-top: 2px; letter-spacing: .03em; }
+.lg-sev.alta  { background: var(--red-l); color: var(--red); }
+.lg-sev.media { background: #FFE8A3; color: #7A5B00; }
+.lg-sev.baixa { background: var(--border-2); color: var(--text-2); }
+.lg-conf-trecho { color: #8a7a4a; font-style: italic; }
+.lg-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-2); margin: 0; cursor: pointer; }
+.lg-auto input { width: auto; }
+.lg-atalhos kbd { font-family: var(--font); font-size: 10.5px; font-weight: 700; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; }
 </style>
 </head>
 <body>
@@ -2103,34 +2128,56 @@ tr.duplicate-row:hover { background: #FFF6D6; }
         </aside>
 
         <div class="lg-main">
-          <div class="card lg-vazio" id="lg-vazio">
-            <i class="ti ti-file-text"></i>
-            Escolha uma máscara ao lado para começar o laudo.
+          <div class="card">
+            <div class="lg-ditado-topo">
+              <button class="lg-mic" id="lg-mic" onclick="lgAlternarVoz()">
+                <i class="ti ti-microphone"></i> <span id="lg-mic-txt">Ditar</span>
+              </button>
+              <span class="lg-status" id="lg-status">Fale os achados do jeito que vier, ou diga um comando (ex.: “abrir US abdome”).</span>
+            </div>
+            <textarea id="lg-ditado" placeholder="O que você ditar aparece aqui. Você pode corrigir o texto antes de aplicar. Ex.: lesão do menisco medial, corno posterior, sem derrame articular."
+                      oninput="lgAoEditarDitado()"
+                      onkeydown="if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); lgAplicarDitado(); }"></textarea>
+            <div class="lg-ditado-acoes">
+              <button class="btn btn-primary" id="lg-aplicar" onclick="lgAplicarDitado()">
+                <i class="ti ti-sparkles"></i> Aplicar ao laudo
+              </button>
+              <button class="btn btn-ghost" id="lg-desfazer" onclick="lgDesfazer()" style="display:none">
+                <i class="ti ti-arrow-back-up"></i> Desfazer última aplicação
+              </button>
+            </div>
+            <div class="lg-avisos" id="lg-avisos" style="display:none"></div>
+            <div class="lg-nota lg-atalhos">
+              <b>Comandos de voz</b> (diga sozinhos, com uma pausa antes e depois): <i>abrir</i> + nome da máscara · <i>aplicar</i> · <i>conferir</i> · <i>copiar</i> · <i>desfazer</i> · <i>apagar ditado</i>.<br>
+              <b>Atalhos</b> (servem para pedal ou microfone com botões): <kbd>F2</kbd> microfone · <kbd>F4</kbd> aplicar · <kbd>F8</kbd> copiar · <kbd>F9</kbd> conferir · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> aplicar na caixa de ditado.
+            </div>
+            <div class="lg-nota">O áudio é transcrito pelo serviço de voz do navegador (Google, no Chrome). Dite só os achados, sem nome nem dados que identifiquem o paciente.</div>
           </div>
 
-          <div id="lg-trabalho" style="display:none">
-            <div class="card" style="margin-bottom:1rem">
-              <div class="lg-ditado-topo">
-                <button class="lg-mic" id="lg-mic" onclick="lgAlternarVoz()">
-                  <i class="ti ti-microphone"></i> <span id="lg-mic-txt">Ditar</span>
-                </button>
-                <span class="lg-status" id="lg-status">Fale os achados do jeito que vier. A IA escreve no laudo.</span>
+          <div class="card lg-vazio" id="lg-vazio">
+            <i class="ti ti-file-text"></i>
+            Escolha uma máscara ao lado, ou diga “abrir” e o nome dela, para começar o laudo.
+          </div>
+
+          <div id="lg-trabalho" class="lg-trab" style="display:none">
+            <details class="card lg-ant" id="lg-ant">
+              <summary><i class="ti ti-history"></i> Exame anterior <span class="lg-ant-tag" id="lg-ant-tag" style="display:none">em uso</span></summary>
+              <div class="lg-ant-corpo">
+                <div class="form-row">
+                  <label for="lg-ant-data">Data do exame anterior (opcional)</label>
+                  <input type="text" id="lg-ant-data" placeholder="Ex.: 10/03/2026" style="max-width:220px">
+                </div>
+                <label for="lg-ant-texto">Laudo anterior (cole o texto)</label>
+                <textarea id="lg-ant-texto" placeholder="Cole aqui o laudo do exame anterior para comparar."
+                          oninput="lgAoEditarAnterior()" onchange="lgLimparAnterior()"></textarea>
+                <div class="lg-ditado-acoes">
+                  <button class="btn btn-ghost" id="lg-ant-resumir" onclick="lgResumirAnterior()"><i class="ti ti-list-details"></i> Resumir achados</button>
+                  <button class="btn btn-ghost" onclick="lgRemoverAnterior()"><i class="ti ti-x"></i> Remover</button>
+                </div>
+                <div class="lg-ant-resumo" id="lg-ant-resumo" style="display:none"></div>
+                <div class="lg-nota">Linhas com nome, CPF, prontuário e similares são removidas ao colar, mas confira o texto mesmo assim. Enquanto houver laudo aqui, ele vai para a IA junto com o ditado e com a conferência, para redigir as comparações que você ditar (“estável”, “aumentou”...). A IA não afirma evolução de estruturas que você não mencionou.</div>
               </div>
-              <textarea id="lg-ditado" placeholder="O que você ditar aparece aqui. Você pode corrigir o texto antes de aplicar. Ex.: lesão do menisco medial, corno posterior, sem derrame articular."
-                        oninput="lgAoEditarDitado()"
-                        onkeydown="if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); lgAplicarDitado(); }"></textarea>
-              <div class="lg-ditado-acoes">
-                <button class="btn btn-primary" id="lg-aplicar" onclick="lgAplicarDitado()">
-                  <i class="ti ti-sparkles"></i> Aplicar ao laudo
-                </button>
-                <button class="btn btn-ghost" id="lg-desfazer" onclick="lgDesfazer()" style="display:none">
-                  <i class="ti ti-arrow-back-up"></i> Desfazer última aplicação
-                </button>
-                <span class="lg-status">Ctrl + Enter também aplica</span>
-              </div>
-              <div class="lg-avisos" id="lg-avisos" style="display:none"></div>
-              <div class="lg-nota">O áudio é transcrito pelo serviço de voz do navegador (Google, no Chrome). Dite só os achados, sem nome nem dados que identifiquem o paciente.</div>
-            </div>
+            </details>
 
             <div class="card">
               <div class="lg-ed-topo">
@@ -2141,9 +2188,12 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                 <div class="lg-ed-botoes">
                   <button class="btn btn-ghost btn-sm" onclick="lgSalvarComoMascara()"><i class="ti ti-device-floppy"></i> Salvar como máscara</button>
                   <button class="btn btn-ghost btn-sm" onclick="lgNovoLaudo()"><i class="ti ti-file-plus"></i> Novo laudo</button>
+                  <button class="btn btn-ghost btn-sm" id="lg-conferir" onclick="lgConferir()"><i class="ti ti-shield-check"></i> Conferir laudo</button>
                   <button class="btn btn-primary btn-sm" onclick="lgCopiar()"><i class="ti ti-copy"></i> Copiar laudo</button>
                 </div>
               </div>
+
+              <div class="lg-conf" id="lg-conf" style="display:none"></div>
 
               <div class="lg-campo">
                 <div class="lg-campo-rotulo">
@@ -2166,7 +2216,10 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                 </div>
               </div>
 
-              <div class="lg-nota">A IA é um apoio de redação. Revise o laudo antes de liberar. Ao copiar o laudo, o app aprende com o que você corrigiu no texto da IA.</div>
+              <div class="lg-nota">
+                <label class="lg-auto"><input type="checkbox" id="lg-auto-conf" onchange="lgSalvarPrefConf()"> Conferir o laudo automaticamente ao copiar</label><br>
+                A IA é um apoio de redação e de conferência. Revise o laudo antes de liberar. Ao copiar o laudo, o app aprende com o que você corrigiu no texto da IA.
+              </div>
             </div>
 
             <details class="card lg-corr" id="lg-corr" ontoggle="if (this.open) lgRenderCorrecoes()">
@@ -8151,10 +8204,12 @@ let lgUltimoValor    = { corpo: '', conclusao: '' }; // para deslocar destaques 
 let lgAnterior       = null;                         // estado antes da última aplicação (para desfazer)
 let lgMascaraEditId  = null;
 let lgOcupado        = false;
+let lgConferindo     = false;
 let lgRec            = null;
 let lgOuvindo        = false;
 let lgDitadoFixo     = '';
 const LG_CAMPOS      = ['corpo', 'conclusao'];
+const LG_STATUS_PADRAO = 'Fale os achados do jeito que vier, ou diga um comando (ex.: “abrir US abdome”).';
 
 const lgEl = (id) => document.getElementById(id);
 
@@ -8343,6 +8398,8 @@ async function loadLaudosPage() {
   if (lgEl('lg-mic').disabled) {
     lgEl('lg-status').textContent = 'Este navegador não tem reconhecimento de voz. Abra no Chrome ou no Edge.';
   }
+  try { lgEl('lg-auto-conf').checked = localStorage.getItem('lg_auto_conferir') !== '0'; }
+  catch (_) { lgEl('lg-auto-conf').checked = true; }
   await lgCarregarMascaras();
   lgRenderMascaras();
   lgAjustarTodas();
@@ -8485,6 +8542,8 @@ function lgCarregarDaMascara() {
   lgEl('lg-avisos').style.display = 'none';
   lgEl('lg-ditado').value = '';
   lgDitadoFixo = '';
+  lgRemoverAnterior();
+  lgLimparConferencia();
   lgDefinirTexto('corpo', lgMascaraAtual.corpo, []);
   lgDefinirTexto('conclusao', lgMascaraAtual.conclusao, []);
 }
@@ -8492,7 +8551,6 @@ function lgCarregarDaMascara() {
 function lgAbrirMascara(id) {
   const m = lgMascaras.find(x => x.id === id);
   if (!m) return;
-  lgPararVoz();
   lgMascaraAtual = m;
   lgPreencherCabecalho();
   lgEl('lg-vazio').style.display = 'none';
@@ -8649,8 +8707,6 @@ function lgAlternarVoz() {
 function lgIniciarVoz() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { toast('Este navegador não tem reconhecimento de voz. Use o Chrome ou o Edge.', 'error'); return; }
-  if (!lgMascaraAtual) { toast('Escolha uma máscara primeiro', 'error'); return; }
-
   const campo = lgEl('lg-ditado');
   lgDitadoFixo = campo.value && !/\s$/.test(campo.value) ? campo.value + ' ' : campo.value;
 
@@ -8663,9 +8719,13 @@ function lgIniciarVoz() {
     let parcial = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i];
-      if (r.isFinal) lgDitadoFixo = lgAnexar(lgDitadoFixo, lgPontuar(r[0].transcript));
-      else parcial += r[0].transcript;
+      if (r.isFinal) {
+        const comando = lgComandoDe(r[0].transcript);
+        if (comando) { lgExecutarComando(comando); continue; }
+        lgDitadoFixo = lgAnexar(lgDitadoFixo, lgPontuar(r[0].transcript));
+      } else parcial += r[0].transcript;
     }
+    if (lgComandoDe(parcial)) parcial = '';   // não mostra comando na caixa de ditado
     campo.value = lgAnexar(lgDitadoFixo, lgPontuar(parcial)).replace(/ +$/, '');
     campo.scrollTop = campo.scrollHeight;
   };
@@ -8713,7 +8773,7 @@ function lgPararVoz() {
   if (!mic) return;
   mic.classList.remove('ligado');
   lgEl('lg-mic-txt').textContent = 'Ditar';
-  lgEl('lg-status').textContent = 'Fale os achados do jeito que vier. A IA escreve no laudo.';
+  lgEl('lg-status').textContent = LG_STATUS_PADRAO;
 }
 
 function lgAoEditarDitado() {
@@ -8725,9 +8785,9 @@ function lgAoEditarDitado() {
 async function lgAplicarDitado() {
   if (lgOcupado) return;
   if (!lgMascaraAtual) { toast('Escolha uma máscara primeiro', 'error'); return; }
-  const ditado = lgEl('lg-ditado').value.trim();
+  const brutoDitado = lgEl('lg-ditado').value;
+  const ditado = brutoDitado.trim();
   if (!ditado) { toast('Dite ou escreva os achados primeiro', 'error'); return; }
-  if (lgOuvindo) lgPararVoz();
 
   lgOcupado = true;
   const btn = lgEl('lg-aplicar');
@@ -8746,7 +8806,7 @@ async function lgAplicarDitado() {
     const r = await fetch('/api/receita-nutrir?tipo=laudo', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: tipo, corpo: corpoAntes, conclusao: conclusaoAntes, ditado, exemplos })
+      body: JSON.stringify({ tipo_exame: tipo, corpo: corpoAntes, conclusao: conclusaoAntes, ditado, exemplos, ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao aplicar o ditado');
@@ -8760,8 +8820,12 @@ async function lgAplicarDitado() {
     lgDefinirTexto('conclusao', j.conclusao, lgDiffInseridos(conclusaoAntes, j.conclusao));
     lgBaseline = { corpo: j.corpo, conclusao: j.conclusao };
 
-    lgEl('lg-ditado').value = '';
-    lgDitadoFixo = '';
+    // Mantém o que foi falado enquanto a IA trabalhava (microfone continua ligado)
+    const agora = lgEl('lg-ditado').value;
+    const resto = agora.startsWith(brutoDitado) ? agora.slice(brutoDitado.length).trimStart() : '';
+    lgEl('lg-ditado').value = resto;
+    lgDitadoFixo = resto ? resto + ' ' : '';
+    lgLimparConferencia();
     lgEl('lg-desfazer').style.display = '';
 
     const caixa = lgEl('lg-avisos');
@@ -8792,12 +8856,13 @@ function lgDesfazer() {
   lgAnterior = null;
   lgEl('lg-desfazer').style.display = 'none';
   lgEl('lg-avisos').style.display = 'none';
+  lgLimparConferencia();
   toast('Aplicação desfeita. O ditado voltou para a caixa.');
 }
 
 // ── Copiar o laudo ───────────────────────────────────────────
 
-async function lgCopiar() {
+async function lgCopiarAgora() {
   if (!lgMascaraAtual) return;
   const corpo = lgEl('lg-corpo').value.trim();
   const conclusao = lgEl('lg-conclusao').value.trim();
@@ -8824,6 +8889,262 @@ async function lgCopiar() {
     ? `Laudo copiado. ${aprendidas === 1 ? '1 correção aprendida' : aprendidas + ' correções aprendidas'}.`
     : 'Laudo copiado');
 }
+
+
+// ── Conferência de segurança ─────────────────────────────────
+
+// Campos do modelo que ficaram em branco: "___", "[ ]", "XX", "xx cm"
+function lgPlaceholders(texto) {
+  const re = /\[[^\]\n]{0,40}\]|_{3,}|\bX{2,}\b|\bx{2,}\s?(?:cm|mm)\b/g;
+  const achados = [];
+  let m;
+  while ((m = re.exec(texto)) && achados.length < 3) {
+    const ini = Math.max(0, m.index - 25);
+    achados.push(texto.slice(ini, m.index + m[0].length + 15).replace(/\s+/g, ' ').trim());
+  }
+  return achados;
+}
+
+function lgLimparConferencia() {
+  const caixa = lgEl('lg-conf');
+  if (caixa) { caixa.style.display = 'none'; caixa.innerHTML = ''; }
+}
+
+function lgMostrarConferencia(problemas, falhou) {
+  const caixa = lgEl('lg-conf');
+  const fechar = '<button class="lg-icone" title="Fechar" onclick="lgLimparConferencia()"><i class="ti ti-x"></i></button>';
+  if (!problemas.length) {
+    caixa.className = falhou ? 'lg-conf alerta' : 'lg-conf ok';
+    caixa.innerHTML = `<div class="lg-conf-topo"><span>${falhou
+      ? 'Não consegui fazer a conferência pela IA agora. Revise o laudo manualmente.'
+      : 'Nenhuma inconsistência encontrada. A conferência não substitui a sua revisão.'}</span>${fechar}</div>`;
+  } else {
+    caixa.className = 'lg-conf alerta';
+    caixa.innerHTML = `<div class="lg-conf-topo"><span>${problemas.length === 1 ? '1 ponto a conferir' : problemas.length + ' pontos a conferir'}</span>${fechar}</div>`
+      + problemas.map(p => `
+        <div class="lg-conf-item">
+          <span class="lg-sev ${escHtml(p.gravidade)}">${escHtml(p.gravidade)}</span>
+          <div><b>${escHtml(p.titulo)}</b>${p.detalhe ? ' — ' + escHtml(p.detalhe) : ''}
+            ${p.trecho ? `<div class="lg-conf-trecho">“${escHtml(p.trecho)}”</div>` : ''}</div>
+        </div>`).join('')
+      + (falhou ? '<div class="lg-conf-item">A conferência pela IA falhou; só os campos em branco foram verificados.</div>' : '');
+  }
+  caixa.style.display = '';
+}
+
+// Devolve { problemas, falhou }. Nunca lança erro: se a IA falhar, o laudo continua utilizável.
+async function lgConferir() {
+  if (!lgMascaraAtual) { toast('Escolha uma máscara primeiro', 'error'); return null; }
+  if (lgConferindo) return null;
+  const corpo = lgEl('lg-corpo').value;
+  const conclusao = lgEl('lg-conclusao').value;
+  if (!corpo.trim() && !conclusao.trim()) { toast('O laudo está vazio', 'error'); return null; }
+
+  lgConferindo = true;
+  const btn = lgEl('lg-conferir');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Conferindo…';
+
+  const problemas = [];
+  let falhou = false;
+  const brancos = lgPlaceholders(corpo + '\n' + conclusao);
+  if (brancos.length) {
+    problemas.push({ gravidade: 'alta', titulo: 'Campo do modelo não preenchido',
+      detalhe: 'Sobrou marcador de preenchimento no laudo.', trecho: brancos.join(' | ') });
+  }
+  try {
+    const r = await fetch('/api/receita-nutrir?tipo=laudo-checar', {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ tipo_exame: lgMascaraAtual.tipo_exame, corpo, conclusao, ...lgDadosAnterior() })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Falha na conferência');
+    problemas.push(...(j.problemas || []));
+  } catch (e) {
+    falhou = true;
+    console.error('[laudos] conferir', e);
+  } finally {
+    lgConferindo = false;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-shield-check"></i> Conferir laudo';
+  }
+  lgMostrarConferencia(problemas, falhou);
+  return { problemas, falhou };
+}
+
+function lgSalvarPrefConf() {
+  try { localStorage.setItem('lg_auto_conferir', lgEl('lg-auto-conf').checked ? '1' : '0'); } catch (_) {}
+}
+
+// Copiar: confere antes (se ligado) e, havendo pontos, pergunta se copia mesmo assim
+async function lgCopiar() {
+  if (!lgMascaraAtual) return;
+  if (!lgEl('lg-corpo').value.trim() && !lgEl('lg-conclusao').value.trim()) { toast('O laudo está vazio', 'error'); return; }
+  if (lgEl('lg-auto-conf').checked) {
+    const r = await lgConferir();
+    if (r && r.problemas.length) {
+      const n = r.problemas.length;
+      const titulos = r.problemas.slice(0, 3).map(p => p.titulo || p.detalhe).join('; ');
+      showConfirm('Pontos a conferir',
+        `${n === 1 ? '1 ponto apontado' : n + ' pontos apontados'} na conferência: ${titulos}. Copiar mesmo assim?`,
+        lgCopiarAgora, 'Copiar mesmo assim', 'btn-primary');
+      return;
+    }
+  }
+  await lgCopiarAgora();
+}
+
+// ── Exame anterior ───────────────────────────────────────────
+
+// Remove linhas de identificação (nome, CPF, prontuário...) antes de usar o texto
+const LG_ID_LINHA = /^\s*(?:paciente|nome(?: do paciente)?|cpf|rg|cns|data de nascimento|nascimento|dn|prontu[aá]rio|atendimento|solicitante|m[eé]dico solicitante|conv[eê]nio|carteirinha|endere[cç]o|telefone)\s*[:\-–]/i;
+const LG_CPF = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g;
+
+function lgLimparIdentificacao(t) {
+  let removidas = 0;
+  const linhas = (t || '').split('\n').filter(l => {
+    if (LG_ID_LINHA.test(l)) { removidas++; return false; }
+    return true;
+  });
+  const out = linhas.join('\n').replace(LG_CPF, () => { removidas++; return '[removido]'; });
+  return { texto: out, removidas };
+}
+
+function lgDadosAnterior() {
+  const bruto = (lgEl('lg-ant-texto').value || '').trim();
+  if (!bruto) return { anterior: '', data_anterior: '' };
+  return { anterior: lgLimparIdentificacao(bruto).texto.trim(), data_anterior: lgEl('lg-ant-data').value.trim() };
+}
+
+function lgAoEditarAnterior() {
+  lgEl('lg-ant-tag').style.display = lgEl('lg-ant-texto').value.trim() ? '' : 'none';
+}
+
+function lgLimparAnterior() {
+  const ta = lgEl('lg-ant-texto');
+  const { texto, removidas } = lgLimparIdentificacao(ta.value);
+  if (removidas) {
+    ta.value = texto;
+    toast(`${removidas === 1 ? '1 linha de identificação removida' : removidas + ' trechos de identificação removidos'} do laudo anterior`);
+  }
+  lgAoEditarAnterior();
+}
+
+function lgRemoverAnterior() {
+  lgEl('lg-ant-texto').value = '';
+  lgEl('lg-ant-data').value = '';
+  const r = lgEl('lg-ant-resumo');
+  r.style.display = 'none';
+  r.innerHTML = '';
+  lgAoEditarAnterior();
+}
+
+async function lgResumirAnterior() {
+  lgLimparAnterior();
+  const { anterior } = lgDadosAnterior();
+  if (!anterior) { toast('Cole o laudo anterior primeiro', 'error'); return; }
+  const btn = lgEl('lg-ant-resumir');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Resumindo…';
+  try {
+    const r = await fetch('/api/receita-nutrir?tipo=laudo-anterior', {
+      method: 'POST', headers: await authHeaders(), body: JSON.stringify({ anterior })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Falha ao resumir');
+    if (j.data && !lgEl('lg-ant-data').value.trim()) lgEl('lg-ant-data').value = j.data;
+    const caixa = lgEl('lg-ant-resumo');
+    caixa.innerHTML =
+      `<b>Achados do exame anterior${j.data ? ' (' + escHtml(j.data) + ')' : ''}</b>`
+      + (j.achados.length ? '<ul>' + j.achados.map(a => `<li>${escHtml(a)}</li>`).join('') + '</ul>' : '<div>Nenhum achado alterado descrito.</div>')
+      + (j.normais ? `<div><b>Normais:</b> ${escHtml(j.normais)}</div>` : '')
+      + (j.conclusao ? `<div><b>Conclusão anterior:</b> ${escHtml(j.conclusao)}</div>` : '');
+    caixa.style.display = '';
+  } catch (e) {
+    console.error('[laudos] resumir anterior', e);
+    toast(e.message || 'Não consegui resumir', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-list-details"></i> Resumir achados';
+  }
+}
+
+// ── Mãos livres: comandos de voz e atalhos ───────────────────
+
+const lgNorm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+// Só vale quando o comando é a fala inteira (o Chrome separa falas por pausa)
+function lgComandoDe(transcricao) {
+  const t = lgNorm(transcricao);
+  if (!t) return null;
+  if (/^(aplicar|aplica|aplicar ao laudo|aplicar laudo)$/.test(t)) return { cmd: 'aplicar' };
+  if (/^(copiar|copiar laudo|copiar o laudo|copia o laudo)$/.test(t)) return { cmd: 'copiar' };
+  if (/^(conferir|conferir laudo|conferir o laudo|checar laudo|checar o laudo)$/.test(t)) return { cmd: 'conferir' };
+  if (/^(desfazer|desfazer aplicacao|desfazer ultima aplicacao)$/.test(t)) return { cmd: 'desfazer' };
+  if (/^(apagar ditado|apagar o ditado|limpar ditado|limpar o ditado)$/.test(t)) return { cmd: 'limpar' };
+  const m = t.match(/^(?:abrir|abre|abra)(?: a| o)?(?: mascara)?(?: de| do| da)? (.+)$/);
+  if (m) return { cmd: 'abrir', arg: m[1] };
+  return null;
+}
+
+// "ultrassom", "us", "u s" ... valem o mesmo; idem ressonância e tomografia
+function lgNormMascara(s) {
+  return lgNorm(s)
+    .replace(/\b(?:ultrassonografia|ultrassom|ultra som|ecografia)\b/g, 'us')
+    .replace(/\bu s\b/g, 'us')
+    .replace(/\b(?:ressonancia magnetica|ressonancia)\b/g, 'rm')
+    .replace(/\br m\b/g, 'rm')
+    .replace(/\b(?:tomografia computadorizada|tomografia)\b/g, 'tc')
+    .replace(/\bt c\b/g, 'tc');
+}
+
+const LG_STOP = new Set(['de', 'do', 'da', 'dos', 'das', 'a', 'o', 'e', 'em']);
+
+// { achou: máscara | null, ambiguas: [nomes] }
+function lgAcharMascara(arg, mascaras) {
+  const toks = lgNormMascara(arg).split(' ').filter(t => t && !LG_STOP.has(t));
+  if (!toks.length) return { achou: null, ambiguas: [] };
+  const cand = mascaras.filter(m => {
+    const tm = new Set(lgNormMascara(`${m.nome} ${m.tipo_exame || ''}`).split(' '));
+    return toks.every(t => tm.has(t));
+  });
+  if (!cand.length) return { achou: null, ambiguas: [] };
+  if (cand.length === 1) return { achou: cand[0], ambiguas: [] };
+  const favoritas = cand.filter(m => m.favorita);
+  if (favoritas.length === 1) return { achou: favoritas[0], ambiguas: [] };
+  return { achou: null, ambiguas: cand.map(m => m.nome).slice(0, 3) };
+}
+
+function lgExecutarComando(c) {
+  switch (c.cmd) {
+    case 'abrir': {
+      const r = lgAcharMascara(c.arg, lgMascaras);
+      if (r.achou) { lgAbrirMascara(r.achou.id); toast(`Máscara aberta: ${r.achou.nome}`); }
+      else if (r.ambiguas.length) toast(`Mais de uma máscara: ${r.ambiguas.join(', ')}. Diga o nome completo.`, 'error');
+      else toast(`Não achei máscara para “${c.arg}”`, 'error');
+      return;
+    }
+    case 'aplicar':   lgAplicarDitado(); return;
+    case 'copiar':    lgCopiar(); return;
+    case 'conferir':  lgConferir(); return;
+    case 'desfazer':  lgDesfazer(); return;
+    case 'limpar':    lgEl('lg-ditado').value = ''; lgDitadoFixo = ''; toast('Ditado apagado'); return;
+  }
+}
+
+// Atalhos de teclado (também servem para pedal e microfone com botões programáveis)
+document.addEventListener('keydown', (e) => {
+  if (!lgEl('page-laudos').classList.contains('active')) return;
+  if (document.querySelector('.modal-backdrop.open')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const acoes = { F2: lgAlternarVoz, F4: lgAplicarDitado, F8: lgCopiar, F9: lgConferir };
+  const acao = acoes[e.key];
+  if (!acao) return;
+  e.preventDefault();
+  acao();
+});
 
 (async () => {
   const { data } = await db.auth.getSession();
