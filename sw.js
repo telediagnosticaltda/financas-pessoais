@@ -1,9 +1,10 @@
 // sw.js — service worker do app Finanças
 //
-// Faz duas coisas, e só:
+// Faz três coisas, e só:
 //   1. recebe o que você compartilha do celular (vídeo, imagem ou link) e
 //      guarda até o app abrir;
-//   2. mostra uma tela simples quando o celular está sem internet.
+//   2. mostra uma tela simples quando o celular está sem internet;
+//   3. toca as aulas privadas do Google Drive na aba Cursos.
 //
 // Ele NÃO guarda cópia do aplicativo. Isso é de propósito: assim toda vez que
 // você abre, vem a versão mais nova publicada na Vercel, sem ficar preso numa
@@ -11,6 +12,7 @@
 
 const CACHE_OFFLINE      = 'financas-offline-v1';
 const CACHE_COMPARTILHADO = 'financas-compartilhado';
+const CACHE_DRIVE        = 'financas-drive';   // só a chave temporária do Drive (aba Cursos)
 
 self.addEventListener('install', (evento) => {
   evento.waitUntil(
@@ -62,6 +64,29 @@ self.addEventListener('fetch', (evento) => {
         console.error('[sw] falha ao receber o compartilhamento', err);
       }
       return Response.redirect('/?compartilhado=1', 303);
+    })());
+    return;
+  }
+
+  // ── Aulas da aba Cursos: vídeo privado no Google Drive ──
+  // O player pede /__drive/ID; aqui o pedido segue para o Drive junto com a
+  // chave temporária que o app guardou. O pedaço pedido (Range) é repassado,
+  // então avançar e voltar no vídeo funciona sem baixar o arquivo inteiro.
+  if (req.method === 'GET' && url.origin === self.location.origin && url.pathname.startsWith('/__drive/')) {
+    evento.respondWith((async () => {
+      const id = url.pathname.slice('/__drive/'.length).replace(/[^A-Za-z0-9_-]/g, '');
+      const cache = await caches.open(CACHE_DRIVE);
+      const salvo = await cache.match('/__drive-token');
+      const token = salvo ? await salvo.text() : '';
+      if (!id || !token) return new Response('Sem autorização do Drive', { status: 401 });
+
+      const cabecalhos = { Authorization: `Bearer ${token}` };
+      const range = req.headers.get('range');
+      if (range) cabecalhos.Range = range;
+
+      return fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`, {
+        headers: cabecalhos
+      });
     })());
     return;
   }
