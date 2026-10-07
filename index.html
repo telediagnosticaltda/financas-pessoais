@@ -6863,10 +6863,10 @@ function atualizarEstimativaCurso() {
     const usd = estimarCustoCurso(seg);
     el.textContent = `Aula de ${formatarTempoCurso(seg)}. Custo estimado: cerca de US$ ${usd.toFixed(2).replace('.', ',')}.`;
   }
-  const pend = pendenteCurso();
-  if (pend) el.textContent = 'Há uma análise já enviada ao Gemini esperando para ser lida. Retomar não gera nova cobrança.';
+  const pend = parcialCurso();
+  if (pend) el.textContent = 'Há uma análise em andamento. Continuar não cobra de novo as partes já analisadas.';
   document.getElementById('cur-analisar-btn').innerHTML = pend
-    ? '<i class="ti ti-player-track-next"></i> Retomar análise'
+    ? '<i class="ti ti-player-track-next"></i> Continuar análise'
     : curAnalise
       ? '<i class="ti ti-refresh"></i> Analisar de novo'
       : '<i class="ti ti-sparkles"></i> Analisar aula';
@@ -6886,19 +6886,77 @@ function etapaCurso(texto, pct = null) {
 
 const esperarCurso = ms => new Promise(r => setTimeout(r, ms));
 
-function pendenteCurso() {
-  try { return JSON.parse(localStorage.getItem('curso-pendente-' + curAula?.id) || 'null'); }
+// Análise em andamento desta aula (trechos já pagos ficam guardados aqui)
+function parcialCurso(id = curAula?.id) {
+  try { return JSON.parse(localStorage.getItem('curso-parcial-' + id) || 'null'); }
   catch { return null; }
 }
+function salvarParcialCurso(id, p) {
+  try { localStorage.setItem('curso-parcial-' + id, JSON.stringify(p)); } catch { /* segue */ }
+}
+
+function somarUsoCurso(a, b) {
+  const out = { ...(a || {}) };
+  for (const k of ['entrada', 'ferramenta', 'saida', 'raciocinio', 'custoUSD']) {
+    out[k] = Number(out[k] || 0) + Number(b?.[k] || 0);
+  }
+  out.custoUSD = Number(out.custoUSD.toFixed(4));
+  return out;
+}
+
+// Copia o vídeo do Drive para a área temporária do Gemini e espera ficar pronto
+async function enviarVideoGeminiCurso(aulaId) {
+  etapaCurso('Enviando o vídeo do Drive para o Gemini…', 0);
+  const envio = await cursoApi('iniciar-envio', { id: aulaId });
+  let offset = 0, falhasSeguidas = 0, arquivo = null;
+  while (true) {
+    let parte;
+    try {
+      parte = await cursoApi('enviar-parte', {
+        id: aulaId, enderecoEnvio: envio.enderecoEnvio, offset, tamanho: envio.tamanho
+      });
+      falhasSeguidas = 0;
+    } catch (e) {
+      if (++falhasSeguidas > 3 || e.status === 400 || e.status === 401) throw e;
+      await esperarCurso(3000 * falhasSeguidas);
+      continue;
+    }
+    offset = parte.offset;
+    etapaCurso(`Enviando o vídeo do Drive para o Gemini… ${formatarTamanho(offset)} de ${formatarTamanho(envio.tamanho)}`,
+               (offset / envio.tamanho) * 100);
+    if (parte.terminou) { arquivo = parte.arquivo; break; }
+  }
+
+  etapaCurso('O Gemini está preparando o vídeo…');
+  let estado = arquivo.estado;
+  const limite = Date.now() + 15 * 60_000;
+  while (estado !== 'ACTIVE') {
+    if (estado === 'FAILED') throw new Error('O Gemini não conseguiu ler esse arquivo de vídeo.');
+    if (Date.now() > limite) throw new Error('O Gemini demorou demais para preparar o vídeo. Tente de novo mais tarde.');
+    await esperarCurso(4000);
+    const st = await cursoApi('estado-arquivo', { nome: arquivo.nome });
+    estado = st.estado; arquivo.uri = st.uri || arquivo.uri; arquivo.tipo = st.tipo || arquivo.tipo;
+  }
+  return arquivo;
+}
+
+const CUR_TRECHO = 300;          // segundos por chamada ao Gemini
+const CUR_SIMULTANEOS = 3;       // trechos analisados ao mesmo tempo
 
 async function analisarAulaCurso() {
   if (!curAula || curOcupado) return;
-  const pendente = pendenteCurso();
+  const aulaId = curAula.id;
+  try { localStorage.removeItem('curso-pendente-' + aulaId); } catch { /* versão antiga */ }
 
-  // Análise já paga que não terminou de ser lida: retoma sem nova cobrança
-  if (!pendente) {
-    const seg = duracaoAulaSeg();
-    const est = seg ? ` (estimativa: cerca de US$ ${estimarCustoCurso(seg).toFixed(2).replace('.', ',')})` : '';
+  const duracao = duracaoAulaSeg();
+  if (!duracao) { avisoCurso('Espere o vídeo carregar (aparecer a duração) e tente de novo.', true); return; }
+
+  let parcial = parcialCurso(aulaId);
+  // A área temporária do Gemini apaga o vídeo em cerca de 48h
+  if (parcial && Date.now() - parcial.enviadoEm > 40 * 3600_000) { parcial = null; }
+
+  if (!parcial) {
+    const est = ` (estimativa: cerca de US$ ${estimarCustoCurso(duracao).toFixed(2).replace('.', ',')})`;
     const pergunta = (curAnalise ? 'Esta aula já tem uma análise guardada. Analisar de novo gera nova cobrança' : 'O Gemini vai assistir à aula inteira. Isso tem custo no plano pago')
                    + est + '. Continuar?';
     if (!confirm(pergunta)) return;
@@ -6909,98 +6967,108 @@ async function analisarAulaCurso() {
   document.getElementById('cur-analise-inicio').style.display = 'none';
   document.getElementById('cur-progresso').style.display = 'block';
 
-  const aulaId = curAula.id;
-  let pedido = pendente;
   try {
-    if (!pedido) {
-      // 1. Copia o vídeo do Drive para o Gemini, em pedaços
-      etapaCurso('Enviando o vídeo do Drive para o Gemini…', 0);
-      const envio = await cursoApi('iniciar-envio', { id: aulaId });
-      let offset = 0, falhasSeguidas = 0, arquivoGemini = null;
-      while (true) {
-        let parte;
-        try {
-          parte = await cursoApi('enviar-parte', {
-            id: aulaId, enderecoEnvio: envio.enderecoEnvio, offset, tamanho: envio.tamanho
-          });
-          falhasSeguidas = 0;
-        } catch (e) {
-          // Uma falha de rede num pedaço não perde o que já foi enviado: tenta de novo
-          if (++falhasSeguidas > 3 || e.status === 400 || e.status === 401) throw e;
-          await esperarCurso(3000 * falhasSeguidas);
-          continue;
+    if (!parcial) {
+      const arquivo = await enviarVideoGeminiCurso(aulaId);
+      const trechos = [];
+      for (let t = 0; t < duracao; t += CUR_TRECHO) {
+        trechos.push({ inicio: t, fim: Math.min(t + CUR_TRECHO, Math.ceil(duracao)), res: null });
+      }
+      parcial = { arquivo, enviadoEm: Date.now(), duracao, trechos, uso: {}, modelo: '' };
+      salvarParcialCurso(aulaId, parcial);
+    }
+
+    // Analisa os trechos que faltam, alguns ao mesmo tempo
+    const feitoSeg = () => parcial.trechos.filter(t => t.res).reduce((a, t) => a + (t.fim - t.inicio), 0);
+    const mostrar = () => etapaCurso(
+      `O Gemini está assistindo à aula… ${formatarTempoCurso(feitoSeg())} de ${formatarTempoCurso(parcial.duracao)}`,
+      (feitoSeg() / parcial.duracao) * 100);
+    mostrar();
+
+    let erroFatal = null;
+    const proximo = () => parcial.trechos.find(t => !t.res && !t.ocupado);
+    async function trabalhador() {
+      let t;
+      while (!erroFatal && (t = proximo())) {
+        t.ocupado = true;
+        let tentativas = 0;
+        while (!t.res && !erroFatal) {
+          try {
+            const r = await cursoApi('analisar-trecho', {
+              uri: parcial.arquivo.uri, tipo: parcial.arquivo.tipo, inicio: t.inicio, fim: t.fim
+            });
+            t.res = { slides: r.slides, transcricao: r.transcricao };
+            parcial.uso = somarUsoCurso(parcial.uso, r.uso);
+            parcial.modelo = r.modelo;
+          } catch (e) {
+            if (e.status === 504 && t.fim - t.inicio >= 90) {
+              // Trecho pesado demais para 60s: divide ao meio
+              const meio = Math.round((t.inicio + t.fim) / 2);
+              const idx = parcial.trechos.indexOf(t);
+              const novo = { inicio: meio, fim: t.fim, res: null };
+              t.fim = meio;
+              parcial.trechos.splice(idx + 1, 0, novo);
+              continue;
+            }
+            if (e.status === 410) { erroFatal = e; break; }
+            if (++tentativas <= 3 && (e.status >= 500 || e.status === 429)) {
+              await esperarCurso(5000 * tentativas);
+              continue;
+            }
+            erroFatal = e;
+          }
         }
-        offset = parte.offset;
-        etapaCurso(`Enviando o vídeo do Drive para o Gemini… ${formatarTamanho(offset)} de ${formatarTamanho(envio.tamanho)}`,
-                   (offset / envio.tamanho) * 100);
-        if (parte.terminou) { arquivoGemini = parte.arquivo; break; }
+        delete t.ocupado;
+        salvarParcialCurso(aulaId, parcial);
+        mostrar();
       }
+    }
+    await Promise.all(Array.from({ length: CUR_SIMULTANEOS }, trabalhador));
+    parcial.trechos.forEach(t => delete t.ocupado);
+    salvarParcialCurso(aulaId, parcial);
 
-      // 2. Espera o Gemini preparar o vídeo
-      etapaCurso('O Gemini está preparando o vídeo…');
-      let estado = arquivoGemini.estado, uri = arquivoGemini.uri, tipo = arquivoGemini.tipo;
-      const limitePrep = Date.now() + 15 * 60_000;
-      while (estado !== 'ACTIVE') {
-        if (estado === 'FAILED') throw new Error('O Gemini não conseguiu ler esse arquivo de vídeo.');
-        if (Date.now() > limitePrep) throw new Error('O Gemini demorou demais para preparar o vídeo. Tente de novo mais tarde.');
-        await esperarCurso(4000);
-        const st = await cursoApi('estado-arquivo', { nome: arquivoGemini.nome });
-        estado = st.estado; uri = st.uri || uri; tipo = st.tipo || tipo;
+    if (erroFatal) {
+      if (erroFatal.status === 410) {
+        try { localStorage.removeItem('curso-parcial-' + aulaId); } catch { /* segue */ }
+        throw new Error('O vídeo expirou na área temporária do Gemini. Clique em "Analisar aula" para enviar de novo.');
       }
-
-      // 3. Pede a análise (roda em segundo plano no Google). A partir daqui
-      // ela já está paga: guarda o pedido para poder retomar se algo falhar.
-      etapaCurso('O Gemini está assistindo à aula. Isso costuma levar alguns minutos…');
-      const r = await cursoApi('analisar', { uri, tipo });
-      pedido = { id: r.id, modelo: r.modelo, ajuste: r.ajuste, arquivo: arquivoGemini.nome, desde: Date.now() };
-      try { localStorage.setItem('curso-pendente-' + aulaId, JSON.stringify(pedido)); } catch { /* segue */ }
-    } else {
-      etapaCurso('Retomando a análise que já estava em andamento…');
+      throw erroFatal;
     }
 
-    // 4. Espera o resultado
-    const inicio = Date.now();
-    let resultado = null, falhas = 0;
-    while (!resultado) {
-      if (Date.now() - inicio > 40 * 60_000) throw new Error('A análise passou de 40 minutos sem terminar. Clique em "Retomar análise" mais tarde.');
-      await esperarCurso(8000);
-      let r;
-      try { r = await cursoApi('resultado', { id: pedido.id }); falhas = 0; }
-      catch (e) {
-        if (e.status === 503 && ++falhas <= 6) continue;   // passageiro: tenta de novo
-        throw e;
-      }
-      const min = Math.floor((Date.now() - (pedido.desde || inicio)) / 60000);
-      etapaCurso(`O Gemini está assistindo à aula… ${min ? min + ' min' : 'começando'}`);
-      if (r.pronto) resultado = r;
-    }
+    // Junta os trechos e pede título, resumo, tópicos e temas
+    const ordenar = arr => arr.sort((a, b) => lerTempoCurso(a.inicio) - lerTempoCurso(b.inicio));
+    const transcricao = ordenar(parcial.trechos.flatMap(t => t.res.transcricao || []));
+    const slides = ordenar(parcial.trechos.flatMap(t => t.res.slides || []));
+
+    etapaCurso('Montando resumo, tópicos e temas…');
+    const resumo = await cursoApi('resumir', { transcricao, slides });
 
     curAnalise = {
-      dados: resultado.dados,
-      textoCru: resultado.textoCru || null,
-      uso: resultado.uso,
-      modelo: pedido.modelo,
-      ajuste: pedido.ajuste,
+      dados: {
+        titulo: resumo.titulo, resumo: resumo.resumo, temas: resumo.temas || [],
+        topicos: resumo.topicos || [], slides, transcricao
+      },
+      uso: somarUsoCurso(parcial.uso, resumo.uso),
+      modelo: parcial.modelo,
+      ajuste: `${parcial.trechos.length} trechos`,
       em: new Date().toISOString()
     };
     try { localStorage.setItem('curso-analise-' + aulaId, JSON.stringify(curAnalise)); }
     catch { toast('Análise pronta, mas não coube no armazenamento do navegador.', 'error'); }
-    try { localStorage.removeItem('curso-pendente-' + aulaId); } catch { /* segue */ }
-
-    // Só apaga o vídeo da área temporária do Gemini depois que a análise terminou
-    if (pedido.arquivo) cursoApi('apagar', { nome: pedido.arquivo }).catch(() => {});
+    try { localStorage.removeItem('curso-parcial-' + aulaId); } catch { /* segue */ }
+    cursoApi('apagar', { nome: parcial.arquivo.nome }).catch(() => {});
 
     toast('Análise da aula pronta');
     renderAnaliseCurso();
   } catch (e) {
     console.error('[cursos]', e);
-    const retomar = pendenteCurso()
-      ? '<br>A análise já foi enviada ao Gemini. Clique em <strong>Retomar análise</strong> para buscar o resultado sem pagar de novo.'
-      : '';
     const det = e.detalhes?.length
       ? '<br><span style="font-size:11.5px;opacity:.85">' + e.detalhes.map(escHtml).join('<br>') + '</span>'
       : '';
-    avisoCurso(escHtml(e.message) + det + retomar, true);
+    const continuar = parcialCurso(aulaId)
+      ? '<br>As partes já analisadas ficaram guardadas. Clique em <strong>Continuar análise</strong> para seguir de onde parou, sem pagar de novo por elas.'
+      : '';
+    avisoCurso(escHtml(e.message) + det + continuar, true);
     document.getElementById('cur-link').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } finally {
     curOcupado = false;
