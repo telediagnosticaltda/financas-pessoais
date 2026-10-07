@@ -6689,6 +6689,7 @@ async function cursoApi(acao, dados = {}) {
   if (!res.ok) {
     const e = new Error(corpo.error || `Erro ${res.status}`);
     e.status = res.status;
+    e.detalhes = Array.isArray(corpo.detalhes) ? corpo.detalhes : null;
     throw e;
   }
   return corpo;
@@ -6996,7 +6997,10 @@ async function analisarAulaCurso() {
     const retomar = pendenteCurso()
       ? '<br>A análise já foi enviada ao Gemini. Clique em <strong>Retomar análise</strong> para buscar o resultado sem pagar de novo.'
       : '';
-    avisoCurso(escHtml(e.message) + retomar, true);
+    const det = e.detalhes?.length
+      ? '<br><span style="font-size:11.5px;opacity:.85">' + e.detalhes.map(escHtml).join('<br>') + '</span>'
+      : '';
+    avisoCurso(escHtml(e.message) + det + retomar, true);
     document.getElementById('cur-link').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } finally {
     curOcupado = false;
