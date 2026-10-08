@@ -1461,6 +1461,12 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-ajustes-corpo select, .lg-ajustes-corpo input { width: auto; padding: 6px 9px; font-size: 12.5px; font-weight: 600; }
 .lg-ajustes-titulo input { width: 220px; }
 
+.lg-modo { margin-top: .9rem; }
+.lg-modo-t { font-size: 11.5px; font-weight: 700; color: var(--text-2); margin-bottom: 5px; }
+.lg-modo-opcoes { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.lg-modo-opcoes label { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.lg-modo-opcoes input { width: auto; }
+
 /* ── ARTIGOS (base de PDFs dentro de Cursos) ── */
 .cur-topo-abas { margin: -.25rem 0 1rem; padding: 0; }
 .art-pasta { margin-bottom: 1rem; padding: 0; overflow: hidden; }
@@ -2384,6 +2390,11 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                   <label>Fonte <select id="lg-pad-fonte" onchange="lgSalvarPadrao()"></select></label>
                   <label>Tamanho (pt) <select id="lg-pad-tam" onchange="lgSalvarPadrao()"></select></label>
                   <label class="lg-ajustes-titulo">Título da conclusão <input type="text" id="lg-pad-titulo" placeholder="Conclusão" oninput="lgSalvarPadrao()"></label>
+                </div>
+                <div class="lg-modo">
+                  <div class="lg-modo-t">Alterações do ditado no início da Análise</div>
+                  <div class="lg-modo-opcoes" id="lg-modo-inicio"></div>
+                  <div class="lg-nota" style="margin-top:.35rem">Nas modalidades marcadas, os achados ditados vão para o <b>início da Análise</b>, cada um em uma linha, com uma linha em branco entre eles. As frases normais da máscara ficam embaixo, sem espaçamento, e a IA apaga delas só o que o achado contradiz. Nas demais, o achado entra no lugar da frase normal. Fica salvo neste navegador.</div>
                 </div>
                 <div class="lg-nota" style="margin-top:.5rem">O texto sem formatação própria usa esta fonte e este tamanho, na tela e na cópia. O título da conclusão é acrescentado ao copiar, em negrito e na fonte padrão; deixe em branco para não acrescentar nenhum. Fica salvo neste navegador.</div>
               </details>
@@ -9016,6 +9027,38 @@ function lgPreencherAjustes() {
   ti.value = pad.titulo;
 }
 
+// ── Onde entram as alterações do ditado (por modalidade) ──
+// 'inicio': os achados alterados vão para o início da Análise, um por linha com uma linha em branco
+//           entre eles, e as frases normais da máscara ficam embaixo, sem espaçamento (a IA apaga das
+//           frases normais só o que o achado contradiz).
+// 'lugar':  o achado entra no lugar da frase normal.
+const LG_INICIO_PADRAO = ['TC', 'RM'];
+
+function lgModalidadesInicio() {
+  try {
+    const v = JSON.parse(localStorage.getItem('lg_modo_inicio'));
+    if (Array.isArray(v)) return v.filter(m => LG_MODALIDADES.includes(m));
+  } catch (_) { /* sem escolha guardada (ou ilegível): usa o padrão */ }
+  return LG_INICIO_PADRAO.slice();
+}
+
+const lgModoAlteracoes = () => lgModalidadesInicio().includes(lgModalidadeDe(lgMascaraAtual.tipo_exame)) ? 'inicio' : 'lugar';
+
+function lgPreencherModo() {
+  const caixa = lgEl('lg-modo-inicio');
+  if (!caixa) return;
+  if (!caixa.children.length) {
+    caixa.innerHTML = LG_MODALIDADES.map(m => `<label title="${LG_MOD_NOMES[m]}"><input type="checkbox" data-mod="${m}" onchange="lgSalvarModo()"> ${m}</label>`).join('');
+  }
+  const ligadas = lgModalidadesInicio();
+  caixa.querySelectorAll('input[data-mod]').forEach(i => { i.checked = ligadas.includes(i.dataset.mod); });
+}
+
+function lgSalvarModo() {
+  const marcadas = [...lgEl('lg-modo-inicio').querySelectorAll('input[data-mod]')].filter(i => i.checked).map(i => i.dataset.mod);
+  try { localStorage.setItem('lg_modo_inicio', JSON.stringify(marcadas)); } catch (_) { /* vale só nesta sessão */ }
+}
+
 function lgSalvarPadrao() {
   try {
     localStorage.setItem('lg_padrao_f', lgEl('lg-pad-fonte').value);
@@ -9667,7 +9710,7 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
     const r = await fetch('/api/receita-nutrir?tipo=laudo', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: rtMarkupDeDoc(docCorpoAntes), conclusao: rtMarkupDeDoc(docConclusaoAntes), ditado, exemplos, ...lgDadosAnterior() })
+      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: rtMarkupDeDoc(docCorpoAntes), conclusao: rtMarkupDeDoc(docConclusaoAntes), ditado, exemplos, modo_alteracoes: lgModoAlteracoes(), ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao aplicar o ditado');
@@ -10563,6 +10606,7 @@ function lgImgAnexar() {
 
 rtInstalarTudo();
 lgPreencherAjustes();
+lgPreencherModo();
 lgAplicarPadraoVisual();
 
 
