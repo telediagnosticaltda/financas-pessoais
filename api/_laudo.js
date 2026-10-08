@@ -171,6 +171,49 @@ Responda APENAS com um objeto JSON, sem markdown, sem crases e sem texto em volt
   "em_aberto": ["pontos sem decisão; lista vazia se não houver"]
 }`;
 
+// Convenção de organização do corpo (opcional, escolhida por modalidade no app): as alterações vão
+// para o INÍCIO da seção de análise e as frases normais ficam embaixo.
+const REGRA_ALTERACOES_NO_INICIO = `
+14. ORGANIZAÇÃO DAS ALTERAÇÕES (esta regra vale para este laudo e prevalece sobre a regra 2 quanto ao LUGAR em que o achado é escrito):
+   a) Os achados ALTERADOS ditados pelo médico vão no INÍCIO da seção de análise, logo depois do título dessa seção ("Análise:" ou "Achados:"). Cada achado ocupa a sua própria linha e é seguido de UMA linha em branco. As linhas em branco que a máscara deixa logo depois do título da seção são o espaço reservado para esses achados: o bloco de achados ocupa esse espaço.
+   b) As frases normais da máscara ficam EMBAIXO do bloco de achados, juntas, sem linhas em branco entre elas, exatamente como estão na máscara.
+   c) Das frases normais, apague SOMENTE o que o achado contradiz. Se uma frase normal inteira ficou falsa, remova a linha. Se só um trecho dela ficou falso, edite a frase tirando apenas esse trecho (por exemplo, "Ausência de cálculos ou de dilatação dos sistemas coletores renais" passa a "Ausência de dilatação dos sistemas coletores renais" quando há cálculo renal). Mantenha as frases normais que continuam verdadeiras, mesmo da mesma estrutura (por exemplo, "Vesícula biliar de dimensões normais" permanece quando há um cálculo na vesícula de dimensões normais). Na dúvida sobre uma frase normal ainda valer, mantenha-a e registre a dúvida em "avisos".
+   d) Cada achado é uma frase curta e objetiva, no estilo do médico (localização, lateralidade, característica e medida somente se ditas). Não repita no bloco de achados o que já está numa frase normal que você manteve.
+   e) Se o ditado corrigir ou retirar um achado ("tira o cálculo da vesícula"), remova esse achado do bloco (e a linha em branco dele) e restaure a frase normal que tinha sido apagada ou editada por causa dele.
+   f) Sem alterações ditadas, a análise fica exatamente como na máscara. Se a máscara não tiver uma seção de análise identificável, use o lugar da frase normal (regra 2).
+   Exemplo, mostrando só a seção de análise.
+   Antes do ditado:
+   <<<
+   <b>Análise:</b>
+
+
+   Fígado de contornos regulares, apresentando dimensões e atenuação radiológica normais.
+   Vias biliares intra e extra-hepáticas com calibre normal.
+   Vesícula biliar de dimensões normais.
+   Rins tópicos, com forma, contornos e dimensões normais. Ausência de cálculos ou de dilatação dos sistemas coletores renais. Boa concentração de contraste por ambos os rins.
+   Adrenais de morfologia e dimensões preservadas.
+   >>>
+   Ditado: "cálculo no grupamento calicinal médio do rim direito com 0,2 cm e cálculo na vesícula biliar de 0,5 cm"
+   Depois do ditado:
+   <<<
+   <b>Análise:</b>
+   Cálculo no grupamento calicinal médio do rim direito com cerca de 0,2 cm.
+
+   Cálculo no interior da vesícula biliar com cerca de 0,5 cm.
+
+   Fígado de contornos regulares, apresentando dimensões e atenuação radiológica normais.
+   Vias biliares intra e extra-hepáticas com calibre normal.
+   Vesícula biliar de dimensões normais.
+   Rins tópicos, com forma, contornos e dimensões normais. Ausência de dilatação dos sistemas coletores renais. Boa concentração de contraste por ambos os rins.
+   Adrenais de morfologia e dimensões preservadas.
+   >>>`;
+
+// Prompt do ditado conforme a organização escolhida: 'inicio' (alterações no início da análise) ou 'lugar'
+function sistemaDitado(modo) {
+  if (modo !== 'inicio') return SISTEMA_DITADO;
+  return SISTEMA_DITADO.replace('\nFORMATO DA RESPOSTA', REGRA_ALTERACOES_NO_INICIO + '\n\nFORMATO DA RESPOSTA');
+}
+
 // ─────────────────────────────────────────────────────────────
 // Utilitarios
 // ─────────────────────────────────────────────────────────────
@@ -283,6 +326,7 @@ export function tratarLaudo(req, res) {
     const tipo = texto(b.tipo_exame, 120).trim() || 'nao informado';
     const anterior = texto(b.anterior, LIM_ANTERIOR).trim();
     const dataAnterior = texto(b.data_anterior, 40).trim();
+    const modo = b.modo_alteracoes === 'inicio' ? 'inicio' : 'lugar';
 
     const exemplos = (Array.isArray(b.exemplos) ? b.exemplos : [])
       .slice(0, LIM_EXEMPLOS)
@@ -316,7 +360,7 @@ DITADO DO MÉDICO (aplique ao laudo):
 ${ditado}
 >>>`;
 
-    const saida = await perguntar(SISTEMA_DITADO, mensagem, 4000);
+    const saida = await perguntar(sistemaDitado(modo), mensagem, 4000);
     if (typeof saida.corpo !== 'string' || typeof saida.conclusao !== 'string') {
       console.error('[laudo] resposta sem corpo/conclusao');
       throw new ErroHttp(502, 'Nao consegui ler a resposta da IA. Tente de novo.');
