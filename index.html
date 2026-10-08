@@ -1353,18 +1353,25 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-campo-rotulo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .lg-campo-rotulo label { margin: 0; }
 
-.lg-edit { position: relative; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface); transition: border-color .15s, box-shadow .15s; }
-.lg-edit:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
-.lg-back, .lg-ta {
-  box-sizing: border-box; width: 100%; margin: 0; padding: 12px 14px; border: 0;
-  font-family: var(--font); font-size: 13.5px; font-weight: 500; line-height: 1.65; letter-spacing: normal;
-  white-space: pre-wrap; overflow-wrap: break-word; word-wrap: break-word;
+.lg-rt {
+  box-sizing: border-box; width: 100%; min-height: 110px; padding: 12px 14px;
+  border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  font-family: var(--font); font-size: 13.5px; font-weight: 500; line-height: 1.65;
+  white-space: pre-wrap; overflow-wrap: anywhere; outline: none; transition: border-color .15s, box-shadow .15s;
 }
-.lg-back { position: absolute; inset: 0; color: transparent; pointer-events: none; overflow: hidden; }
-.lg-back mark { background: #FFE8A3; color: transparent; border-radius: 3px; padding: 0; }
-.lg-ta { position: relative; display: block; background: transparent; resize: none; overflow: hidden; min-height: 110px; box-shadow: none; border-radius: var(--radius); }
-.lg-ta:focus { box-shadow: none; border: 0; }
+.lg-rt:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
+.lg-rt > div { min-height: 1.65em; }
+.lg-rt .lg-novo { background: #FFE8A3; border-radius: 3px; }
+.lg-rt-modal { min-height: 240px; max-height: 46vh; overflow-y: auto; }
+.lg-rt-modal.curto { min-height: 80px; max-height: 22vh; }
 
+
+.lg-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 6px; margin-bottom: .75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.lg-bt { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: none; background: none; border-radius: 7px; cursor: pointer; color: var(--text-2); font-size: 16px; padding: 0; }
+.lg-bt:hover { background: var(--border-2); color: var(--text); }
+.lg-bt.on { background: var(--primary-l); color: var(--primary); }
+.lg-bt-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.lg-bt-sel { width: auto; height: 30px; padding: 3px 8px; font-size: 12px; font-weight: 600; }
 .lg-legenda { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); }
 .lg-legenda i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; background: #FFE8A3; }
 
@@ -2341,30 +2348,26 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 
               <div class="lg-conf" id="lg-conf" style="display:none"></div>
 
+              <div class="lg-barra" data-escopo="laudo"></div>
+
               <div class="lg-campo">
                 <div class="lg-campo-rotulo">
-                  <label for="lg-corpo">Corpo do laudo</label>
+                  <label>Corpo do laudo</label>
                   <span class="lg-legenda" id="lg-legenda" style="display:none"><i></i> alterado pela IA
                     <button class="btn btn-ghost btn-sm" onclick="lgAceitarDestaques()">Aceitar</button>
                   </span>
                 </div>
-                <div class="lg-edit">
-                  <div class="lg-back" id="lg-back-corpo" aria-hidden="true"></div>
-                  <textarea class="lg-ta" id="lg-corpo" spellcheck="true" lang="pt-BR" oninput="lgAoEditar('corpo')"></textarea>
-                </div>
+                <div class="lg-rt" id="lg-corpo" data-escopo="laudo" contenteditable="true" spellcheck="true" lang="pt-BR" role="textbox" aria-multiline="true" aria-label="Corpo do laudo" oninput="lgAoEditar('corpo')"></div>
               </div>
 
               <div class="lg-campo" style="margin-bottom:0">
-                <div class="lg-campo-rotulo"><label for="lg-conclusao">Conclusão</label></div>
-                <div class="lg-edit">
-                  <div class="lg-back" id="lg-back-conclusao" aria-hidden="true"></div>
-                  <textarea class="lg-ta" id="lg-conclusao" spellcheck="true" lang="pt-BR" oninput="lgAoEditar('conclusao')"></textarea>
-                </div>
+                <div class="lg-campo-rotulo"><label>Conclusão</label></div>
+                <div class="lg-rt" id="lg-conclusao" data-escopo="laudo" contenteditable="true" spellcheck="true" lang="pt-BR" role="textbox" aria-multiline="true" aria-label="Conclusão" oninput="lgAoEditar('conclusao')"></div>
               </div>
 
               <div class="lg-nota">
                 <label class="lg-auto"><input type="checkbox" id="lg-auto-conf" onchange="lgSalvarPrefConf()"> Conferir o laudo automaticamente ao copiar</label><br>
-                A IA é um apoio de redação e de conferência. Revise o laudo antes de liberar. Ao copiar o laudo, o app aprende com o que você corrigiu no texto da IA.
+                A IA é um apoio de redação e de conferência. Revise o laudo antes de liberar. Ao copiar o laudo, ele vai para a área de transferência com a formatação (cole no Word ou no e-mail) e o app aprende com o que você corrigiu no texto da IA.
               </div>
             </div>
 
@@ -2406,13 +2409,14 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     </div>
     <div class="lg-nota" style="margin:-.375rem 0 .875rem">O tipo agrupa o aprendizado: as correções que você fizer em máscaras do mesmo tipo (por exemplo, todas as de US) valem para todas elas.</div>
     <label class="lg-check"><input type="checkbox" id="lg-m-fav"> Máscara favorita (aparece no topo da lista)</label>
+    <div class="lg-barra" data-escopo="modal"></div>
     <div class="form-row">
-      <label for="lg-m-corpo">Corpo do laudo</label>
-      <textarea id="lg-m-corpo" style="min-height:240px;line-height:1.55" placeholder="Texto-base do laudo, com os achados normais"></textarea>
+      <label>Corpo do laudo</label>
+      <div class="lg-rt lg-rt-modal" id="lg-m-corpo" data-escopo="modal" contenteditable="true" spellcheck="true" lang="pt-BR" role="textbox" aria-multiline="true" aria-label="Corpo do laudo" data-placeholder="Texto-base do laudo, com os achados normais"></div>
     </div>
     <div class="form-row">
-      <label for="lg-m-conclusao">Conclusão</label>
-      <textarea id="lg-m-conclusao" style="min-height:80px;line-height:1.55" placeholder="Ex.: Exame sem alterações significativas."></textarea>
+      <label>Conclusão</label>
+      <div class="lg-rt lg-rt-modal curto" id="lg-m-conclusao" data-escopo="modal" contenteditable="true" spellcheck="true" lang="pt-BR" role="textbox" aria-multiline="true" aria-label="Conclusão" data-placeholder="Ex.: Exame sem alterações significativas."></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-lg-masc')">Cancelar</button>
@@ -8400,6 +8404,333 @@ async function startApp() {
   }, 5 * 60 * 1000);
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// TEXTO FORMATADO — modelo e conversões do editor de laudos
+// ─────────────────────────────────────────────────────────────
+// Um texto formatado é um "Doc": lista de linhas.
+//   Linha  = { a: 'left'|'center'|'right'|'justify', r: [Trecho, ...] }
+//   Trecho = { t: texto, b?: 1, i?: 1, u?: 1, f?: 'Arial', s?: 12 (pt), h?: 1 (destaque da IA) }
+// O que o médico edita (HTML do navegador) é sempre convertido para esse modelo antes de ser
+// guardado, copiado ou enviado à IA: assim o HTML bagunçado do navegador e o de colagens do Word
+// viram sempre a mesma coisa limpa.
+const RT_FONTES   = ['Arial', 'Calibri', 'Cambria', 'Courier New', 'Georgia', 'Times New Roman', 'Verdana'];
+const RT_TAMANHOS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24];
+const RT_ALINH    = ['left', 'center', 'right', 'justify'];
+
+function rtFonteValida(nome) {
+  const n = String(nome || '').replace(/["']/g, '').trim().toLowerCase();
+  return RT_FONTES.find(f => f.toLowerCase() === n) || null;
+}
+
+const rtTamanhoValido = (s) => {
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 6 && n <= 72 ? Math.round(n * 2) / 2 : null;
+};
+
+function rtChave(r) {
+  return [r.b ? 1 : 0, r.i ? 1 : 0, r.u ? 1 : 0, r.f || '', r.s || '', r.h ? 1 : 0].join('|');
+}
+
+// Junta trechos vizinhos com a mesma formatação e descarta os vazios
+function rtFundir(trechos) {
+  const out = [];
+  for (const r of trechos) {
+    if (!r || !r.t) continue;
+    const ult = out[out.length - 1];
+    if (ult && rtChave(ult) === rtChave(r)) ult.t += r.t;
+    else out.push({ ...r });
+  }
+  return out;
+}
+
+const rtLinhaVazia = (a = 'left') => ({ a, r: [] });
+const rtTextoDeLinha = (l) => l.r.map(r => r.t).join('');
+const rtTextoDeDoc = (doc) => doc.map(rtTextoDeLinha).join('\n');
+
+function rtDocDeTexto(texto) {
+  return String(texto ?? '').replace(/\r\n/g, '\n').split('\n').map(t => ({ a: 'left', r: t ? [{ t }] : [] }));
+}
+
+// Remove as linhas vazias do fim (e garante ao menos uma linha)
+function rtAparar(doc) {
+  const d = doc.slice();
+  while (d.length > 1 && !d[d.length - 1].r.length) d.pop();
+  return d.length ? d : [rtLinhaVazia()];
+}
+
+const rtSemDestaque = (doc) => doc.map(l => ({ a: l.a, r: rtFundir(l.r.map(r => { const { h, ...resto } = r; return resto; })) }));
+
+// Para comparar dois textos formatados (ignora o destaque da IA)
+const rtJson = (doc) => JSON.stringify(rtSemDestaque(doc).map(l => [l.a, l.r.map(r => [r.t, r.b || 0, r.i || 0, r.u || 0, r.f || '', r.s || 0])]));
+
+// ── HTML do navegador → Doc ──────────────────────────────────
+
+const RT_BLOCOS = new Set(['DIV', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'UL', 'OL', 'TABLE', 'TBODY', 'TR', 'BLOCKQUOTE', 'PRE', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER']);
+const RT_IGNORAR = new Set(['SCRIPT', 'STYLE', 'HEAD', 'TITLE', 'META', 'LINK', 'NOSCRIPT']);
+const RT_FONT_SIZE_LEGADO = { 1: 8, 2: 10, 3: 11, 4: 13, 5: 18, 6: 24, 7: 36 };
+
+function rtAlinhamentoDe(el) {
+  const v = String((el.style && el.style.textAlign) || (el.getAttribute && el.getAttribute('align')) || '').trim().toLowerCase();
+  if (v === 'center') return 'center';
+  if (v === 'right' || v === 'end') return 'right';
+  if (v === 'justify') return 'justify';
+  if (v === 'left' || v === 'start') return 'left';
+  return null;
+}
+
+// Estilo de um trecho depois de passar por um elemento (tags b/i/u/font e atributo style)
+function rtEstiloDe(el, est) {
+  const e = { ...est };
+  const tag = el.nodeName;
+  if (tag === 'B' || tag === 'STRONG') e.b = 1;
+  if (tag === 'I' || tag === 'EM') e.i = 1;
+  if (tag === 'U') e.u = 1;
+  if (tag === 'FONT') {
+    const f = rtFonteValida(el.getAttribute('face'));
+    if (f) e.f = f;
+    const sz = RT_FONT_SIZE_LEGADO[el.getAttribute('size')];
+    if (sz) e.s = sz;
+  }
+  const st = el.style;
+  if (st) {
+    const peso = String(st.fontWeight || '').toLowerCase();
+    if (peso === 'bold' || peso === 'bolder' || Number(peso) >= 600) e.b = 1;
+    else if (peso === 'normal' || (peso && Number(peso) < 600)) e.b = 0;
+    const estilo = String(st.fontStyle || '').toLowerCase();
+    if (estilo === 'italic' || estilo === 'oblique') e.i = 1;
+    else if (estilo === 'normal') e.i = 0;
+    const deco = String(st.textDecoration || st.textDecorationLine || '').toLowerCase();
+    if (deco.includes('underline')) e.u = 1;
+    const fam = String(st.fontFamily || '').split(',')[0];
+    const f = rtFonteValida(fam);
+    if (f) e.f = f;
+    const tam = String(st.fontSize || '').trim().toLowerCase();
+    let m;
+    if ((m = tam.match(/^([\d.]+)pt$/))) e.s = rtTamanhoValido(m[1]) || e.s;
+    else if ((m = tam.match(/^([\d.]+)px$/))) e.s = rtTamanhoValido(Number(m[1]) * 0.75) || e.s;
+    else if (/xxx-large$/.test(tam)) e.s = 36;
+  }
+  return e;
+}
+
+// raiz: elemento do navegador (editor ou corpo de um HTML colado). colado=true aplica as
+// regras de espaço do HTML (várias quebras e espaços viram um só).
+function rtDocDeDom(raiz, colado = false) {
+  const linhas = [];
+  let atual = null;
+  const garantir = (a) => { if (!atual) { atual = { a: a || 'left', r: [] }; linhas.push(atual); } return atual; };
+  const fechar = () => { atual = null; };
+
+  function andar(no, est, alin, ehBloco) {
+    if (no.nodeType === 3) {
+      let t = String(no.nodeValue || '').replace(/[\u200b\ufeff]/g, '').replace(/\u00a0/g, '\u0001');   // nbsp é espaço de verdade
+      t = colado ? t.replace(/[ \t\r\n]+/g, ' ') : t.replace(/[\r\n]+/g, ' ');
+      if (colado && !atual) t = t.replace(/^ +/, '');
+      t = t.replace(/\u0001/g, ' ');
+      if (!t) return;
+      garantir(alin).r.push({ t, ...est });
+      return;
+    }
+    if (no.nodeType !== 1 || RT_IGNORAR.has(no.nodeName)) return;
+    if (no.nodeName === 'BR') return;                                // tratado pelo pai (precisa saber se é o último)
+
+    const bloco = ehBloco || RT_BLOCOS.has(no.nodeName);
+    const est2 = rtEstiloDe(no, est);
+    const alin2 = RT_BLOCOS.has(no.nodeName) ? (rtAlinhamentoDe(no) || alin) : alin;
+    if (RT_BLOCOS.has(no.nodeName)) fechar();
+    const antes = linhas.length;
+    const filhos = [...no.childNodes];
+    filhos.forEach((f, idx) => {
+      if (f.nodeType === 1 && f.nodeName === 'BR') {
+        const ultimo = idx === filhos.length - 1;
+        if (atual && ultimo && bloco) return;                         // <br> de enchimento no fim de uma linha com texto
+        if (atual) fechar();                                          // quebra de linha no meio do texto
+        else { garantir(alin2); fechar(); }                           // linha vazia
+      } else if (f.nodeType === 1 && RT_BLOCOS.has(f.nodeName)) {
+        fechar();
+        andar(f, est2, alin2, true);
+        fechar();
+      } else {
+        andar(f, est2, alin2, false);
+      }
+    });
+    if (RT_BLOCOS.has(no.nodeName)) {
+      if (linhas.length === antes) linhas.push(rtLinhaVazia(alin2));  // bloco sem nada dentro = linha vazia
+      fechar();
+    }
+  }
+
+  andar(raiz, {}, 'left', true);
+  const doc = linhas.map(l => {
+    const r = rtFundir(l.r.map(rtNormalizarTrecho));
+    return { a: RT_ALINH.includes(l.a) ? l.a : 'left', r: r.every(x => !x.t.trim()) ? [] : r };   // só espaços = linha vazia
+  });
+  return doc.length ? doc : [rtLinhaVazia()];
+}
+
+function rtNormalizarTrecho(r) {
+  const o = { t: r.t };
+  if (r.b) o.b = 1;
+  if (r.i) o.i = 1;
+  if (r.u) o.u = 1;
+  const f = rtFonteValida(r.f);
+  if (f) o.f = f;
+  const s = rtTamanhoValido(r.s);
+  if (s) o.s = s;
+  if (r.h) o.h = 1;
+  return o;
+}
+
+function rtDocDeHtml(html) {
+  const corpo = new DOMParser().parseFromString(String(html || ''), 'text/html').body;
+  return rtDocDeDom(corpo, true);
+}
+
+// ── Doc → HTML ───────────────────────────────────────────────
+// modo 'editor': o que aparece na tela (com o destaque da IA). modo 'clip': HTML limpo, só com
+// estilos "inline", para colar no Word ou no e-mail.
+function rtHtmlDeTrecho(r, modo, depoisDeEspaco = false) {
+  let h = escHtml(r.t);
+  if (modo === 'clip') {                       // o Word junta espaços repetidos: o 2º em diante vira nbsp
+    h = h.replace(/ {2,}/g, m => ' ' + '&nbsp;'.repeat(m.length - 1));
+    if (depoisDeEspaco && h.startsWith(' ')) h = '&nbsp;' + h.slice(1);
+  }
+  if (r.h && modo === 'editor') h = `<span class="lg-novo">${h}</span>`;
+  if (r.u) h = `<u>${h}</u>`;
+  if (r.i) h = `<i>${h}</i>`;
+  if (r.b) h = `<b>${h}</b>`;
+  if (r.f || r.s) {
+    const css = (r.f ? `font-family:'${r.f}'` : '') + (r.f && r.s ? ';' : '') + (r.s ? `font-size:${r.s}pt` : '');
+    h = `<span style="${css}">${h}</span>`;
+  }
+  return h;
+}
+
+function rtHtmlDeDoc(doc, modo = 'editor') {
+  return doc.map(l => {
+    let espaco = true;                        // começo de linha conta como "depois de espaço" (recuo)
+    const dentro = l.r.map(r => { const h = rtHtmlDeTrecho(r, modo, espaco); espaco = /\s$/.test(r.t); return h; }).join('');
+    const alinhar = l.a && l.a !== 'left' ? `text-align:${l.a}` : '';
+    if (modo === 'clip') {
+      return `<p style="margin:0${alinhar ? ';' + alinhar : ''}">${dentro || '&nbsp;'}</p>`;
+    }
+    return `<div${alinhar ? ` style="${alinhar}"` : ''}>${dentro || '<br>'}</div>`;
+  }).join('');
+}
+
+// ── Marcação para a IA ───────────────────────────────────────
+// <b>, <i>, <u>, <fs f="Arial" s="12"> (fonte e tamanho), e a linha inteira dentro de
+// <c> (centro), <r> (direita) ou <j> (justificado). Cada linha é independente. < > & viram &lt; &gt; &amp;.
+const rtEscapar = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const rtDesescapar = (t) => String(t).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+
+function rtMarkupDeDoc(doc) {
+  return doc.map(l => {
+    let s = l.r.map(r => {
+      let x = rtEscapar(r.t);
+      if (r.u) x = `<u>${x}</u>`;
+      if (r.i) x = `<i>${x}</i>`;
+      if (r.b) x = `<b>${x}</b>`;
+      if (r.f || r.s) x = `<fs${r.f ? ` f="${r.f}"` : ''}${r.s ? ` s="${r.s}"` : ''}>${x}</fs>`;
+      return x;
+    }).join('');
+    if (s && l.a === 'center') s = `<c>${s}</c>`;
+    else if (s && l.a === 'right') s = `<r>${s}</r>`;
+    else if (s && l.a === 'justify') s = `<j>${s}</j>`;
+    return s;
+  }).join('\n');
+}
+
+const RT_TAG = /<(\/?)\s*(b|strong|i|em|u|c|center|r|j|fs)((?:\s+[a-z]+\s*=\s*"[^"]*")*)\s*>/gi;
+const RT_ALIAS = { strong: 'b', em: 'i', center: 'c' };
+
+// Lê a marcação devolvida pela IA. É tolerante: marcação desconhecida vira texto, marcação aberta
+// e não fechada acaba no fim da linha, e "<" solto (como em "< 5 mm") continua sendo texto.
+function rtDocDeMarkup(texto) {
+  const linhas = String(texto ?? '').replace(/\r\n/g, '\n').replace(/<br\s*\/?>/gi, '\n').split('\n');
+  return linhas.map(linha => {
+    let b = 0, i = 0, u = 0, alinhamento = 'left';
+    const pilhaFs = [];
+    let f = null, s = null;
+    const trechos = [];
+    let pos = 0, m;
+    const texto1 = (t) => { if (t) trechos.push({ t: rtDesescapar(t), ...(b ? { b: 1 } : {}), ...(i ? { i: 1 } : {}), ...(u ? { u: 1 } : {}), ...(f ? { f } : {}), ...(s ? { s } : {}) }); };
+    RT_TAG.lastIndex = 0;
+    while ((m = RT_TAG.exec(linha))) {
+      texto1(linha.slice(pos, m.index));
+      pos = m.index + m[0].length;
+      const fecha = m[1] === '/';
+      const nome = RT_ALIAS[m[2].toLowerCase()] || m[2].toLowerCase();
+      if (nome === 'b') b = fecha ? Math.max(0, b - 1) : b + 1;
+      else if (nome === 'i') i = fecha ? Math.max(0, i - 1) : i + 1;
+      else if (nome === 'u') u = fecha ? Math.max(0, u - 1) : u + 1;
+      else if ((nome === 'c' || nome === 'r' || nome === 'j') && !fecha) alinhamento = ({ c: 'center', r: 'right', j: 'justify' })[nome];
+      else if (nome === 'fs') {
+        if (fecha) { const p = pilhaFs.pop(); if (p) { f = p.f; s = p.s; } }
+        else {
+          pilhaFs.push({ f, s });
+          const attrs = m[3] || '';
+          const fm = attrs.match(/\bf\s*=\s*"([^"]*)"/i), sm = attrs.match(/\bs\s*=\s*"([^"]*)"/i);
+          if (fm && rtFonteValida(fm[1])) f = rtFonteValida(fm[1]);
+          if (sm && rtTamanhoValido(sm[1])) s = rtTamanhoValido(sm[1]);
+        }
+      }
+    }
+    texto1(linha.slice(pos));
+    return { a: alinhamento, r: rtFundir(trechos.map(rtNormalizarTrecho)) };
+  });
+}
+
+// ── Destaque das alterações da IA ────────────────────────────
+// ranges: [[inicio, fim], ...] em posições do texto simples (linhas separadas por "\n")
+function rtAplicarDestaques(doc, ranges) {
+  if (!ranges || !ranges.length) return doc;
+  let base = 0;
+  return doc.map(l => {
+    const trechos = [];
+    let p = base;
+    for (const r of l.r) {
+      const ini = p, fim = p + r.t.length;
+      let cursor = ini;
+      for (const [a, b] of ranges) {
+        const x = Math.max(a, ini), y = Math.min(b, fim);
+        if (x >= y) continue;
+        if (x > cursor) trechos.push({ ...r, t: r.t.slice(cursor - ini, x - ini) });
+        trechos.push({ ...r, t: r.t.slice(x - ini, y - ini), h: 1 });
+        cursor = y;
+      }
+      if (cursor < fim) trechos.push({ ...r, t: r.t.slice(cursor - ini) });
+      p = fim;
+    }
+    base = p + 1;                                   // +1 do "\n" entre as linhas
+    return { a: l.a, r: rtFundir(trechos) };
+  });
+}
+
+// Linhas que a IA devolveu IGUAIS às que já existiam mantêm exatamente a formatação de antes,
+// mesmo que a IA tenha mexido (ou esquecido) a marcação.
+function rtRestaurarLinhasIguais(antes, depois) {
+  const A = antes.map(rtTextoDeLinha), B = depois.map(rtTextoDeLinha);
+  const n = A.length, m = B.length;
+  if (n > 600 || m > 600) return depois;
+  const w = m + 1;
+  const T = new Uint16Array((n + 1) * w);
+  for (let x = n - 1; x >= 0; x--) {
+    for (let y = m - 1; y >= 0; y--) {
+      T[x * w + y] = A[x] === B[y] ? T[(x + 1) * w + y + 1] + 1 : Math.max(T[(x + 1) * w + y], T[x * w + y + 1]);
+    }
+  }
+  const out = depois.map(l => l);
+  let x = 0, y = 0;
+  while (x < n && y < m) {
+    if (A[x] === B[y]) { if (A[x] !== '') out[y] = antes[x]; x++; y++; }
+    else if (T[(x + 1) * w + y] >= T[x * w + y + 1]) x++;
+    else y++;
+  }
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────
 // LAUDOS — editor com ditado por voz, IA e aprendizado com correções
 // ─────────────────────────────────────────────────────────────
@@ -8409,8 +8740,6 @@ async function startApp() {
 let lgMascaras       = [];
 let lgMascaraAtual   = null;                         // máscara aberta no editor
 let lgBaseline       = { corpo: null, conclusao: null }; // último texto escrito pela IA (base do aprendizado)
-let lgHl             = { corpo: [], conclusao: [] }; // destaques: [[inicio, fim], ...]
-let lgUltimoValor    = { corpo: '', conclusao: '' }; // para deslocar destaques durante a edição
 let lgAnterior       = null;                         // estado antes da última aplicação (para desfazer)
 let lgMascaraEditId  = null;
 let lgOcupado        = false;
@@ -8459,7 +8788,7 @@ const lgRotuloExame = () => `${lgTipoAprendizado()} (máscara: ${lgMascaraAtual.
 let lgModalSnap = '';
 const lgModalEstado = () => JSON.stringify([
   lgEl('lg-m-nome').value, lgEl('lg-m-tipo').value, lgEl('lg-m-fav').checked,
-  lgEl('lg-m-corpo').value, lgEl('lg-m-conclusao').value
+  rtJson(rtDoc(lgEl('lg-m-corpo'))), rtJson(rtDoc(lgEl('lg-m-conclusao')))
 ]);
 function lgMascaraAlterada() {
   return lgEl('modal-lg-masc').classList.contains('open') && lgModalEstado() !== lgModalSnap;
@@ -8530,31 +8859,6 @@ function lgDiffInseridos(antes, depois) {
   return limpos;
 }
 
-// Move os destaques quando o texto muda (digitação, colagem, exclusão)
-function lgDeslocarDestaques(ranges, velho, novo) {
-  if (velho === novo) return ranges;
-  const lv = velho.length, ln = novo.length;
-  let p = 0;
-  const maxP = Math.min(lv, ln);
-  while (p < maxP && velho[p] === novo[p]) p++;
-  let s = 0;
-  while (s < lv - p && s < ln - p && velho[lv - 1 - s] === novo[ln - 1 - s]) s++;
-  const e = lv - s;            // fim da região removida (no texto velho)
-  const delta = ln - lv;
-
-  const out = [];
-  for (const [a, b] of ranges) {
-    let a2, b2;
-    if (b <= p) { a2 = a; b2 = b; }
-    else if (a >= e) { a2 = a + delta; b2 = b + delta; }
-    else { a2 = Math.min(a, p); b2 = Math.max(b, e) + delta; }
-    a2 = Math.max(0, a2);
-    b2 = Math.min(ln, b2);
-    if (b2 > a2) out.push([a2, b2]);
-  }
-  return out;
-}
-
 // Trechos que o médico alterou em relação ao texto escrito pela IA: [{antes, depois}]
 function lgPares(base, atual) {
   const norm = (s) => s.replace(/\s+/g, ' ').trim();
@@ -8596,52 +8900,226 @@ function lgPares(base, atual) {
   return pares;
 }
 
-// ── Editor (textarea com camada de destaque por trás) ────────
+// ── Editor de texto formatado ────────────────────────────────
+// Cada caixa do laudo e da máscara é um <div contenteditable class="lg-rt">. A propriedade .value
+// devolve o texto SIMPLES (assim o aprendizado, a conferência etc. seguem iguais); a formatação
+// (negrito, itálico, sublinhado, fonte, tamanho, alinhamento) fica no HTML e passa pelo editor.js.
+let rtAtivo     = null;     // última caixa em que o médico clicou ou digitou
+let rtIntervalo = null;     // e a seleção nela (a lista de fonte e de tamanho tira o foco da caixa)
 
-function lgAjustarAltura(campo) {
-  const ta = lgEl('lg-' + campo);
-  ta.style.height = 'auto';
-  ta.style.height = ta.scrollHeight + 'px';
+const rtDoc = (el) => rtDocDeDom(el);
+const rtMostrar = (el, doc) => { el.innerHTML = rtHtmlDeDoc(doc, 'editor'); };
+
+function rtInstalar(el) {
+  if (!el || el.__rt) return;
+  el.__rt = true;
+  if (!el.innerHTML.trim()) el.innerHTML = '<div><br></div>';
+  Object.defineProperty(el, 'value', {
+    get() { return rtTextoDeDoc(rtDocDeDom(el)); },
+    set(v) { rtMostrar(el, rtDocDeTexto(v)); }
+  });
+  el.addEventListener('focus', () => { try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch (_) {} });
+  el.addEventListener('paste', rtColar);
+  el.addEventListener('drop', (e) => e.preventDefault());      // soltar arquivo/imagem aqui não faz sentido
 }
 
-function lgDesenharDestaques(campo) {
-  const txt = lgEl('lg-' + campo).value;
-  let html = '', pos = 0;
-  for (const [a, b] of lgHl[campo]) {
-    if (a > pos) html += escHtml(txt.slice(pos, a));
-    html += '<mark>' + escHtml(txt.slice(a, b)) + '</mark>';
-    pos = b;
+// Colar: o HTML de fora (Word, sites) passa pelo modelo e entra limpo, só com o que o editor entende
+function rtColar(e) {
+  const cd = e.clipboardData;
+  if (!cd || !cd.getData) return;
+  const html = cd.getData('text/html');
+  const txt = cd.getData('text/plain');
+  if (!html && !txt) return;                      // imagem: segue o fluxo da discussão de casos
+  e.preventDefault();
+  const doc = rtAparar(html ? rtDocDeHtml(html) : rtDocDeTexto(txt));
+  const h = doc.length === 1
+    ? doc[0].r.map(r => rtHtmlDeTrecho(r, 'editor')).join('')           // uma linha só: entra no meio da linha atual
+    : rtHtmlDeDoc(doc, 'editor');
+  let feito = false;
+  try { feito = document.execCommand('insertHTML', false, h); } catch (_) {}
+  if (!feito) { try { document.execCommand('insertText', false, rtTextoDeDoc(doc)); } catch (_) {} }
+}
+
+// Acompanha qual caixa e qual trecho estão selecionados
+document.addEventListener('selectionchange', () => {
+  const sel = window.getSelection && window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const no = sel.anchorNode;
+  const base = no && (no.nodeType === 1 ? no : no.parentElement);
+  const el = base && base.closest ? base.closest('.lg-rt') : null;
+  if (!el) return;
+  rtAtivo = el;
+  rtIntervalo = sel.getRangeAt(0).cloneRange();
+  rtAtualizarBarra(el);
+});
+
+// ── Barra de ferramentas ──
+function rtBarraHtml() {
+  const bt = (cmd, icone, titulo) => `<button type="button" class="lg-bt" data-cmd="${cmd}" title="${titulo}" onmousedown="event.preventDefault()" onclick="rtComando(this, '${cmd}')"><i class="ti ti-${icone}"></i></button>`;
+  const al = (cmd, icone, titulo) => `<button type="button" class="lg-bt" data-cmd="${cmd}" title="${titulo}" onmousedown="event.preventDefault()" onclick="rtAlinhar(this, '${cmd}')"><i class="ti ti-${icone}"></i></button>`;
+  return `<select class="lg-bt-sel" data-sel="fonte" title="Fonte" onchange="rtFonte(this)"><option value="">Fonte</option>${RT_FONTES.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join('')}</select>`
+    + `<select class="lg-bt-sel" data-sel="tamanho" title="Tamanho (pt)" onchange="rtTamanho(this)"><option value="">Tam.</option>${RT_TAMANHOS.map(t => `<option value="${t}">${t}</option>`).join('')}</select>`
+    + '<span class="lg-bt-sep"></span>'
+    + bt('bold', 'bold', 'Negrito (Ctrl+B)') + bt('italic', 'italic', 'Itálico (Ctrl+I)') + bt('underline', 'underline', 'Sublinhado (Ctrl+U)')
+    + '<span class="lg-bt-sep"></span>'
+    + al('justifyLeft', 'align-left', 'Alinhar à esquerda') + al('justifyCenter', 'align-center', 'Centralizar')
+    + al('justifyRight', 'align-right', 'Alinhar à direita') + al('justifyFull', 'align-justified', 'Justificar')
+    + '<span class="lg-bt-sep"></span>'
+    + '<button type="button" class="lg-bt" title="Limpar formatação" onmousedown="event.preventDefault()" onclick="rtLimparFormato(this)"><i class="ti ti-clear-formatting"></i></button>';
+}
+
+const rtEscopoDe = (no) => { const b = no.closest ? no.closest('.lg-barra') : null; return b ? b.dataset.escopo : ''; };
+
+// Roda um comando sobre o que está selecionado na caixa do mesmo grupo (laudo ou janela de máscara)
+function rtExecutar(escopo, fn) {
+  const el = rtAtivo && rtAtivo.dataset.escopo === escopo ? rtAtivo : null;
+  if (!el) { toast('Clique no texto que você quer formatar', 'error'); return; }
+  el.focus();
+  const sel = window.getSelection();
+  if (rtIntervalo) { sel.removeAllRanges(); sel.addRange(rtIntervalo); }
+  try { fn(el, sel); } catch (e) { console.error('[laudos] formatar', e); }
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  if (sel.rangeCount) rtIntervalo = sel.getRangeAt(0).cloneRange();
+  rtAtualizarBarra(el);
+}
+
+function rtComando(botao, cmd) {
+  rtExecutar(rtEscopoDe(botao), () => {
+    document.execCommand('styleWithCSS', false, false);
+    document.execCommand(cmd, false, null);
+  });
+}
+
+function rtAlinhar(botao, cmd) {
+  rtExecutar(rtEscopoDe(botao), () => {
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand(cmd, false, null);
+  });
+}
+
+function rtFonte(select) {
+  const nome = rtFonteValida(select.value);
+  const escopo = rtEscopoDe(select);
+  select.value = '';
+  if (!nome) return;
+  rtExecutar(escopo, () => {
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('fontName', false, nome);
+  });
+}
+
+// O navegador só sabe tamanhos de 1 a 7: aplica o 7 e troca pelo tamanho em pt escolhido.
+// Sem nada selecionado, deixa um marcador invisível com o tamanho, e o que for digitado herda.
+function rtTamanho(select) {
+  const pt = rtTamanhoValido(select.value);
+  const escopo = rtEscopoDe(select);
+  select.value = '';
+  if (!pt) return;
+  rtExecutar(escopo, (el, sel) => {
+    if (sel.rangeCount && sel.getRangeAt(0).collapsed) {
+      const span = document.createElement('span');
+      span.style.fontSize = pt + 'pt';
+      span.appendChild(document.createTextNode('\u200b'));
+      sel.getRangeAt(0).insertNode(span);
+      const r = document.createRange();
+      r.setStart(span.firstChild, 1);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      return;
+    }
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('fontSize', false, '7');
+    el.querySelectorAll('font[size="7"], span[style*="xxx-large"]').forEach(n => {
+      if (n.nodeName === 'FONT') {
+        const sp = document.createElement('span');
+        const f = rtFonteValida(n.getAttribute('face'));
+        if (f) sp.style.fontFamily = `'${f}'`;
+        sp.style.fontSize = pt + 'pt';
+        while (n.firstChild) sp.appendChild(n.firstChild);
+        n.replaceWith(sp);
+      } else {
+        n.style.fontSize = pt + 'pt';
+      }
+    });
+  });
+}
+
+function rtLimparFormato(botao) {
+  rtExecutar(rtEscopoDe(botao), () => {
+    document.execCommand('removeFormat', false, null);
+    document.execCommand('justifyLeft', false, null);
+  });
+}
+
+// Mostra na barra o formato do trecho onde está o cursor
+function rtAtualizarBarra(el) {
+  const barra = document.querySelector(`.lg-barra[data-escopo="${el.dataset.escopo}"]`);
+  if (!barra) return;
+  barra.querySelectorAll('.lg-bt[data-cmd]').forEach(b => {
+    let ligado = false;
+    try { ligado = document.queryCommandState(b.dataset.cmd); } catch (_) {}
+    b.classList.toggle('on', !!ligado);
+  });
+  const sel = window.getSelection();
+  const no = sel && sel.anchorNode;
+  const base = no && (no.nodeType === 1 ? no : no.parentElement);
+  const explicito = (seletor, prop) => {
+    const x = base && base.closest ? base.closest(seletor) : null;
+    return x && el.contains(x) ? x : null;
+  };
+  const sf = barra.querySelector('[data-sel="fonte"]'), st = barra.querySelector('[data-sel="tamanho"]');
+  if (sf) {
+    const x = explicito('[style*="font-family"], font[face]');
+    sf.value = x ? (rtFonteValida((x.style && x.style.fontFamily || '').split(',')[0]) || rtFonteValida(x.getAttribute('face')) || '') : '';
   }
-  html += escHtml(txt.slice(pos));
-  lgEl('lg-back-' + campo).innerHTML = html;
-  lgAjustarAltura(campo);
-  lgEl('lg-legenda').style.display = (lgHl.corpo.length || lgHl.conclusao.length) ? 'flex' : 'none';
+  if (st) {
+    const x = explicito('[style*="font-size"]');
+    const m = x && String(x.style.fontSize || '').match(/^([\d.]+)pt$/);
+    st.value = m && RT_TAMANHOS.includes(Number(m[1])) ? String(Number(m[1])) : '';
+  }
 }
 
+function rtInstalarTudo() {
+  document.querySelectorAll('.lg-rt').forEach(rtInstalar);
+  document.querySelectorAll('.lg-barra').forEach(b => { if (!b.dataset.pronta) { b.innerHTML = rtBarraHtml(); b.dataset.pronta = '1'; } });
+}
+
+// ── Destaque das alterações da IA (trechos <span class="lg-novo"> dentro da caixa) ──
+
+function lgAtualizarLegenda() {
+  const tem = LG_CAMPOS.some(c => lgEl('lg-' + c).querySelector('.lg-novo'));
+  lgEl('lg-legenda').style.display = tem ? 'flex' : 'none';
+}
+
+function lgDefinirDoc(campo, doc) {
+  rtMostrar(lgEl('lg-' + campo), doc);
+  lgAtualizarLegenda();
+}
+
+// Compatível com o texto simples: ranges são posições do texto a destacar
 function lgDefinirTexto(campo, texto, ranges) {
-  lgEl('lg-' + campo).value = texto;
-  lgUltimoValor[campo] = texto;
-  lgHl[campo] = ranges || [];
-  lgDesenharDestaques(campo);
+  lgDefinirDoc(campo, rtAplicarDestaques(rtDocDeTexto(texto), ranges));
 }
 
-function lgAoEditar(campo) {
-  const novo = lgEl('lg-' + campo).value;
-  lgHl[campo] = lgDeslocarDestaques(lgHl[campo], lgUltimoValor[campo], novo);
-  lgUltimoValor[campo] = novo;
-  lgDesenharDestaques(campo);
+function lgAoEditar() {
+  lgAtualizarLegenda();      // apagar um trecho destacado pode ter tirado o último destaque
 }
 
 function lgAceitarDestaques() {
-  lgHl = { corpo: [], conclusao: [] };
-  LG_CAMPOS.forEach(lgDesenharDestaques);
+  for (const c of LG_CAMPOS) {
+    const el = lgEl('lg-' + c);
+    el.querySelectorAll('.lg-novo').forEach(n => n.replaceWith(...n.childNodes));
+    el.normalize();
+  }
+  lgAtualizarLegenda();
 }
 
-function lgAjustarTodas() {
-  if (!lgMascaraAtual) return;
-  LG_CAMPOS.forEach(lgAjustarAltura);
+// Texto formatado de uma máscara: o HTML guardado, ou o texto simples (máscaras antigas)
+function lgDocDaMascara(m, campo) {
+  const html = m[campo + '_html'];
+  return html ? rtDocDeHtml(html) : rtDocDeTexto(m[campo] || '');
 }
-window.addEventListener('resize', lgAjustarTodas);
 
 // ── Máscaras ─────────────────────────────────────────────────
 
@@ -8656,7 +9134,6 @@ async function loadLaudosPage() {
   try { lgEl('lg-disc-base').checked = localStorage.getItem('lg_disc_base') !== '0'; } catch (_) {}
   await lgCarregarMascaras();
   lgRenderMascaras();
-  lgAjustarTodas();
 }
 
 async function lgCarregarMascaras() {
@@ -8733,8 +9210,8 @@ function lgAbrirModalMascara(id = null, preencher = null) {
   lgEl('lg-m-nome').value      = m ? m.nome : '';
   lgEl('lg-m-tipo').value      = lgModalidadeDe(m ? m.tipo_exame : preencher?.tipo);
   lgEl('lg-m-fav').checked     = m ? !!m.favorita : false;
-  lgEl('lg-m-corpo').value     = m ? m.corpo : (preencher?.corpo || '');
-  lgEl('lg-m-conclusao').value = m ? m.conclusao : (preencher?.conclusao || '');
+  rtMostrar(lgEl('lg-m-corpo'), m ? lgDocDaMascara(m, 'corpo') : (preencher?.corpoDoc || rtDocDeTexto(preencher?.corpo || '')));
+  rtMostrar(lgEl('lg-m-conclusao'), m ? lgDocDaMascara(m, 'conclusao') : (preencher?.conclusaoDoc || rtDocDeTexto(preencher?.conclusao || '')));
   lgModalSnap = lgModalEstado();
   lgEl('modal-lg-masc').classList.add('open');
   setTimeout(() => lgEl('lg-m-nome').focus(), 60);
@@ -8743,19 +9220,28 @@ function lgAbrirModalMascara(id = null, preencher = null) {
 async function lgSalvarMascara() {
   const nome  = lgEl('lg-m-nome').value.trim();
   const tipo  = lgEl('lg-m-tipo').value.trim();
-  const corpo = lgEl('lg-m-corpo').value.replace(/\r\n/g, '\n').trimEnd();
-  const conclusao = lgEl('lg-m-conclusao').value.replace(/\r\n/g, '\n').trimEnd();
+  const docCorpo = rtAparar(rtDoc(lgEl('lg-m-corpo')));
+  const docConclusao = rtAparar(rtDoc(lgEl('lg-m-conclusao')));
+  const corpo = rtTextoDeDoc(docCorpo).trimEnd();
+  const conclusao = rtTextoDeDoc(docConclusao).trimEnd();
   if (!nome)  { toast('Dê um nome à máscara', 'error'); return; }
   if (!tipo)  { toast('Escolha o tipo de exame (TC, RM, US...)', 'error'); return; }
   if (!corpo) { toast('O corpo do laudo está vazio', 'error'); return; }
 
-  const reg = { nome, tipo_exame: tipo, corpo, conclusao, favorita: lgEl('lg-m-fav').checked, updated_at: new Date().toISOString() };
+  const reg = { nome, tipo_exame: tipo, corpo, conclusao, favorita: lgEl('lg-m-fav').checked, updated_at: new Date().toISOString(),
+                corpo_html: rtHtmlDeDoc(docCorpo, 'clip'), conclusao_html: rtHtmlDeDoc(docConclusao, 'clip') };
   const btn = lgEl('lg-m-salvar');
   btn.disabled = true;
-  const q = lgMascaraEditId
-    ? db.from('laudo_mascaras').update(reg).eq('id', lgMascaraEditId).select().single()
-    : db.from('laudo_mascaras').insert(reg).select().single();
-  const { data, error } = await q;
+  const gravar = (r) => lgMascaraEditId
+    ? db.from('laudo_mascaras').update(r).eq('id', lgMascaraEditId).select().single()
+    : db.from('laudo_mascaras').insert(r).select().single();
+  let { data, error } = await gravar(reg);
+  let semFormato = false;
+  if (error && /corpo_html|conclusao_html/.test(error.message || '')) {   // o SQL da formatação ainda não foi rodado
+    const { corpo_html, conclusao_html, ...soTexto } = reg;
+    ({ data, error } = await gravar(soTexto));
+    semFormato = !error;
+  }
   btn.disabled = false;
   if (error) { console.error('[laudos] salvar mascara', error); toast('Não consegui salvar a máscara', 'error'); return; }
 
@@ -8766,15 +9252,16 @@ async function lgSalvarMascara() {
     lgMascaraAtual = lgMascaras.find(x => x.id === data.id) || lgMascaraAtual;
     lgPreencherCabecalho();
   }
-  toast('Máscara salva');
+  if (semFormato) toast('Máscara salva, mas a formatação não foi guardada: rode o SQL “formatacao-mascaras.sql” no Supabase', 'error');
+  else toast('Máscara salva');
 }
 
 function lgSalvarComoMascara() {
   if (!lgMascaraAtual) return;
   lgAbrirModalMascara(null, {
     tipo: lgMascaraAtual.tipo_exame,
-    corpo: lgEl('lg-corpo').value,
-    conclusao: lgEl('lg-conclusao').value
+    corpoDoc: rtDoc(lgEl('lg-corpo')),
+    conclusaoDoc: rtDoc(lgEl('lg-conclusao'))
   });
 }
 
@@ -8797,8 +9284,8 @@ function lgCarregarDaMascara() {
   lgRemoverAnterior();
   lgLimparConferencia();
   lgDiscReset();
-  lgDefinirTexto('corpo', lgMascaraAtual.corpo, []);
-  lgDefinirTexto('conclusao', lgMascaraAtual.conclusao, []);
+  lgDefinirDoc('corpo', lgDocDaMascara(lgMascaraAtual, 'corpo'));
+  lgDefinirDoc('conclusao', lgDocDaMascara(lgMascaraAtual, 'conclusao'));
 }
 
 function lgAbrirMascara(id) {
@@ -8815,8 +9302,8 @@ function lgAbrirMascara(id) {
 
 function lgNovoLaudo() {
   if (!lgMascaraAtual) return;
-  const alterado = lgEl('lg-corpo').value !== lgMascaraAtual.corpo
-                || lgEl('lg-conclusao').value !== lgMascaraAtual.conclusao;
+  const alterado = rtJson(rtDoc(lgEl('lg-corpo'))) !== rtJson(lgDocDaMascara(lgMascaraAtual, 'corpo'))
+                || rtJson(rtDoc(lgEl('lg-conclusao'))) !== rtJson(lgDocDaMascara(lgMascaraAtual, 'conclusao'));
   const recomecar = async () => {
     await lgRegistrarCorrecoes();
     lgCarregarDaMascara();
@@ -9099,26 +9586,32 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
     await lgRegistrarCorrecoes();
 
     const tipo      = lgTipoAprendizado();
-    const corpoAntes     = lgEl('lg-corpo').value;
-    const conclusaoAntes = lgEl('lg-conclusao').value;
+    const docCorpoAntes = rtDoc(lgEl('lg-corpo'));
+    const docConclusaoAntes = rtDoc(lgEl('lg-conclusao'));
     const exemplos  = await lgCarregarExemplos(tipo);
 
     const r = await fetch('/api/receita-nutrir?tipo=laudo', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: corpoAntes, conclusao: conclusaoAntes, ditado, exemplos, ...lgDadosAnterior() })
+      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: rtMarkupDeDoc(docCorpoAntes), conclusao: rtMarkupDeDoc(docConclusaoAntes), ditado, exemplos, ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao aplicar o ditado');
 
+    // Linhas que a IA devolveu iguais mantêm a formatação de antes, mesmo que ela tenha mexido na marcação
+    const docCorpoDepois = rtRestaurarLinhasIguais(docCorpoAntes, rtDocDeMarkup(j.corpo));
+    const docConclusaoDepois = rtRestaurarLinhasIguais(docConclusaoAntes, rtDocDeMarkup(j.conclusao));
+    const txtCorpoAntes = rtTextoDeDoc(docCorpoAntes), txtCorpoDepois = rtTextoDeDoc(docCorpoDepois);
+    const txtConclusaoAntes = rtTextoDeDoc(docConclusaoAntes), txtConclusaoDepois = rtTextoDeDoc(docConclusaoDepois);
+
     lgAnterior = {
-      corpo: corpoAntes, conclusao: conclusaoAntes, ditado, origem,
+      corpoDoc: docCorpoAntes, conclusaoDoc: docConclusaoAntes, ditado, origem,
       baseline: { ...lgBaseline }
     };
 
-    lgDefinirTexto('corpo', j.corpo, lgDiffInseridos(corpoAntes, j.corpo));
-    lgDefinirTexto('conclusao', j.conclusao, lgDiffInseridos(conclusaoAntes, j.conclusao));
-    lgBaseline = { corpo: j.corpo, conclusao: j.conclusao };
+    lgDefinirDoc('corpo', rtAplicarDestaques(docCorpoDepois, lgDiffInseridos(txtCorpoAntes, txtCorpoDepois)));
+    lgDefinirDoc('conclusao', rtAplicarDestaques(docConclusaoDepois, lgDiffInseridos(txtConclusaoAntes, txtConclusaoDepois)));
+    lgBaseline = { corpo: txtCorpoDepois, conclusao: txtConclusaoDepois };
 
     lgLimparConferencia();
     lgEl('lg-desfazer').style.display = '';
@@ -9146,8 +9639,8 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
 
 function lgDesfazer() {
   if (!lgAnterior) return;
-  lgDefinirTexto('corpo', lgAnterior.corpo, []);
-  lgDefinirTexto('conclusao', lgAnterior.conclusao, []);
+  lgDefinirDoc('corpo', lgAnterior.corpoDoc);
+  lgDefinirDoc('conclusao', lgAnterior.conclusaoDoc);
   lgBaseline = lgAnterior.baseline;
   const daDiscussao = lgAnterior.origem === 'discussao';
   if (!daDiscussao) {
@@ -9169,27 +9662,50 @@ function lgDesfazer() {
 
 // ── Copiar o laudo ───────────────────────────────────────────
 
+// Copia com formatação (HTML) e com texto simples: o Word e o e-mail usam o HTML; um sistema que só
+// aceita texto usa o simples.
+async function lgCopiarTexto(plano, html) {
+  try {
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plano], { type: 'text/plain' })
+      })]);
+      return true;
+    }
+  } catch (_) { /* tenta o próximo jeito */ }
+  try {                                               // seleciona um bloco escondido e usa "copiar" do navegador
+    const tmp = document.createElement('div');
+    tmp.contentEditable = 'true';
+    tmp.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    tmp.innerHTML = html;
+    document.body.appendChild(tmp);
+    const r = document.createRange();
+    r.selectNodeContents(tmp);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+    const ok = document.execCommand('copy');
+    s.removeAllRanges();
+    tmp.remove();
+    if (ok) return true;
+  } catch (_) { /* último recurso: só o texto */ }
+  try { await navigator.clipboard.writeText(plano); return true; } catch (_) { /* nada mais a tentar */ }
+  return false;
+}
+
 async function lgCopiarAgora() {
   if (!lgMascaraAtual) return;
-  const corpo = lgEl('lg-corpo').value.trim();
-  const conclusao = lgEl('lg-conclusao').value.trim();
-  const texto = conclusao ? `${corpo}\n\nCONCLUSÃO:\n${conclusao}` : corpo;
-  if (!texto) { toast('O laudo está vazio', 'error'); return; }
+  const docCorpo = rtAparar(rtDoc(lgEl('lg-corpo')));
+  const docConclusao = rtAparar(rtDoc(lgEl('lg-conclusao')));
+  const corpo = rtTextoDeDoc(docCorpo).trim();
+  const conclusao = rtTextoDeDoc(docConclusao).trim();
+  const plano = conclusao ? `${corpo}\n\nCONCLUSÃO:\n${conclusao}` : corpo;
+  if (!plano) { toast('O laudo está vazio', 'error'); return; }
+  const html = rtHtmlDeDoc(docCorpo, 'clip')
+    + (conclusao ? '<p style="margin:0">&nbsp;</p><p style="margin:0"><b>CONCLUSÃO:</b></p>' + rtHtmlDeDoc(docConclusao, 'clip') : '');
 
-  let copiou = false;
-  try {
-    await navigator.clipboard.writeText(texto);
-    copiou = true;
-  } catch (_) {
-    const tmp = document.createElement('textarea');
-    tmp.value = texto;
-    tmp.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(tmp);
-    tmp.select();
-    try { copiou = document.execCommand('copy'); } catch (__) {}
-    tmp.remove();
-  }
-  if (!copiou) { toast('Não consegui copiar. Selecione o texto e copie manualmente.', 'error'); return; }
+  if (!(await lgCopiarTexto(plano, html))) { toast('Não consegui copiar. Selecione o texto e copie manualmente.', 'error'); return; }
 
   const aprendidas = await lgRegistrarCorrecoes();
   toast(aprendidas
@@ -9946,6 +10462,9 @@ function lgImgAnexar() {
     sel.style.display = 'none';
   });
 })();
+
+
+rtInstalarTudo();
 
 
 // ─────────────────────────────────────────────────────────────
