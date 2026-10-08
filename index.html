@@ -1453,6 +1453,14 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 #lg-img-sel.recorte { background: rgba(74,87,204,.2); border-color: #9FB0FF; }
 .lg-zoom-img { max-width: 94vw; max-height: 92vh; border-radius: 8px; background: #000; }
 
+.lg-ajustes { margin-top: 1rem; border-top: 1px dashed var(--border); padding-top: .75rem; }
+.lg-ajustes summary { cursor: pointer; font-size: 12.5px; font-weight: 700; list-style: none; display: flex; align-items: center; gap: 6px; color: var(--text-2); }
+.lg-ajustes summary::-webkit-details-marker { display: none; }
+.lg-ajustes-corpo { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: flex-end; margin-top: .6rem; }
+.lg-ajustes-corpo label { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: 11.5px; font-weight: 700; color: var(--text-2); }
+.lg-ajustes-corpo select, .lg-ajustes-corpo input { width: auto; padding: 6px 9px; font-size: 12.5px; font-weight: 600; }
+.lg-ajustes-titulo input { width: 220px; }
+
 /* ── ARTIGOS (base de PDFs dentro de Cursos) ── */
 .cur-topo-abas { margin: -.25rem 0 1rem; padding: 0; }
 .art-pasta { margin-bottom: 1rem; padding: 0; overflow: hidden; }
@@ -2364,6 +2372,16 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                 <div class="lg-campo-rotulo"><label>Conclusão</label></div>
                 <div class="lg-rt" id="lg-conclusao" data-escopo="laudo" contenteditable="true" spellcheck="true" lang="pt-BR" role="textbox" aria-multiline="true" aria-label="Conclusão" oninput="lgAoEditar('conclusao')"></div>
               </div>
+
+              <details class="lg-ajustes">
+                <summary><i class="ti ti-settings"></i> Padrão do laudo ao copiar</summary>
+                <div class="lg-ajustes-corpo">
+                  <label>Fonte <select id="lg-pad-fonte" onchange="lgSalvarPadrao()"></select></label>
+                  <label>Tamanho (pt) <select id="lg-pad-tam" onchange="lgSalvarPadrao()"></select></label>
+                  <label class="lg-ajustes-titulo">Título da conclusão <input type="text" id="lg-pad-titulo" placeholder="Conclusão" oninput="lgSalvarPadrao()"></label>
+                </div>
+                <div class="lg-nota" style="margin-top:.5rem">O texto sem formatação própria usa esta fonte e este tamanho, na tela e na cópia. O título da conclusão é acrescentado ao copiar, em negrito e na fonte padrão; deixe em branco para não acrescentar nenhum. Fica salvo neste navegador.</div>
+              </details>
 
               <div class="lg-nota">
                 <label class="lg-auto"><input type="checkbox" id="lg-auto-conf" onchange="lgSalvarPrefConf()"> Conferir o laudo automaticamente ao copiar</label><br>
@@ -8536,8 +8554,9 @@ function rtDocDeDom(raiz, colado = false) {
     if (no.nodeName === 'BR') return;                                // tratado pelo pai (precisa saber se é o último)
 
     const bloco = ehBloco || RT_BLOCOS.has(no.nodeName);
-    const est2 = rtEstiloDe(no, est);
-    const alin2 = RT_BLOCOS.has(no.nodeName) ? (rtAlinhamentoDe(no) || alin) : alin;
+    // A própria caixa (raiz) pode ter a fonte padrão aplicada por estilo: isso NÃO é formatação do texto
+    const est2 = no === raiz ? est : rtEstiloDe(no, est);
+    const alin2 = no !== raiz && RT_BLOCOS.has(no.nodeName) ? (rtAlinhamentoDe(no) || alin) : alin;
     if (RT_BLOCOS.has(no.nodeName)) fechar();
     const antes = linhas.length;
     const filhos = [...no.childNodes];
@@ -8589,8 +8608,10 @@ function rtDocDeHtml(html) {
 
 // ── Doc → HTML ───────────────────────────────────────────────
 // modo 'editor': o que aparece na tela (com o destaque da IA). modo 'clip': HTML limpo, só com
-// estilos "inline", para colar no Word ou no e-mail.
-function rtHtmlDeTrecho(r, modo, depoisDeEspaco = false) {
+// estilos "inline", para colar no Word ou no e-mail. 'padrao' ({ f, s }) é a fonte e o tamanho do
+// laudo: o que não tem formatação própria sai com eles, explícitos em cada trecho (editores
+// diferentes herdam estilo de jeitos diferentes, então nada fica por conta do destino).
+function rtHtmlDeTrecho(r, modo, depoisDeEspaco = false, padrao = null) {
   let h = escHtml(r.t);
   if (modo === 'clip') {                       // o Word junta espaços repetidos: o 2º em diante vira nbsp
     h = h.replace(/ {2,}/g, m => ' ' + '&nbsp;'.repeat(m.length - 1));
@@ -8600,20 +8621,24 @@ function rtHtmlDeTrecho(r, modo, depoisDeEspaco = false) {
   if (r.u) h = `<u>${h}</u>`;
   if (r.i) h = `<i>${h}</i>`;
   if (r.b) h = `<b>${h}</b>`;
-  if (r.f || r.s) {
-    const css = (r.f ? `font-family:'${r.f}'` : '') + (r.f && r.s ? ';' : '') + (r.s ? `font-size:${r.s}pt` : '');
+  const pd = modo === 'clip' ? padrao : null;           // na tela o padrão vem do estilo da caixa, não do HTML
+  const f = r.f || (pd && pd.f), s = r.s || (pd && pd.s);
+  if (f || s) {
+    const css = (f ? `font-family:'${f}'` : '') + (f && s ? ';' : '') + (s ? `font-size:${s}pt` : '');
     h = `<span style="${css}">${h}</span>`;
   }
   return h;
 }
 
-function rtHtmlDeDoc(doc, modo = 'editor') {
+function rtHtmlDeDoc(doc, modo = 'editor', padrao = null) {
   return doc.map(l => {
     let espaco = true;                        // começo de linha conta como "depois de espaço" (recuo)
-    const dentro = l.r.map(r => { const h = rtHtmlDeTrecho(r, modo, espaco); espaco = /\s$/.test(r.t); return h; }).join('');
+    const dentro = l.r.map(r => { const h = rtHtmlDeTrecho(r, modo, espaco, padrao); espaco = /\s$/.test(r.t); return h; }).join('');
     const alinhar = l.a && l.a !== 'left' ? `text-align:${l.a}` : '';
     if (modo === 'clip') {
-      return `<p style="margin:0${alinhar ? ';' + alinhar : ''}">${dentro || '&nbsp;'}</p>`;
+      const base = padrao && (padrao.f || padrao.s)
+        ? `;${padrao.f ? `font-family:'${padrao.f}'` : ''}${padrao.f && padrao.s ? ';' : ''}${padrao.s ? `font-size:${padrao.s}pt` : ''}` : '';
+      return `<p style="margin:0${base}${alinhar ? ';' + alinhar : ''}">${dentro || '&nbsp;'}</p>`;
     }
     return `<div${alinhar ? ` style="${alinhar}"` : ''}>${dentro || '<br>'}</div>`;
   }).join('');
@@ -8953,6 +8978,50 @@ document.addEventListener('selectionchange', () => {
   rtAtualizarBarra(el);
 });
 
+// ── Padrão do laudo: fonte, tamanho e título da conclusão ──
+// O que não tem formatação própria usa a fonte e o tamanho padrão (tanto na tela quanto ao copiar).
+// Fica guardado neste navegador. Título vazio = não acrescentar título da conclusão ao copiar.
+const LG_PADRAO_INICIAL = { f: 'Arial', s: 11, titulo: 'Conclusão' };
+
+function lgPadrao() {
+  let f = LG_PADRAO_INICIAL.f, s = LG_PADRAO_INICIAL.s, titulo = LG_PADRAO_INICIAL.titulo;
+  try {
+    f = rtFonteValida(localStorage.getItem('lg_padrao_f')) || f;
+    s = rtTamanhoValido(localStorage.getItem('lg_padrao_s')) || s;
+    const t = localStorage.getItem('lg_titulo_conc');
+    if (t !== null) titulo = t;
+  } catch (_) { /* sem armazenamento: usa o padrão inicial */ }
+  return { f, s, titulo };
+}
+
+// As caixas de texto mostram o padrão, para a tela ser igual ao que vai ser copiado
+function lgAplicarPadraoVisual() {
+  const pad = lgPadrao();
+  document.querySelectorAll('.lg-rt').forEach(el => { el.style.fontFamily = `'${pad.f}', sans-serif`; el.style.fontSize = pad.s + 'pt'; });
+}
+
+function lgPreencherAjustes() {
+  const pad = lgPadrao();
+  const sf = lgEl('lg-pad-fonte'), st = lgEl('lg-pad-tam'), ti = lgEl('lg-pad-titulo');
+  if (!sf || !st || !ti) return;
+  if (!sf.options.length) sf.innerHTML = RT_FONTES.map(f => `<option value="${f}">${f}</option>`).join('');
+  if (!st.options.length) st.innerHTML = RT_TAMANHOS.map(t => `<option value="${t}">${t}</option>`).join('');
+  sf.value = pad.f;
+  st.value = String(pad.s);
+  ti.value = pad.titulo;
+}
+
+function lgSalvarPadrao() {
+  try {
+    localStorage.setItem('lg_padrao_f', lgEl('lg-pad-fonte').value);
+    localStorage.setItem('lg_padrao_s', lgEl('lg-pad-tam').value);
+    localStorage.setItem('lg_titulo_conc', lgEl('lg-pad-titulo').value);
+  } catch (_) { /* sem armazenamento: vale só nesta sessão */ }
+  lgAplicarPadraoVisual();
+  const el = rtAtivo;
+  if (el) rtAtualizarBarra(el);
+}
+
 // ── Barra de ferramentas ──
 function rtBarraHtml() {
   const bt = (cmd, icone, titulo) => `<button type="button" class="lg-bt" data-cmd="${cmd}" title="${titulo}" onmousedown="event.preventDefault()" onclick="rtComando(this, '${cmd}')"><i class="ti ti-${icone}"></i></button>`;
@@ -9071,12 +9140,12 @@ function rtAtualizarBarra(el) {
   const sf = barra.querySelector('[data-sel="fonte"]'), st = barra.querySelector('[data-sel="tamanho"]');
   if (sf) {
     const x = explicito('[style*="font-family"], font[face]');
-    sf.value = x ? (rtFonteValida((x.style && x.style.fontFamily || '').split(',')[0]) || rtFonteValida(x.getAttribute('face')) || '') : '';
+    sf.value = x ? (rtFonteValida((x.style && x.style.fontFamily || '').split(',')[0]) || rtFonteValida(x.getAttribute('face')) || lgPadrao().f) : lgPadrao().f;
   }
   if (st) {
     const x = explicito('[style*="font-size"]');
     const m = x && String(x.style.fontSize || '').match(/^([\d.]+)pt$/);
-    st.value = m && RT_TAMANHOS.includes(Number(m[1])) ? String(Number(m[1])) : '';
+    st.value = m && RT_TAMANHOS.includes(Number(m[1])) ? String(Number(m[1])) : String(lgPadrao().s);
   }
 }
 
@@ -9700,10 +9769,14 @@ async function lgCopiarAgora() {
   const docConclusao = rtAparar(rtDoc(lgEl('lg-conclusao')));
   const corpo = rtTextoDeDoc(docCorpo).trim();
   const conclusao = rtTextoDeDoc(docConclusao).trim();
-  const plano = conclusao ? `${corpo}\n\nCONCLUSÃO:\n${conclusao}` : corpo;
+  const pad = lgPadrao();
+  const titulo = pad.titulo.trim();
+  const plano = conclusao ? `${corpo}\n\n${titulo ? titulo + '\n' : ''}${conclusao}` : corpo;
   if (!plano) { toast('O laudo está vazio', 'error'); return; }
-  const html = rtHtmlDeDoc(docCorpo, 'clip')
-    + (conclusao ? '<p style="margin:0">&nbsp;</p><p style="margin:0"><b>CONCLUSÃO:</b></p>' + rtHtmlDeDoc(docConclusao, 'clip') : '');
+  const estilo = `font-family:'${pad.f}';font-size:${pad.s}pt`;
+  const tituloHtml = titulo ? `<p style="margin:0;${estilo}"><span style="${estilo}"><b>${escHtml(titulo)}</b></span></p>` : '';
+  const html = rtHtmlDeDoc(docCorpo, 'clip', pad)
+    + (conclusao ? `<p style="margin:0;${estilo}">&nbsp;</p>` + tituloHtml + rtHtmlDeDoc(docConclusao, 'clip', pad) : '');
 
   if (!(await lgCopiarTexto(plano, html))) { toast('Não consegui copiar. Selecione o texto e copie manualmente.', 'error'); return; }
 
@@ -10465,6 +10538,8 @@ function lgImgAnexar() {
 
 
 rtInstalarTudo();
+lgPreencherAjustes();
+lgAplicarPadraoVisual();
 
 
 // ─────────────────────────────────────────────────────────────
