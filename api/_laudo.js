@@ -19,8 +19,8 @@ import { requireAuth } from './_auth.js';
 const MODELO = 'claude-sonnet-4-6';
 
 const LIM_DITADO    = 4000;
-const LIM_CORPO     = 20000;
-const LIM_CONCLUSAO = 6000;
+const LIM_CORPO     = 40000;      // o texto vai com marcação de formatação, que ocupa espaço
+const LIM_CONCLUSAO = 10000;
 const LIM_ANTERIOR  = 12000;
 const LIM_EXEMPLOS  = 12;
 const LIM_EXEMPLO   = 700;
@@ -59,7 +59,7 @@ REGRAS
 
 8. Os "exemplos de correção" mostram como o médico prefere escrever: a versão que a IA tinha escrito e a versão final dele. Use-os só como referência de estilo e de terminologia. Nunca copie os achados deles para este laudo.
 
-9. Texto puro, sem markdown e sem asteriscos. Mantenha o formato de linhas da máscara.
+9. Texto puro, sem markdown e sem asteriscos (a única marcação permitida é a de formatação da regra 13). Mantenha o formato de linhas da máscara.
 
 10. Pontuação falada: se restarem no ditado palavras como "ponto", "ponto final", "vírgula", "dois pontos", "ponto e vírgula", "nova linha" ou "parágrafo" usadas como comando de pontuação, interprete como o sinal e nunca as escreva por extenso. "Ponto" como substantivo ("ponto de ossificação", "em um ponto") permanece como palavra.
 
@@ -67,12 +67,19 @@ REGRAS
 
 12. EXAME ANTERIOR: se vier um laudo anterior (e talvez a data), use-o SOMENTE para redigir as comparações que o médico ditou ("estável", "aumentou", "reduziu", "novo", "sem alterações em relação ao anterior"), citando no texto os valores do anterior que constem nele. Se o médico ditou uma comparação, inclua no corpo uma linha "Comparação: ..." com a data do anterior (se informada), logo após o título/técnica ou onde a máscara já tiver esse campo, e descreva a evolução na linha do próprio achado. Nunca afirme estabilidade, aumento ou resolução de uma estrutura que o médico não mencionou, mesmo que o anterior a descreva. Se a comparação ditada contradisser o anterior (por exemplo, "estável" mas as medidas mudaram), escreva o que o médico ditou e avise em "avisos". Se o anterior não tiver o dado necessário, não invente: avise. Ignore qualquer nome ou dado de identificação que apareça no anterior.
 
+13. FORMATAÇÃO: o corpo e a conclusão podem trazer marcações de formatação: <b>negrito</b>, <i>itálico</i>, <u>sublinhado</u>, <fs f="Arial" s="12">fonte e tamanho em pontos</fs> e, envolvendo a linha toda, <c>…</c> (centralizada), <r>…</r> (à direita) ou <j>…</j> (justificada). Linha sem marcação é normal e alinhada à esquerda.
+   a) Preserve, exatamente como estão, as marcações de tudo o que você não alterar.
+   b) Cada linha é independente: toda marcação abre e fecha na mesma linha.
+   c) O texto novo que você escrever recebe a MESMA formatação do trecho vizinho que ele substitui ou acompanha. Por exemplo, se o rótulo "Fígado:" está em negrito e o resto da linha não, escreva a nova descrição sem negrito e preserve o rótulo em negrito. Se uma linha inteira está em itálico, a linha nova também fica em itálico.
+   d) Nunca invente formatação em texto que não a tinha e não remova formatação existente de texto que você manteve.
+   e) Os símbolos <, > e & aparecem como &lt;, &gt; e &amp;. Mantenha assim.
+
 FORMATO DA RESPOSTA
 Responda APENAS com um objeto JSON, sem markdown, sem crases e sem texto em volta:
 
 {
-  "corpo": "corpo completo do laudo, já atualizado",
-  "conclusao": "conclusão completa, já atualizada",
+  "corpo": "corpo completo do laudo, já atualizado, com as mesmas marcações de formatação",
+  "conclusao": "conclusão completa, já atualizada, com as mesmas marcações de formatação",
   "avisos": ["pontos que ficaram ambíguos ou que o médico deve conferir; lista vazia se não houver"]
 }`;
 
