@@ -9737,34 +9737,47 @@ function lgDesfazer() {
 // ── Copiar o laudo ───────────────────────────────────────────
 
 // Copia com formatação (HTML) e com texto simples: o Word e o e-mail usam o HTML; um sistema que só
-// aceita texto usa o simples.
+// aceita texto usa o simples. Devolve 'html', 'plano' (só o texto simples) ou false (nada copiado).
+//
+// ATENÇÃO: o HTML precisa chegar à área de transferência EXATAMENTE como foi montado. Quando o
+// navegador copia um trecho selecionado da tela, ele acrescenta o estilo da página (cor de fundo e
+// cor do texto do app), e o texto colado no software da empresa saía com fundo e "linhas" entre os
+// parágrafos. Por isso o caminho de copiar-uma-seleção NÃO é usado; o HTML é entregue pelo evento
+// de cópia ou pela API de área de transferência, que não acrescentam nada.
+function lgCopiarPeloEvento(plano, html) {
+  let entregou = false;
+  const aoCopiar = (e) => {
+    if (!e.clipboardData) return;
+    e.clipboardData.setData('text/html', html);
+    e.clipboardData.setData('text/plain', plano);
+    e.preventDefault();
+    entregou = true;
+  };
+  document.addEventListener('copy', aoCopiar, true);
+  const tmp = document.createElement('textarea');       // só para haver uma seleção; o conteúdo vem do evento
+  tmp.value = plano || ' ';
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+  document.body.appendChild(tmp);
+  tmp.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) { /* sem permissão agora */ }
+  tmp.remove();
+  document.removeEventListener('copy', aoCopiar, true);
+  return !!(ok && entregou);
+}
+
 async function lgCopiarTexto(plano, html) {
+  try { if (lgCopiarPeloEvento(plano, html)) return 'html'; } catch (_) { /* tenta o próximo jeito */ }
   try {
     if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
       await navigator.clipboard.write([new ClipboardItem({
         'text/html': new Blob([html], { type: 'text/html' }),
         'text/plain': new Blob([plano], { type: 'text/plain' })
       })]);
-      return true;
+      return 'html';
     }
-  } catch (_) { /* tenta o próximo jeito */ }
-  try {                                               // seleciona um bloco escondido e usa "copiar" do navegador
-    const tmp = document.createElement('div');
-    tmp.contentEditable = 'true';
-    tmp.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
-    tmp.innerHTML = html;
-    document.body.appendChild(tmp);
-    const r = document.createRange();
-    r.selectNodeContents(tmp);
-    const s = window.getSelection();
-    s.removeAllRanges();
-    s.addRange(r);
-    const ok = document.execCommand('copy');
-    s.removeAllRanges();
-    tmp.remove();
-    if (ok) return true;
   } catch (_) { /* último recurso: só o texto */ }
-  try { await navigator.clipboard.writeText(plano); return true; } catch (_) { /* nada mais a tentar */ }
+  try { await navigator.clipboard.writeText(plano); return 'plano'; } catch (_) { /* nada mais a tentar */ }
   return false;
 }
 
@@ -9783,9 +9796,15 @@ async function lgCopiarAgora() {
   const html = rtHtmlDeDoc(docCorpo, 'clip', pad)
     + (conclusao ? `<p style="margin:0;${estilo}">&nbsp;</p>` + tituloHtml + rtHtmlDeDoc(docConclusao, 'clip', pad) : '');
 
-  if (!(await lgCopiarTexto(plano, html))) { toast('Não consegui copiar. Selecione o texto e copie manualmente.', 'error'); return; }
+  const via = await lgCopiarTexto(plano, html);
+  if (!via) { toast('Não consegui copiar. Selecione o texto e copie manualmente.', 'error'); return; }
 
   const aprendidas = await lgRegistrarCorrecoes();
+  if (via === 'plano') {
+    toast('Laudo copiado SEM formatação: o navegador não permitiu copiar o formato desta vez. Clique em Copiar laudo de novo.'
+      + (aprendidas ? ` (${aprendidas === 1 ? '1 correção aprendida' : aprendidas + ' correções aprendidas'}.)` : ''), 'error');
+    return;
+  }
   toast(aprendidas
     ? `Laudo copiado. ${aprendidas === 1 ? '1 correção aprendida' : aprendidas + ' correções aprendidas'}.`
     : 'Laudo copiado');
