@@ -2380,7 +2380,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 </div>
 
 <!-- Modal: Máscara de laudo -->
-<div class="modal-backdrop" id="modal-lg-masc">
+<div class="modal-backdrop" id="modal-lg-masc" data-protege="lgMascaraAlterada">
   <div class="modal" style="max-width:680px">
     <div class="modal-header">
       <span class="modal-title" id="lg-m-titulo">Nova máscara</span>
@@ -2389,15 +2389,22 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     <div class="form-2">
       <div>
         <label for="lg-m-nome">Nome da máscara</label>
-        <input type="text" id="lg-m-nome" placeholder="Ex.: RM joelho – normal">
+        <input type="text" id="lg-m-nome" placeholder="Ex.: Joelho – normal">
       </div>
       <div>
         <label for="lg-m-tipo">Tipo de exame</label>
-        <input type="text" id="lg-m-tipo" list="lg-tipos" placeholder="Ex.: RM musculoesquelética">
-        <datalist id="lg-tipos"></datalist>
+        <select id="lg-m-tipo">
+          <option value="">Selecione…</option>
+          <option value="TC">TC · Tomografia</option>
+          <option value="RM">RM · Ressonância magnética</option>
+          <option value="US">US · Ultrassonografia</option>
+          <option value="RX">RX · Radiografia</option>
+          <option value="MG">MG · Mamografia</option>
+          <option value="DO">DO · Densitometria óssea</option>
+        </select>
       </div>
     </div>
-    <div class="lg-nota" style="margin:-.375rem 0 .875rem">O tipo de exame agrupa o aprendizado: as correções feitas em máscaras do mesmo tipo valem para todas elas.</div>
+    <div class="lg-nota" style="margin:-.375rem 0 .875rem">O tipo agrupa o aprendizado: as correções que você fizer em máscaras do mesmo tipo (por exemplo, todas as de US) valem para todas elas.</div>
     <label class="lg-check"><input type="checkbox" id="lg-m-fav"> Máscara favorita (aparece no topo da lista)</label>
     <div class="form-row">
       <label for="lg-m-corpo">Corpo do laudo</label>
@@ -4169,14 +4176,35 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
 
+// Fechar janela. O clique no fundo escuro só fecha se o botão do mouse foi apertado E solto no fundo:
+// arrastar de dentro da janela para fora (selecionar texto, redimensionar uma caixa de texto) não pode fechá-la.
+// Janelas com data-protege="nomeDaFuncao" perguntam antes de fechar quando a função diz que há texto não salvo.
+function tentarFecharModal(m) {
+  const nome = m.dataset && m.dataset.protege;
+  if (nome && typeof window[nome] === 'function' && window[nome]()) {
+    showConfirm('Descartar o que você digitou?', 'Esta janela tem texto que ainda não foi salvo. Se fechar agora, ele será perdido.',
+      () => m.classList.remove('open'), 'Descartar', 'btn-delete');
+    return false;
+  }
+  m.classList.remove('open');
+  return true;
+}
+
 document.querySelectorAll('.modal-backdrop').forEach(b => {
-  b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });
+  let apertouNoFundo = false;
+  b.addEventListener('mousedown', e => { apertouNoFundo = (e.target === b); });
+  b.addEventListener('click', e => {
+    if (e.target === b && apertouNoFundo) tentarFecharModal(b);
+    apertouNoFundo = false;
+  });
 });
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-backdrop.open').forEach(m => m.classList.remove('open'));
-    closeConfirm();
+    if (document.getElementById('confirm-modal').classList.contains('open')) { closeConfirm(); return; }
+    let perguntou = false;
+    document.querySelectorAll('.modal-backdrop.open').forEach(m => { if (!tentarFecharModal(m)) perguntou = true; });
+    if (!perguntou) closeConfirm();
   }
 });
 
@@ -8405,6 +8433,38 @@ const LG_STATUS_PADRAO = 'Fale os achados do jeito que vier, ou diga um comando 
 
 const lgEl = (id) => document.getElementById(id);
 
+// ── Tipo de exame (modalidade) ───────────────────────────────
+const LG_MODALIDADES = ['TC', 'RM', 'US', 'RX', 'MG', 'DO'];
+const LG_MOD_NOMES = { TC: 'Tomografia', RM: 'Ressonância magnética', US: 'Ultrassonografia', RX: 'Radiografia', MG: 'Mamografia', DO: 'Densitometria óssea' };
+
+// "US", "US abdome" (formato antigo) e "ultrassonografia" viram a sigla da modalidade; se não der, ''
+function lgModalidadeDe(tipo) {
+  const t = lgNorm(tipo);
+  if (/^(tc|tomografia)/.test(t)) return 'TC';
+  if (/^(rm|resson)/.test(t)) return 'RM';
+  if (/^(us|ultra|eco)/.test(t)) return 'US';
+  if (/^(rx|radiograf|raio)/.test(t)) return 'RX';
+  if (/^(mg|mamograf)/.test(t)) return 'MG';
+  if (/^(do\b|densitom)/.test(t)) return 'DO';
+  return '';
+}
+
+// Chave do aprendizado: a modalidade (ou o texto antigo, se não for reconhecido)
+const lgTipoAprendizado = () => lgModalidadeDe(lgMascaraAtual.tipo_exame) || lgMascaraAtual.tipo_exame;
+
+// O que a IA recebe como "tipo de exame": a modalidade e o nome da máscara (dá o contexto da região)
+const lgRotuloExame = () => `${lgTipoAprendizado()} (máscara: ${lgMascaraAtual.nome})`;
+
+// Janela de máscara: guarda o estado inicial para saber se há algo digitado ainda não salvo
+let lgModalSnap = '';
+const lgModalEstado = () => JSON.stringify([
+  lgEl('lg-m-nome').value, lgEl('lg-m-tipo').value, lgEl('lg-m-fav').checked,
+  lgEl('lg-m-corpo').value, lgEl('lg-m-conclusao').value
+]);
+function lgMascaraAlterada() {
+  return lgEl('modal-lg-masc').classList.contains('open') && lgModalEstado() !== lgModalSnap;
+}
+
 // ── Diferenças de texto (puras, sem tela) ────────────────────
 
 const lgTokens = (s) => s.match(/\s+|[^\s]+/g) || [];
@@ -8620,10 +8680,6 @@ function lgRenderMascaras() {
   const itens = lgMascaras.filter(m =>
     !termo || m.nome.toLowerCase().includes(termo) || (m.tipo_exame || '').toLowerCase().includes(termo));
 
-  // sugestões de tipo de exame no modal
-  const tipos = [...new Set(lgMascaras.map(m => m.tipo_exame).filter(Boolean))].sort();
-  lgEl('lg-tipos').innerHTML = tipos.map(t => `<option value="${escHtml(t)}">`).join('');
-
   if (!itens.length) {
     lista.innerHTML = `<div class="lg-vazio-msg">${lgMascaras.length
       ? 'Nenhuma máscara com esse nome.'
@@ -8635,7 +8691,7 @@ function lgRenderMascaras() {
     <div class="lg-masc ${lgMascaraAtual && lgMascaraAtual.id === m.id ? 'ativa' : ''}" onclick="lgAbrirMascara('${m.id}')">
       <div class="lg-masc-txt">
         <div class="lg-masc-nome">${escHtml(m.nome)}</div>
-        <div class="lg-masc-tipo">${escHtml(m.tipo_exame || '')}</div>
+        <div class="lg-masc-tipo">${escHtml(lgModalidadeDe(m.tipo_exame) || m.tipo_exame || '')}</div>
       </div>
       <button class="lg-icone ${m.favorita ? 'fav' : ''}" title="${m.favorita ? 'Tirar dos favoritos' : 'Favoritar'}"
               onclick="event.stopPropagation(); lgAlternarFavorita('${m.id}')"><i class="ti ti-star${m.favorita ? '-filled' : ''}"></i></button>
@@ -8675,10 +8731,11 @@ function lgAbrirModalMascara(id = null, preencher = null) {
   const m = id ? lgMascaras.find(x => x.id === id) : null;
   lgEl('lg-m-titulo').textContent = m ? 'Editar máscara' : 'Nova máscara';
   lgEl('lg-m-nome').value      = m ? m.nome : '';
-  lgEl('lg-m-tipo').value      = m ? (m.tipo_exame || '') : (preencher?.tipo || '');
+  lgEl('lg-m-tipo').value      = lgModalidadeDe(m ? m.tipo_exame : preencher?.tipo);
   lgEl('lg-m-fav').checked     = m ? !!m.favorita : false;
   lgEl('lg-m-corpo').value     = m ? m.corpo : (preencher?.corpo || '');
   lgEl('lg-m-conclusao').value = m ? m.conclusao : (preencher?.conclusao || '');
+  lgModalSnap = lgModalEstado();
   lgEl('modal-lg-masc').classList.add('open');
   setTimeout(() => lgEl('lg-m-nome').focus(), 60);
 }
@@ -8689,7 +8746,7 @@ async function lgSalvarMascara() {
   const corpo = lgEl('lg-m-corpo').value.replace(/\r\n/g, '\n').trimEnd();
   const conclusao = lgEl('lg-m-conclusao').value.replace(/\r\n/g, '\n').trimEnd();
   if (!nome)  { toast('Dê um nome à máscara', 'error'); return; }
-  if (!tipo)  { toast('Informe o tipo de exame', 'error'); return; }
+  if (!tipo)  { toast('Escolha o tipo de exame (TC, RM, US...)', 'error'); return; }
   if (!corpo) { toast('O corpo do laudo está vazio', 'error'); return; }
 
   const reg = { nome, tipo_exame: tipo, corpo, conclusao, favorita: lgEl('lg-m-fav').checked, updated_at: new Date().toISOString() };
@@ -8725,8 +8782,9 @@ function lgSalvarComoMascara() {
 
 function lgPreencherCabecalho() {
   lgEl('lg-ed-nome').textContent = lgMascaraAtual.nome;
-  lgEl('lg-ed-tipo').textContent = lgMascaraAtual.tipo_exame || '';
-  lgEl('lg-corr-titulo').textContent = `Correções aprendidas — ${lgMascaraAtual.tipo_exame}`;
+  const mod = lgModalidadeDe(lgMascaraAtual.tipo_exame);
+  lgEl('lg-ed-tipo').textContent = mod ? `${mod} · ${LG_MOD_NOMES[mod]}` : (lgMascaraAtual.tipo_exame || '');
+  lgEl('lg-corr-titulo').textContent = `Correções aprendidas — ${lgTipoAprendizado()}`;
 }
 
 function lgCarregarDaMascara() {
@@ -8772,7 +8830,7 @@ function lgNovoLaudo() {
 // Compara o texto atual com o que a IA escreveu pela última vez e guarda as diferenças.
 async function lgRegistrarCorrecoes() {
   if (!lgMascaraAtual) return 0;
-  const tipo = lgMascaraAtual.tipo_exame;
+  const tipo = lgTipoAprendizado();
   let pares = [];
   for (const campo of LG_CAMPOS) {
     const base = lgBaseline[campo];
@@ -8784,9 +8842,7 @@ async function lgRegistrarCorrecoes() {
   if (!pares.length) return 0;
 
   try {
-    const { data: ja } = await db.from('laudo_correcoes')
-      .select('texto_ia, texto_final').eq('tipo_exame', tipo)
-      .order('created_at', { ascending: false }).limit(80);
+    const { data: ja } = await lgBuscarCorrecoes(tipo, 'texto_ia, texto_final', 80);
     const existentes = new Set((ja || []).map(r => r.texto_ia + '\u0000' + r.texto_final));
     const novos = pares
       .filter(p => !existentes.has(p.antes + '\u0000' + p.depois))
@@ -8802,19 +8858,31 @@ async function lgRegistrarCorrecoes() {
   }
 }
 
+// Correções do mesmo tipo: a sigla (US) e também as antigas, gravadas como "US abdome"
+async function lgBuscarCorrecoes(tipo, campos, limite) {
+  const t = String(tipo || '');
+  const { data, error } = await db.from('laudo_correcoes')
+    .select(campos === '*' ? '*' : campos + ', tipo_exame')
+    .ilike('tipo_exame', t + '%')
+    .order('created_at', { ascending: false }).limit(limite * 4);
+  if (error) return { data: null, error };
+  const alvo = t.toUpperCase();
+  const mesmos = (data || []).filter(r => {
+    const x = String(r.tipo_exame || '').toUpperCase();
+    return x === alvo || x.startsWith(alvo + ' ');
+  });
+  return { data: mesmos.slice(0, limite), error: null };
+}
+
 async function lgCarregarExemplos(tipo) {
-  const { data } = await db.from('laudo_correcoes')
-    .select('texto_ia, texto_final').eq('tipo_exame', tipo)
-    .order('created_at', { ascending: false }).limit(12);
+  const { data } = await lgBuscarCorrecoes(tipo, 'texto_ia, texto_final', 12);
   return (data || []).map(r => ({ antes: r.texto_ia, depois: r.texto_final }));
 }
 
 async function lgRenderCorrecoes() {
   if (!lgMascaraAtual) return;
   const caixa = lgEl('lg-corr-lista');
-  const { data, error } = await db.from('laudo_correcoes')
-    .select('*').eq('tipo_exame', lgMascaraAtual.tipo_exame)
-    .order('created_at', { ascending: false }).limit(40);
+  const { data, error } = await lgBuscarCorrecoes(lgTipoAprendizado(), '*', 40);
   if (error) { caixa.innerHTML = '<div class="lg-vazio-msg">Não consegui carregar as correções.</div>'; return; }
   if (!data.length) {
     caixa.innerHTML = '<div class="lg-vazio-msg">Ainda não há correções para este tipo de exame. Quando você editar um texto escrito pela IA e copiar o laudo, o app guarda a diferença aqui.</div>';
@@ -9030,7 +9098,7 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
     // Edições feitas desde a última resposta da IA viram aprendizado antes de seguir
     await lgRegistrarCorrecoes();
 
-    const tipo      = lgMascaraAtual.tipo_exame;
+    const tipo      = lgTipoAprendizado();
     const corpoAntes     = lgEl('lg-corpo').value;
     const conclusaoAntes = lgEl('lg-conclusao').value;
     const exemplos  = await lgCarregarExemplos(tipo);
@@ -9038,7 +9106,7 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
     const r = await fetch('/api/receita-nutrir?tipo=laudo', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: tipo, corpo: corpoAntes, conclusao: conclusaoAntes, ditado, exemplos, ...lgDadosAnterior() })
+      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: corpoAntes, conclusao: conclusaoAntes, ditado, exemplos, ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao aplicar o ditado');
@@ -9195,7 +9263,7 @@ async function lgConferir() {
     const r = await fetch('/api/receita-nutrir?tipo=laudo-checar', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: lgMascaraAtual.tipo_exame, corpo, conclusao, ...lgDadosAnterior() })
+      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo, conclusao, ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha na conferência');
@@ -9573,7 +9641,7 @@ async function lgDiscEnviar() {
     const r = await fetch('/api/receita-nutrir?tipo=laudo-discutir', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ ia, tipo_exame: lgMascaraAtual.tipo_exame, usar_base: lgEl('lg-disc-base').checked, mensagens: lgDiscMontarPayload(disc.msgs) })
+      body: JSON.stringify({ ia, tipo_exame: lgRotuloExame(), usar_base: lgEl('lg-disc-base').checked, mensagens: lgDiscMontarPayload(disc.msgs) })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao conversar com a IA');
@@ -9610,7 +9678,7 @@ async function lgDiscEncerrar() {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify({
-        tipo_exame: lgMascaraAtual.tipo_exame,
+        tipo_exame: lgRotuloExame(),
         mensagens: disc.msgs.filter(m => m.role !== 'sistema')
           .map(m => ({ role: m.role, texto: m.role === 'assistant' ? lgSemMarcas(m.texto) : m.texto, ia: m.ia || '', n_imagens: (m.imagens || []).length }))
       })
@@ -9720,6 +9788,8 @@ function lgProximaDaFila() {
 // Ctrl+V com uma imagem na área de transferência (Win+Shift+S → colar)
 document.addEventListener('paste', (e) => {
   if (!lgEl('page-laudos').classList.contains('active') || !lgMascaraAtual) return;
+  if (document.querySelector('.modal-backdrop.open, .lg-overlay.open')) return;       // com uma janela aberta, colar é texto
+  if (((e.clipboardData && e.clipboardData.types) ? [...e.clipboardData.types] : []).includes('text/plain')) return;   // Word, Excel e sites trazem texto junto
   const itens = [...((e.clipboardData && e.clipboardData.items) || [])].filter(i => i.kind === 'file' && /^image\//.test(i.type));
   if (!itens.length) return;      // texto comum: segue o comportamento normal
   e.preventDefault();
