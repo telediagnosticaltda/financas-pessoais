@@ -1489,6 +1489,11 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-fonte-tipo { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 8px; background: var(--primary-l); color: var(--primary-d); text-transform: uppercase; margin-right: 4px; }
 .lg-fonte-tipo.artigo { background: #FFE8A3; color: #7A5B00; }
 .lg-fonte-onde { color: var(--text-3); }
+
+.art-erro { font-size: 11.5px; color: var(--red); line-height: 1.4; margin-top: 1px; white-space: normal; }
+.art-aviso-linha { font-size: 11.5px; color: #8a6d00; line-height: 1.4; margin-top: 1px; white-space: normal; }
+.art-meta-erro { color: var(--red); font-weight: 700; }
+.art-info { min-width: 0; }
 </style>
 </head>
 <body>
@@ -10557,6 +10562,7 @@ const ART_MAX_BYTES   = 80 * 1024 * 1024;
 const ART_MAX_PAGINAS = 500;
 const ART_TAM_TRECHO  = 1200;
 const ART_MIN_CHARS   = 300;      // abaixo disso o PDF é tratado como escaneado
+let artEsperas = [1500, 4000, 9000];   // espera (ms) antes de cada nova tentativa em erros temporários do Drive
 
 const artEl = (id) => document.getElementById(id);
 
@@ -10585,11 +10591,20 @@ function artDividirTexto(texto, tam = ART_TAM_TRECHO) {
   return out;
 }
 
+// Alguns PDFs trazem caracteres que o banco recusa (caractere nulo, controles, pares de substituição
+// Unicode quebrados). Isso fazia o artigo falhar ao salvar o texto.
+function artLimparTexto(t) {
+  return String(t || '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFFFE\uFFFF]/g, ' ')
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, ' ')
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1 ');
+}
+
 async function artTextoDaPagina(pagina) {
   const c = await pagina.getTextContent();
   let t = '';
   for (const it of c.items) t += it.str + (it.hasEOL ? '\n' : ' ');
-  return t.replace(/-\n\s*/g, '');                  // junta palavras hifenizadas na quebra de linha
+  return artLimparTexto(t.replace(/-\n\s*/g, ''));      // junta palavras hifenizadas na quebra de linha
 }
 
 async function artToken() {
@@ -10599,34 +10614,107 @@ async function artToken() {
   return access_token;
 }
 
-async function artBaixarPdf(driveId) {
-  const token = await artToken();
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveId)}?alt=media&supportsAllDrives=true`,
-    { headers: { Authorization: `Bearer ${token}` } });
-  if (!r.ok) throw new Error(r.status === 404 ? 'Arquivo não encontrado no Drive' : `O Drive recusou o download (${r.status})`);
-  return r.arrayBuffer();
+// Transforma a resposta de erro do Drive num erro com explicação em português
+async function artErroDrive(r) {
+  let motivo = '', msg = '';
+  try {
+    const j = await r.json();
+    motivo = (j && j.error && ((j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || j.error.status)) || '';
+    msg = (j && j.error && j.error.message) || '';
+  } catch (_) { /* resposta sem JSON */ }
+  const e = new Error(`Drive ${r.status}${motivo ? ' ' + motivo : ''}${msg ? ': ' + msg : ''}`);
+  const tudo = `${motivo} ${msg}`;
+  if (r.status === 404) e.artMotivo = 'Arquivo não encontrado no Drive.';
+  else if (r.status === 401) { e.artMotivo = 'A autorização do Drive expirou.'; e.renovar = true; }
+  else if (r.status === 429 || (r.status === 403 && /rate|quota/i.test(tudo))) { e.artMotivo = 'O Drive limitou o ritmo de downloads.'; e.transitorio = true; }
+  else if (r.status === 403 && /download/i.test(tudo)) e.artMotivo = 'O dono do arquivo bloqueou o download, então o app não consegue ler o texto (o arquivo continua abrindo no Drive).';
+  else if (r.status === 403) e.artMotivo = 'O Drive deixa abrir este arquivo, mas não permite que o app o baixe.';
+  else if (r.status >= 500) { e.artMotivo = 'O Drive não respondeu (erro temporário).'; e.transitorio = true; }
+  else e.artMotivo = `O Drive recusou o download (código ${r.status}).`;
+  e.artDetalhe = e.message;
+  return e;
 }
 
-// Lê um PDF e devolve { paginas, totalChars, linhas } (linhas prontas para guardar)
+// Baixa o PDF. Erros temporários (limite de ritmo, instabilidade, rede) são repetidos sozinhos,
+// com espera crescente; a chave vencida é renovada uma vez.
+async function artBaixarPdf(driveId) {
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveId)}?alt=media&supportsAllDrives=true`;
+  let ultimo = null, renovou = false;
+  for (let tentativa = 0; tentativa <= artEsperas.length; tentativa++) {
+    try {
+      const token = await artToken();
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) return await r.arrayBuffer();
+      const e = await artErroDrive(r);
+      if (e.renovar && !renovou) { renovou = true; artTokenDrive = { valor: null, ate: 0 }; ultimo = e; tentativa--; continue; }
+      if (!e.transitorio) throw e;
+      ultimo = e;
+    } catch (err) {
+      if (err && err.name === 'TypeError') {                // fetch sem rede (o navegador lança TypeError)
+        err.artMotivo = 'Falha de conexão ao baixar o arquivo do Drive.';
+        err.artDetalhe = `${err.name}: ${err.message}`;
+        err.transitorio = true;
+      }
+      if (!err.transitorio) throw err;
+      ultimo = err;
+    }
+    if (tentativa < artEsperas.length) await new Promise(res => setTimeout(res, artEsperas[tentativa]));
+  }
+  throw ultimo;
+}
+
+// Motivo do erro em português (+ detalhe técnico, que ajuda a diagnosticar)
+function artTraduzirErro(e) {
+  const nome = (e && e.name) || '';
+  const msg = String((e && e.message) || e || '');
+  const tecnico = e && e.artDetalhe ? e.artDetalhe : (nome ? `${nome}: ${msg}` : msg);
+  let texto;
+  if (e && e.artMotivo) texto = e.artMotivo;
+  else if (nome === 'PasswordException') texto = 'PDF protegido por senha: o app não consegue ler.';
+  else if (nome === 'InvalidPDFException') texto = 'O arquivo não é um PDF válido ou está corrompido.';
+  else if (nome === 'MissingPDFException') texto = 'O PDF está vazio ou incompleto.';
+  else if (nome === 'UnexpectedResponseException') texto = 'O PDF veio incompleto do Drive.';
+  else if (/muito grande|salvar o texto|nenhuma página/i.test(msg)) texto = msg;
+  else texto = 'Erro ao ler o PDF: ' + msg.slice(0, 120);
+  return { texto, tecnico };
+}
+
+// "motivo [detalhe técnico]" guardado na coluna erro
+const artEmpacotarErro = (t) => (t.texto + (t.tecnico && t.tecnico !== t.texto ? ` [${t.tecnico}]` : '')).slice(0, 300);
+function artErroPartes(erro) {
+  const m = String(erro || '').match(/^([\s\S]*?)(?: \[([\s\S]*)\])?$/);
+  return { texto: (m && m[1]) || '', detalhe: (m && m[2]) || '' };
+}
+
+// Lê um PDF e devolve { paginas, totalChars, linhas, ruins } (linhas prontas para guardar).
+// Uma página que não puder ser lida é pulada (e listada em "ruins"); só falha se nenhuma for lida.
 async function artLerPdf(a, aoProgresso) {
   if (a.tamanho && a.tamanho > ART_MAX_BYTES) throw new Error('Arquivo muito grande (mais de 80 MB)');
   const dados = await artBaixarPdf(a.drive_arquivo_id);
   const pdf = await pdfjsLib.getDocument({ data: dados }).promise;
   try {
     const n = Math.min(pdf.numPages, ART_MAX_PAGINAS);
-    const linhas = [];
+    const linhas = [], ruins = [];
     let totalChars = 0, ordem = 0;
     for (let p = 1; p <= n; p++) {
       if (aoProgresso) aoProgresso(p, n);
-      const pagina = await pdf.getPage(p);
-      const texto = await artTextoDaPagina(pagina);
-      if (pagina.cleanup) pagina.cleanup();
+      let texto;
+      try {
+        const pagina = await pdf.getPage(p);
+        texto = await artTextoDaPagina(pagina);
+        if (pagina.cleanup) pagina.cleanup();
+      } catch (e) {
+        console.error('[artigos] página', a.titulo, p, e);
+        ruins.push(p);
+        continue;
+      }
       totalChars += texto.length;
       for (const trecho of artDividirTexto(texto)) {
         linhas.push({ artigo_id: a.id, pagina: p, ordem: ordem++, texto: trecho, texto_busca: normalizarBusca(trecho) });
       }
     }
-    return { paginas: pdf.numPages, totalChars, linhas };
+    if (ruins.length === n) throw new Error('Nenhuma página pôde ser lida (estrutura incomum do PDF).');
+    return { paginas: pdf.numPages, totalChars, linhas, ruins };
   } finally {
     try { pdf.destroy(); } catch (_) {}
   }
@@ -10643,19 +10731,23 @@ async function artProcessar(a, aoProgresso) {
   artRender();
   try {
     const lido = await artLerPdf(a, aoProgresso);
-    await db.from('artigo_trechos').delete().eq('artigo_id', a.id);
+    const apagou = await db.from('artigo_trechos').delete().eq('artigo_id', a.id);
+    if (apagou && apagou.error) throw new Error('Não consegui salvar o texto: ' + apagou.error.message);
     if (lido.totalChars < ART_MIN_CHARS || !lido.linhas.length) {
       await artSalvarStatus(a, { status: 'sem_texto', paginas: lido.paginas, erro: 'PDF sem texto selecionável (provavelmente escaneado).', indexado_em: null });
       return;
     }
     for (let i = 0; i < lido.linhas.length; i += 300) {
       const { error } = await db.from('artigo_trechos').insert(lido.linhas.slice(i, i + 300));
-      if (error) throw new Error('Não consegui salvar o texto: ' + error.message);
+      if (error) { const e = new Error('Não consegui salvar o texto: ' + error.message); e.artDetalhe = error.message; throw e; }
     }
-    await artSalvarStatus(a, { status: 'indexado', paginas: lido.paginas, erro: null, indexado_em: new Date().toISOString() });
+    const aviso = lido.ruins.length
+      ? `Aviso: ${lido.ruins.length} página(s) não puderam ser lidas (p. ${lido.ruins.slice(0, 8).join(', ')}${lido.ruins.length > 8 ? '…' : ''}); o resto foi indexado.`
+      : null;
+    await artSalvarStatus(a, { status: 'indexado', paginas: lido.paginas, erro: aviso, indexado_em: new Date().toISOString() });
   } catch (e) {
     console.error('[artigos] processar', a.titulo, e);
-    await artSalvarStatus(a, { status: 'erro', erro: String(e.message || e).slice(0, 200) });
+    await artSalvarStatus(a, { status: 'erro', erro: artEmpacotarErro(artTraduzirErro(e)) });
   }
 }
 
@@ -10692,7 +10784,7 @@ async function artIndexarPendentes(pastaId = null, soId = null) {
   artFila = { rodando: false, pausar: false };
   artEl('art-fila').style.display = 'none';
   artRender();
-  toast(pausou ? `Pausado: ${prontos} artigo(s) pronto(s)` : `${prontos} artigo(s) lido(s)${falhas ? `, ${falhas} com problema` : ''}`, falhas && !prontos ? 'error' : 'success');
+  toast(pausou ? `Pausado: ${prontos} artigo(s) pronto(s)` : `${prontos} artigo(s) lido(s)${falhas ? `, ${falhas} com problema (o motivo aparece embaixo do título de cada um)` : ''}`, falhas && !prontos ? 'error' : 'success');
 }
 
 function artPausarFila() {
@@ -10808,10 +10900,28 @@ async function loadArtigosPage() {
   artRender();
 }
 
+// Motivo do erro (ou aviso) sempre visível embaixo do título; o detalhe técnico fica no tooltip
+function artLinhaMotivo(a) {
+  if (!a.erro || a.status === 'pendente' || a.status === 'analisando') return '';
+  const m = artErroPartes(a.erro);
+  const classe = a.status === 'indexado' ? 'art-aviso-linha' : 'art-erro';
+  return `<div class="${classe}" title="${escHtml(m.detalhe || m.texto)}">${escHtml(m.texto)}</div>`;
+}
+
+// Copia "título: motivo" de cada artigo com problema (para guardar ou me mandar)
+async function artCopiarErros(pastaId) {
+  const p = artPastas.find(x => x.id === pastaId);
+  const ruins = artLista.filter(a => a.pasta_id === pastaId && (a.status === 'erro' || a.status === 'sem_texto'));
+  if (!ruins.length) { toast('Nenhum artigo com problema'); return; }
+  const texto = `Artigos com problema${p ? ` (${p.nome})` : ''}: ${ruins.length}\n\n` + ruins.map(a => `- ${a.titulo}: ${a.erro || a.status}`).join('\n');
+  try { await navigator.clipboard.writeText(texto); toast('Lista de erros copiada'); }
+  catch (_) { toast('Não consegui copiar a lista', 'error'); }
+}
+
 function artChip(a) {
   if (a.status === 'indexado') return `<span class="art-ok">${a.paginas ? a.paginas + ' pág.' : 'pronto'}</span>`;
   if (a.status === 'sem_texto') return '<span class="cur-st erro" title="PDF sem texto selecionável (escaneado)">sem texto</span>';
-  if (a.status === 'erro') return `<span class="cur-st erro" title="${escHtml(a.erro || '')}">erro</span>`;
+  if (a.status === 'erro') return `<span class="cur-st erro" title="${escHtml(artErroPartes(a.erro).detalhe || artErroPartes(a.erro).texto)}">erro</span>`;
   if (a.status === 'analisando') return '<span class="cur-st analisando">lendo…</span>';
   return '<span class="cur-st pendente">pendente</span>';
 }
@@ -10828,14 +10938,16 @@ function artRender() {
     const prontos = itens.filter(a => a.status === 'indexado').length;
     const pend = itens.filter(a => a.no_drive && (a.status === 'pendente' || a.status === 'erro')).length;
     const semTexto = itens.filter(a => a.status === 'sem_texto').length;
+    const comErro = itens.filter(a => a.status === 'erro').length;
     return `
       <div class="card art-pasta">
         <div class="art-pasta-cab">
           <div class="art-pasta-nome" title="${escHtml(p.nome)}"><i class="ti ti-folder"></i> ${escHtml(p.nome)}</div>
-          <div class="art-pasta-meta">${prontos} de ${itens.length} lidos${semTexto ? ` · ${semTexto} sem texto` : ''}</div>
+          <div class="art-pasta-meta">${prontos} de ${itens.length} lidos${semTexto ? ` · ${semTexto} sem texto` : ''}${comErro ? ` · <span class="art-meta-erro">${comErro} com erro</span>` : ''}</div>
           <div class="art-pasta-acoes">
             <button class="btn btn-ghost cur-btn-peq" onclick="artSincronizarPasta('${p.id}')"><i class="ti ti-refresh"></i> Sincronizar</button>
-            <button class="btn btn-primary cur-btn-peq" ${pend && !artFila.rodando ? '' : 'disabled'} onclick="artIndexarPendentes('${p.id}')"><i class="ti ti-player-play"></i> Ler pendentes${pend ? ' (' + pend + ')' : ''}</button>
+            <button class="btn btn-primary cur-btn-peq" ${pend && !artFila.rodando ? '' : 'disabled'} onclick="artIndexarPendentes('${p.id}')"><i class="ti ti-player-play"></i> ${comErro ? 'Ler pendentes e tentar de novo' : 'Ler pendentes'}${pend ? ' (' + pend + ')' : ''}</button>
+            ${comErro + semTexto ? `<button class="btn btn-ghost cur-btn-peq" onclick="artCopiarErros('${p.id}')" title="Copia a lista de artigos com problema e o motivo de cada um"><i class="ti ti-copy"></i> Copiar erros</button>` : ''}
             <button class="btn btn-ghost cur-btn-peq" onclick="artRemoverPasta('${p.id}')" title="Remover pasta do app"><i class="ti ti-trash"></i></button>
           </div>
         </div>
@@ -10844,6 +10956,7 @@ function artRender() {
             <i class="ti ti-file-text" style="color:var(--text-3)"></i>
             <div class="art-info">
               <div class="art-titulo">${escHtml(a.titulo)}</div>
+              ${artLinhaMotivo(a)}
             </div>
             <div class="art-dir">
               ${artChip(a)}
