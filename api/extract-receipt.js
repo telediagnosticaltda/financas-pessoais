@@ -1,4 +1,5 @@
 import { requireAuth } from './_auth.js';
+import { registrarUso, usoDoClaude } from './_uso.js';
 
 // api/extract-receipt.js
 // Recebe um recibo médico (PDF ou imagem em base64) e devolve os campos
@@ -101,6 +102,7 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+    await registrarUso(req, { funcao: 'recibo', modelo: MODEL, ...usoDoClaude(data) });
 
     const texto = (data.content || [])
       .filter((bloco) => bloco.type === 'text')
