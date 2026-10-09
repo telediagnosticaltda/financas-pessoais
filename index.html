@@ -1356,11 +1356,11 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-rt {
   box-sizing: border-box; width: 100%; min-height: 110px; padding: 12px 14px;
   border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface);
-  font-family: var(--font); font-size: 13.5px; font-weight: 500; line-height: 1.65;
+  font-family: var(--font); font-size: 13.5px; font-weight: 500; line-height: 1.25;
   white-space: pre-wrap; overflow-wrap: anywhere; outline: none; transition: border-color .15s, box-shadow .15s;
 }
 .lg-rt:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
-.lg-rt > div { min-height: 1.65em; }
+.lg-rt > div { min-height: 1.25em; }
 .lg-rt .lg-novo { background: #FFE8A3; border-radius: 3px; }
 .lg-rt-modal { min-height: 240px; max-height: 46vh; overflow-y: auto; }
 .lg-rt-modal.curto { min-height: 80px; max-height: 22vh; }
@@ -1467,6 +1467,8 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-modo-opcoes label { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .lg-modo-opcoes input { width: auto; }
 
+.lg-voz-sel { width: auto; padding: 6px 9px; font-size: 12px; font-weight: 600; }
+
 /* ── ARTIGOS (base de PDFs dentro de Cursos) ── */
 .cur-topo-abas { margin: -.25rem 0 1rem; padding: 0; }
 .art-pasta { margin-bottom: 1rem; padding: 0; overflow: hidden; }
@@ -1500,6 +1502,36 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .art-aviso-linha { font-size: 11.5px; color: #8a6d00; line-height: 1.4; margin-top: 1px; white-space: normal; }
 .art-meta-erro { color: var(--red); font-weight: 700; }
 .art-info { min-width: 0; }
+
+/* ── Consumo de IA ── */
+.ci-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.ci-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: .75rem .9rem; }
+.ci-rot { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.ci-val { font-size: 20px; font-weight: 800; margin-top: 2px; }
+.ci-val small { font-size: 12px; font-weight: 600; color: var(--text-3); margin-left: 4px; }
+.ci-val.ci-neg { color: var(--red); }
+.ci-sub { font-size: 11.5px; color: var(--text-3); margin-top: 3px; line-height: 1.45; }
+.ci-alerta { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-radius: 9px; font-size: 12.5px; font-weight: 600; margin-bottom: .85rem; }
+.ci-alerta.ci-atencao { background: #FFF6E0; color: #8A5A00; border: 1px solid #F2D58A; }
+.ci-alerta.ci-estourou { background: #FDECEC; color: #B3261E; border: 1px solid #F3B8B4; }
+.ci-limite { margin-bottom: 1rem; }
+.ci-limite-topo { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+.ci-barra { height: 9px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.ci-barra-cheia { height: 100%; border-radius: 99px; background: #2E9D5C; }
+.ci-barra-cheia.ci-atencao { background: #E0A100; }
+.ci-barra-cheia.ci-estourou { background: #D93025; }
+.ci-tabela { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: .75rem; }
+.ci-tabela th { text-align: left; font-size: 11px; color: var(--text-3); font-weight: 700; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.ci-tabela td { padding: 5px 6px; border-bottom: 1px solid var(--border); }
+.ci-tabela th:nth-child(n+2), .ci-tabela td:nth-child(n+2) { text-align: right; white-space: nowrap; }
+.ci-nota { font-size: 12px; color: var(--text-3); margin-bottom: .6rem; line-height: 1.5; }
+.ci-google { margin-top: .9rem; padding-top: .8rem; border-top: 1px solid var(--border); }
+.ci-link { font-size: 12px; font-weight: 600; color: var(--accent, #3B5BDB); text-decoration: none; display: inline-block; margin-top: 4px; }
+.ci-vazio { text-align: center; color: var(--text-3); font-size: 12.5px; padding: 1rem; }
+.ci-vazio i { font-size: 26px; display: block; margin-bottom: 6px; }
+.lg-consumo { font-size: 12px; font-weight: 700; padding: 6px 11px; border-radius: 99px; cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+.lg-consumo.ci-chip-atencao { background: #FFF6E0; color: #8A5A00; border-color: #F2D58A; }
+.lg-consumo.ci-chip-estourou { background: #FDECEC; color: #B3261E; border-color: #F3B8B4; }
 </style>
 </head>
 <body>
@@ -1688,6 +1720,13 @@ tr.duplicate-row:hover { background: #FFF6D6; }
           </div>
           <div id="d-cat-chart"><div class="loading-msg">Carregando...</div></div>
         </div>
+      </div>
+      <div class="panel" id="ci-painel" style="margin-top:1.25rem">
+        <div class="panel-header">
+          <span class="panel-title">Consumo de IA</span>
+          <span class="panel-link" onclick="ciAbrirConfig()">Configurar →</span>
+        </div>
+        <div id="ci-corpo"><div class="loading-msg">Carregando...</div></div>
       </div>
     </div>
 
@@ -2253,6 +2292,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
       <div class="page-header">
         <h1 class="page-title">Laudos</h1>
         <div class="header-right">
+          <span class="lg-consumo" id="lg-consumo" style="display:none" onclick="navigate('dashboard')" title="Consumo de IA neste mês. Clique para ver o detalhe no Dashboard."></span>
           <button class="btn btn-primary" onclick="lgAbrirModalMascara()">
             <i class="ti ti-plus"></i> Nova máscara
           </button>
@@ -2272,6 +2312,10 @@ tr.duplicate-row:hover { background: #FFF6D6; }
               <button class="lg-mic" id="lg-mic" onclick="lgAlternarVoz()">
                 <i class="ti ti-microphone"></i> <span id="lg-mic-txt">Ditar</span>
               </button>
+              <select id="lg-voz-motor" class="lg-voz-sel" title="Como a sua voz vira texto" onchange="lgSalvarMotorVoz()">
+                <option value="gemini">Voz: Gemini (mais precisa)</option>
+                <option value="navegador">Voz: navegador (ao vivo)</option>
+              </select>
               <span class="lg-status" id="lg-status">Fale os achados do jeito que vier, ou diga um comando (ex.: “abrir US abdome”).</span>
             </div>
             <textarea id="lg-ditado" placeholder="O que você ditar aparece aqui. Você pode corrigir o texto antes de aplicar. Ex.: lesão do menisco medial, corno posterior, sem derrame articular."
@@ -2290,7 +2334,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
               <b>Comandos de voz</b> (diga sozinhos, com uma pausa antes e depois): <i>abrir</i> + nome da máscara · <i>aplicar</i> · <i>conferir</i> · <i>copiar</i> · <i>desfazer</i> · <i>apagar ditado</i>.<br>
               <b>Atalhos</b> (servem para pedal ou microfone com botões): <kbd>F2</kbd> microfone · <kbd>F4</kbd> aplicar · <kbd>F8</kbd> copiar · <kbd>F9</kbd> conferir · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> aplicar na caixa de ditado.
             </div>
-            <div class="lg-nota">O áudio é transcrito pelo serviço de voz do navegador (Google, no Chrome). Dite só os achados, sem nome nem dados que identifiquem o paciente.</div>
+            <div class="lg-nota">Com a voz do <b>Gemini</b>, cada fala (cortada nas pausas) é enviada ao Gemini para transcrição, com o vocabulário do seu laudo, e o texto aparece alguns segundos depois da pausa. Com a voz do <b>navegador</b>, o áudio é transcrito ao vivo pelo serviço de voz do navegador (Google, no Chrome). Dite só os achados, sem nome nem dados que identifiquem o paciente.</div>
           </div>
 
           <div class="card lg-vazio" id="lg-vazio">
@@ -2391,6 +2435,17 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                   <label>Tamanho (pt) <select id="lg-pad-tam" onchange="lgSalvarPadrao()"></select></label>
                   <label class="lg-ajustes-titulo">Título da conclusão <input type="text" id="lg-pad-titulo" placeholder="Conclusão" oninput="lgSalvarPadrao()"></label>
                 </div>
+                <div class="lg-ajustes-corpo" style="margin-top:.75rem">
+                  <label>Linhas ao copiar
+                    <select id="lg-pad-formato" onchange="lgSalvarPadrao()">
+                      <option value="br">Quebras de linha (um bloco só)</option>
+                      <option value="p">Um parágrafo por linha</option>
+                      <option value="div">Um bloco (div) por linha</option>
+                    </select>
+                  </label>
+                  <label>Zoom do editor (só na tela) <select id="lg-pad-zoom" onchange="lgSalvarPadrao()"></select></label>
+                </div>
+                <div class="lg-nota" style="margin-top:.35rem"><b>Linhas ao copiar:</b> se o software de destino muda o espaçamento entre as linhas ao colar, troque este formato e cole de novo. “Quebras de linha” evita que cada linha vire um parágrafo com espaçamento próprio. <b>Zoom:</b> não muda o laudo, só o tamanho com que o texto aparece aqui (14 pt aqui é o mesmo 14 pt do Word com zoom de 100%).</div>
                 <div class="lg-modo">
                   <div class="lg-modo-t">Alterações do ditado no início da Análise</div>
                   <div class="lg-modo-opcoes" id="lg-modo-inicio"></div>
@@ -2489,6 +2544,36 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 <!-- Janela: ver imagem ampliada -->
 <div class="lg-overlay" id="modal-lg-zoom" onclick="closeModal('modal-lg-zoom')">
   <img class="lg-zoom-img" id="lg-zoom-img" alt="Imagem ampliada">
+</div>
+
+<!-- Modal: Configurar consumo de IA -->
+<div class="modal-backdrop" id="modal-ci-config">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title">Consumo de IA</span>
+      <button class="modal-close" onclick="closeModal('modal-ci-config')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-2">
+      <div>
+        <label for="ci-f-limite">Limite mensal (US$)</label>
+        <input type="text" id="ci-f-limite" inputmode="decimal" placeholder="Ex.: 60">
+      </div>
+      <div>
+        <label for="ci-f-cotacao">Cotação do dólar (R$)</label>
+        <input type="text" id="ci-f-cotacao" inputmode="decimal" placeholder="5,50">
+      </div>
+    </div>
+    <div class="lg-nota" style="margin:-.375rem 0 .875rem">Quando o gasto do mês passar de 80% e de 100% do limite, o app avisa (no Dashboard e na aba Laudos). O limite é só um aviso: ele não bloqueia o uso. A cotação serve apenas para mostrar o valor aproximado em reais.</div>
+    <div>
+      <label for="ci-f-saldo">Saldo atual do Gemini no Google (US$) — opcional</label>
+      <input type="text" id="ci-f-saldo" inputmode="decimal" placeholder="Ex.: 25,00">
+    </div>
+    <div class="lg-nota" style="margin:.375rem 0 .875rem">O Google não deixa o app ler o saldo. Informe aqui o valor que aparece no Google AI Studio (página Billing) e o painel estima quanto sobrou, descontando o que o app gastou desde então. Atualize esse número depois de recarregar créditos ou de vez em quando, para corrigir diferenças. Deixe vazio para não usar.</div>
+    <div class="form-row" style="justify-content:flex-end;gap:.5rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ci-config')">Cancelar</button>
+      <button class="btn btn-primary" onclick="ciSalvarConfig()">Salvar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal: Adicionar recibo médico -->
@@ -3541,6 +3626,7 @@ function setDashPeriod(p, el) {
 }
 
 async function loadDashboard() {
+  if (typeof carregarConsumo === 'function') carregarConsumo();
   // All-time balance
   const { data: allTx } = await db.from('transactions').select('amount,type');
   const balance = (allTx || []).reduce((s, t) => s + (t.type === 'income' ? +t.amount : -t.amount), 0);
@@ -8646,16 +8732,43 @@ function rtHtmlDeTrecho(r, modo, depoisDeEspaco = false, padrao = null) {
   return h;
 }
 
-function rtHtmlDeDoc(doc, modo = 'editor', padrao = null) {
-  return doc.map(l => {
-    let espaco = true;                        // começo de linha conta como "depois de espaço" (recuo)
-    const dentro = l.r.map(r => { const h = rtHtmlDeTrecho(r, modo, espaco, padrao); espaco = /\s$/.test(r.t); return h; }).join('');
-    const alinhar = l.a && l.a !== 'left' ? `text-align:${l.a}` : '';
-    if (modo === 'clip') {
-      const base = padrao && (padrao.f || padrao.s)
-        ? `;${padrao.f ? `font-family:'${padrao.f}'` : ''}${padrao.f && padrao.s ? ';' : ''}${padrao.s ? `font-size:${padrao.s}pt` : ''}` : '';
-      return `<p style="margin:0${base}${alinhar ? ';' + alinhar : ''}">${dentro || '&nbsp;'}</p>`;
+// Estilo do bloco copiado (parágrafo, div): sem margem, na fonte/tamanho padrão e com o alinhamento da linha
+function rtEstiloBloco(alinhamento, padrao) {
+  const base = padrao && (padrao.f || padrao.s)
+    ? `;${padrao.f ? `font-family:'${padrao.f}'` : ''}${padrao.f && padrao.s ? ';' : ''}${padrao.s ? `font-size:${padrao.s}pt` : ''}` : '';
+  const alinhar = alinhamento && alinhamento !== 'left' ? `;text-align:${alinhamento}` : '';
+  return `margin:0${base}${alinhar}`;
+}
+
+const rtConteudoLinha = (l, modo, padrao) => {
+  let espaco = true;                        // começo de linha conta como "depois de espaço" (recuo)
+  return l.r.map(r => { const h = rtHtmlDeTrecho(r, modo, espaco, padrao); espaco = /\s$/.test(r.t); return h; }).join('');
+};
+
+// formato (só no modo 'clip'): como as linhas são separadas no HTML copiado
+//   'p'   um parágrafo <p> por linha
+//   'div' um bloco <div> por linha
+//   'br'  linhas seguidas com o mesmo alinhamento ficam num bloco só, separadas por <br>
+//         (o software de destino não aplica espaçamento entre parágrafos)
+function rtHtmlDeDoc(doc, modo = 'editor', padrao = null, formato = 'p') {
+  if (modo === 'clip' && formato === 'br') {
+    const grupos = [];
+    for (const l of doc) {
+      const a = l.a || 'left', ult = grupos[grupos.length - 1];
+      if (ult && ult.a === a) ult.linhas.push(l); else grupos.push({ a, linhas: [l] });
     }
+    return grupos.map(g => {
+      const linhas = g.linhas.map(l => rtConteudoLinha(l, modo, padrao));
+      let html = linhas.join('<br>');
+      if (linhas[linhas.length - 1] === '') html += '<br>';        // uma linha vazia no fim precisa do seu próprio <br>
+      return `<div style="${rtEstiloBloco(g.a, padrao)}">${html}</div>`;
+    }).join('');
+  }
+  const tag = modo === 'clip' && formato === 'div' ? 'div' : 'p';
+  return doc.map(l => {
+    const dentro = rtConteudoLinha(l, modo, padrao);
+    if (modo === 'clip') return `<${tag} style="${rtEstiloBloco(l.a, padrao)}">${dentro || '&nbsp;'}</${tag}>`;
+    const alinhar = l.a && l.a !== 'left' ? `text-align:${l.a}` : '';
     return `<div${alinhar ? ` style="${alinhar}"` : ''}>${dentro || '<br>'}</div>`;
   }).join('');
 }
@@ -8770,6 +8883,546 @@ function rtRestaurarLinhasIguais(antes, depois) {
     else y++;
   }
   return out;
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// VOZ — captura do microfone e transcrição pelo Gemini
+// ─────────────────────────────────────────────────────────────
+// O reconhecimento de voz do navegador é genérico e erra termos médicos. Aqui o áudio de cada fala
+// (cortado nas pausas) vai para o Gemini, junto com o vocabulário do laudo em andamento, e o texto
+// volta para a mesma caixa de ditado, passando pelos mesmos comandos de voz e pela mesma
+// pontuação falada ("ponto", "vírgula"...) do reconhecimento do navegador.
+const VZ_TAXA = 16000;                    // 16 kHz, mono, 16 bits: suficiente para fala e leve
+
+// ── Peças puras (testadas isoladamente) ──────────────────────
+
+// Reduz a taxa de amostragem (média das amostras de cada bloco). Mantém o resto entre chamadas.
+function vzCriarDecimador(taxaOrigem, taxaDestino) {
+  const razao = taxaOrigem / taxaDestino;
+  let soma = 0, n = 0, frac = 0;
+  return (amostras) => {
+    const saida = [];
+    for (let k = 0; k < amostras.length; k++) {
+      soma += amostras[k]; n++; frac += 1;
+      if (frac >= razao) { saida.push(soma / n); soma = 0; n = 0; frac -= razao; }
+    }
+    return Float32Array.from(saida);
+  };
+}
+
+function vzParaPcm16(f32) {
+  const o = new Int16Array(f32.length);
+  for (let i = 0; i < f32.length; i++) {
+    const x = Math.max(-1, Math.min(1, f32[i]));
+    o[i] = x < 0 ? x * 0x8000 : x * 0x7FFF;
+  }
+  return o;
+}
+
+// Arquivo WAV (PCM 16 bits, mono) em memória
+function vzWav(pcm16, taxa) {
+  const bytes = pcm16.length * 2;
+  const buf = new ArrayBuffer(44 + bytes);
+  const v = new DataView(buf);
+  const txt = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  txt(0, 'RIFF'); v.setUint32(4, 36 + bytes, true); txt(8, 'WAVE');
+  txt(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, taxa, true); v.setUint32(28, taxa * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  txt(36, 'data'); v.setUint32(40, bytes, true);
+  for (let i = 0; i < pcm16.length; i++) v.setInt16(44 + i * 2, pcm16[i], true);
+  return new Uint8Array(buf);
+}
+
+function vzBase64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+// Detector de fala. Recebe amostras (a 16 kHz) aos poucos e devolve, quando uma fala termina
+// (pausa), o trecho para transcrever. Ignora ruídos curtos, acompanha o ruído de fundo e corta
+// falas muito longas. Janelas de 20 ms.
+function vzCriarVad(op = {}) {
+  const taxa = op.taxa || VZ_TAXA;
+  const tam = Math.round(taxa * 0.02);
+  const cfg = { limiarMin: 0.012, fator: 3, ruidoMax: 0.03, silencioMs: 1000, minFalaMs: 300, preRollMs: 400, calibracaoMs: 300, caudaMs: 300, maxMs: 40000, ...op };
+  let ruido = 0.004, calibrado = 0, falando = false;
+  let preRoll = [], seg = [], vozJanelas = 0, silJanelas = 0;
+  let resto = new Float32Array(0);
+
+  const rms = (j) => { let s = 0; for (let i = 0; i < j.length; i++) s += j[i] * j[i]; return Math.sqrt(s / j.length); };
+
+  function fechar(eventos) {
+    const caudaJanelas = Math.round(cfg.caudaMs / 20);
+    const excesso = Math.max(0, silJanelas - caudaJanelas);          // tira o silêncio do fim, deixando uma cauda curta
+    const janelas = excesso ? seg.slice(0, seg.length - excesso) : seg;
+    const falaMs = vozJanelas * 20;
+    if (falaMs >= cfg.minFalaMs) {
+      const amostras = new Float32Array(janelas.length * tam);
+      janelas.forEach((j, i) => amostras.set(j, i * tam));
+      eventos.push({ amostras, falaMs, duracaoMs: janelas.length * 20 });
+    }
+    seg = []; vozJanelas = 0; silJanelas = 0; falando = false; preRoll = [];
+  }
+
+  function janela(j, eventos) {
+    const r = rms(j);
+    if (calibrado < cfg.calibracaoMs) {                               // primeiros instantes: só mede o ruído de fundo
+      calibrado += 20;
+      ruido = Math.min(Math.max(ruido * 0.7 + r * 0.3, 0.0005), cfg.ruidoMax);   // teto: se o médico já começou a falar, a voz não vira "ruído de fundo"
+      preRoll.push(j);
+      return;
+    }
+    const limiar = Math.max(cfg.limiarMin, ruido * cfg.fator);
+    const voz = r > limiar;
+    if (!falando) {
+      if (voz) { falando = true; seg = preRoll.concat([j]); preRoll = []; vozJanelas = 1; silJanelas = 0; }
+      else {
+        ruido = Math.min(ruido * 0.95 + r * 0.05, cfg.ruidoMax);
+        preRoll.push(j);
+        if (preRoll.length > cfg.preRollMs / 20) preRoll.shift();
+      }
+      return;
+    }
+    seg.push(j);
+    if (voz) { vozJanelas++; silJanelas = 0; } else silJanelas++;
+    if (silJanelas * 20 >= cfg.silencioMs) fechar(eventos);
+    else if (seg.length * 20 >= cfg.maxMs) fechar(eventos);           // fala longa: corta aqui, a próxima parte vira outro trecho
+  }
+
+  return {
+    processar(amostras) {
+      const eventos = [];
+      let todo = amostras;
+      if (resto.length) { todo = new Float32Array(resto.length + amostras.length); todo.set(resto); todo.set(amostras, resto.length); }
+      let i = 0;
+      for (; i + tam <= todo.length; i += tam) janela(todo.subarray(i, i + tam), eventos);
+      resto = todo.slice(i);
+      return eventos;
+    },
+    descarregar() {                                                   // ao parar o microfone no meio de uma fala
+      const eventos = [];
+      if (falando) fechar(eventos);
+      return eventos;
+    },
+    estado: () => ({ ruido, falando })
+  };
+}
+
+// "cisto.." / "rim,," → um sinal só (o modelo às vezes pontua por conta própria)
+const lgLimparPontuacao = (t) => String(t).replace(/([.,;:!?])(\s*\1)+/g, '$1').replace(/\s+([.,;:!?])/g, '$1');
+
+// ── Ligação com a tela ───────────────────────────────────────
+
+let lgGem = null;                    // captura em andamento
+let lgVozPendentes = 0;              // trechos esperando a transcrição
+let lgVozCadeia = Promise.resolve(); // as transcrições entram na caixa na ordem em que foram faladas
+let lgVozIniciando = false;
+let lgVozUltimoAviso = 0;
+
+function lgMotorVoz() {
+  try { return localStorage.getItem('lg_voz_motor') === 'navegador' ? 'navegador' : 'gemini'; } catch (_) { return 'gemini'; }
+}
+
+function lgPreencherVoz() {
+  const s = document.getElementById('lg-voz-motor');
+  if (s) s.value = lgMotorVoz();
+}
+
+function lgSalvarMotorVoz() {
+  const novo = document.getElementById('lg-voz-motor').value;
+  if (lgOuvindo) lgPararVoz();
+  try { localStorage.setItem('lg_voz_motor', novo); } catch (_) { /* vale só nesta sessão */ }
+  lgAtualizarBotoesVoz();
+}
+
+// Vocabulário para o Gemini acertar a grafia: máscara aberta, começo do texto do laudo e nomes das máscaras
+// (comando "abrir ..."). Vai junto com CADA fala, então é curto de propósito: cada caractere custa.
+function lgContextoVoz() {
+  const partes = [];
+  if (lgMascaraAtual) {
+    partes.push(`Máscara aberta: ${lgMascaraAtual.nome} (${lgTipoAprendizado()})`);
+    const texto = (lgEl('lg-corpo').value + '\n' + lgEl('lg-conclusao').value).replace(/\s+/g, ' ').trim();
+    if (texto) partes.push('Laudo: ' + texto.slice(0, 450));
+  }
+  const nomes = lgMascaras.map(m => m.nome.slice(0, 40)).slice(0, 8);
+  if (nomes.length) partes.push('Máscaras: ' + nomes.join('; '));
+  return partes.join('\n').slice(0, 1000);
+}
+
+async function lgVozTranscrever(b64) {
+  const r = await fetch('/api/receita-nutrir?tipo=laudo-voz', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ audio: b64, mime_type: 'audio/wav', contexto: lgContextoVoz() })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Falha na transcrição');
+  return String(j.texto || '').trim();
+}
+
+// Chegou o texto de uma fala: comando de voz ou texto do ditado (mesmo caminho do reconhecimento do navegador)
+function lgVozReceber(texto) {
+  const comando = lgComandoDe(texto);
+  if (comando) { lgExecutarComando(comando); return; }
+  const campo = lgCampoVoz();
+  // parte sempre do que está na caixa agora: o que o médico editou entre uma fala e outra é respeitado
+  lgDitadoFixo = campo.value && !/\s$/.test(campo.value) ? campo.value + ' ' : campo.value;
+  lgDitadoFixo = lgAnexar(lgDitadoFixo, lgLimparPontuacao(lgPontuar(texto)));
+  campo.value = lgDitadoFixo.replace(/ +$/, '');
+  campo.scrollTop = campo.scrollHeight;
+}
+
+function lgVozErro(e) {
+  const msg = String((e && e.message) || e);
+  if (/GEMINI_API_KEY|chave do Gemini/i.test(msg)) {            // sem chave utilizável: não adianta insistir
+    toast(msg + ' Voltei para a voz do navegador.', 'error');
+    try { localStorage.setItem('lg_voz_motor', 'navegador'); } catch (_) { /* nada */ }
+    lgPreencherVoz();
+    lgPararVoz();
+    return;
+  }
+  const agora = Date.now();
+  if (agora - lgVozUltimoAviso > 5000) {                          // um aviso por vez, sem encher a tela
+    lgVozUltimoAviso = agora;
+    toast('Não consegui transcrever um trecho: ' + msg, 'error');
+  }
+}
+
+// Manda uma fala (já cortada pelo detector) para transcrição
+function lgVozEnviar(seg) {
+  const b64 = vzBase64(vzWav(vzParaPcm16(seg.amostras), VZ_TAXA));
+  lgVozPendentes++;
+  lgAtualizarBotoesVoz();
+  lgVozCadeia = lgVozCadeia.then(async () => {
+    try {
+      const texto = await lgVozTranscrever(b64);
+      if (texto) lgVozReceber(texto);
+    } catch (e) {
+      console.error('[voz] transcrever', e);
+      lgVozErro(e);
+    } finally {
+      lgVozPendentes--;
+      lgAtualizarBotoesVoz();
+    }
+  });
+}
+
+async function lgIniciarVozGemini(alvo) {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !AC) {
+    toast('Este navegador não consegue capturar o áudio para o Gemini. Usando a voz do navegador.', 'error');
+    return lgIniciarVozNavegador(alvo);
+  }
+  lgVozIniciando = true;
+  try {
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch (e) {
+      toast(e && e.name === 'NotFoundError' ? 'Não encontrei um microfone neste computador' : 'O microfone está bloqueado. Libere o acesso no cadeado da barra de endereço.', 'error');
+      return;
+    }
+    lgAlvoVoz = alvo;
+    const campo = lgCampoVoz();
+    lgDitadoFixo = campo.value && !/\s$/.test(campo.value) ? campo.value + ' ' : campo.value;
+
+    const ctx = new AC();
+    if (ctx.state === 'suspended' && ctx.resume) { try { await ctx.resume(); } catch (_) { /* segue */ } }
+    const fonte = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    const decimar = vzCriarDecimador(ctx.sampleRate, VZ_TAXA);
+    const vad = vzCriarVad({ taxa: VZ_TAXA });
+    const g = { stream, ctx, fonte, proc, vad };
+    proc.onaudioprocess = (e) => {
+      if (lgGem !== g) return;
+      const baixa = decimar(e.inputBuffer.getChannelData(0));
+      for (const seg of vad.processar(baixa)) lgVozEnviar(seg);
+    };
+    fonte.connect(proc);
+    proc.connect(ctx.destination);                               // o processador só roda se estiver ligado; a saída é silêncio
+    lgGem = g;
+    lgOuvindo = true;
+    lgAtualizarBotoesVoz();
+  } finally {
+    lgVozIniciando = false;
+  }
+}
+
+function lgPararVozGemini() {
+  const g = lgGem;
+  lgGem = null;
+  if (!g) return;
+  try { for (const seg of g.vad.descarregar()) lgVozEnviar(seg); } catch (_) { /* nada a enviar */ }
+  try { g.proc.onaudioprocess = null; g.fonte.disconnect(); g.proc.disconnect(); } catch (_) { /* já desligado */ }
+  try { g.stream.getTracks().forEach(t => t.stop()); } catch (_) { /* já parado */ }
+  try { g.ctx.close(); } catch (_) { /* já fechado */ }
+}
+
+// Escolhe o motor de voz
+function lgIniciarVoz(alvo = 'ditado') {
+  if (lgOuvindo || lgVozIniciando) return;
+  if (lgMotorVoz() === 'gemini') return lgIniciarVozGemini(alvo);
+  return lgIniciarVozNavegador(alvo);
+}
+
+if (typeof document !== 'undefined') lgPreencherVoz();
+
+
+// ─────────────────────────────────────────────────────────────
+// CONSUMO DE IA — painel no Dashboard e aviso na aba Laudos
+// ─────────────────────────────────────────────────────────────
+// Soma o que as IAs custaram no mês (tabela uso_ia, preenchida pelo servidor a cada chamada, mais o
+// custo das aulas do Cursos) e compara com o limite mensal definido pelo médico.
+// Os valores são ESTIMATIVAS em dólar, calculadas pelos tokens que os provedores informam: a fatura
+// de cada provedor é sempre a referência. A extração de receitas por vídeo ainda não entra aqui.
+
+const CI_NOMES = {
+  ditado: 'Aplicar ditado (Claude)',
+  conferencia: 'Conferir laudo (Claude)',
+  anterior: 'Resumir exame anterior (Claude Haiku)',
+  consolidar: 'Concluir a discussão (Claude)',
+  termos: 'Termos da base de aulas (Claude Haiku)',
+  discussao: 'Discussão do caso',
+  voz: 'Voz (Gemini)',
+  cursos: 'Análise de aulas do Cursos (Gemini)',
+  recibo: 'Recibos médicos (Claude)',
+  fatura: 'Faturas em PDF (Claude)',
+  nutricao: 'Nutrição de receitas (Claude)'
+};
+const CI_COTACAO_PADRAO = 5.5;
+
+let ciUltimo = null;        // último resultado calculado
+let ciAvisado = null;       // nível já avisado nesta sessão (não repete o aviso)
+let ciCarregando = false;
+
+// ── Peças puras ──────────────────────────────────────────────
+
+function ciNum(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+function ciUsd(v) {
+  v = ciNum(v);
+  if (v > 0 && v < 0.01) return '< US$ 0,01';
+  return (v < 0 ? '−' : '') + 'US$ ' + Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function ciBrl(v, cotacao) {
+  const r = ciNum(v) * (ciNum(cotacao) || CI_COTACAO_PADRAO);
+  const dec = Math.abs(r) < 100 ? 2 : 0;
+  return '≈ ' + (r < 0 ? '−' : '') + 'R$ ' + Math.abs(r).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+function ciMes(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
+
+function ciParseNumero(texto) {
+  const t = String(texto ?? '').trim().replace(/\s/g, '').replace(/^US\$|^R\$/i, '');
+  if (!t) return null;
+  const n = Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+// Soma por mês, provedor e função. dias: linhas de uso_ia_diario; aulas: linhas de curso_aulas.
+function ciAgregar({ dias, aulas, hoje }) {
+  const atual = ciMes(hoje), anterior = ciMes(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1));
+  const novo = () => ({ total: 0, claude: 0, gemini: 0, chamadas: 0, estimado: false, porFuncao: {} });
+  const m = { atual: novo(), anterior: novo() };
+  const somar = (alvo, provedor, funcao, custo, chamadas, estimado) => {
+    alvo.total += custo; alvo.chamadas += chamadas;
+    if (provedor === 'claude') alvo.claude += custo; else alvo.gemini += custo;
+    if (estimado) alvo.estimado = true;
+    const f = alvo.porFuncao[funcao] || (alvo.porFuncao[funcao] = { chamadas: 0, custo: 0, provedor });
+    f.chamadas += chamadas; f.custo += custo;
+  };
+  for (const r of dias || []) {
+    const mes = String(r.dia).slice(0, 7);
+    const alvo = mes === atual ? m.atual : mes === anterior ? m.anterior : null;
+    if (alvo) somar(alvo, r.provedor, r.funcao, ciNum(r.custo_usd), ciNum(r.chamadas), !!r.tem_estimado);
+  }
+  for (const a of aulas || []) {
+    const custo = ciNum(a.custo_usd);
+    if (!custo || !a.analisada_em) continue;
+    const mes = ciMes(new Date(a.analisada_em));
+    const alvo = mes === atual ? m.atual : mes === anterior ? m.anterior : null;
+    if (alvo) somar(alvo, 'gemini', 'cursos', custo, 1, false);
+  }
+  return { ...m, diaDoMes: hoje.getDate(), diasNoMes: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate() };
+}
+
+function ciNivel(total, limite) {
+  if (!(limite > 0)) return 'sem-limite';
+  const p = total / limite;
+  return p >= 1 ? 'estourou' : p >= 0.8 ? 'atencao' : 'ok';
+}
+
+// No ritmo atual, quanto fecha o mês (só depois de 3 dias, para não assustar com poucos dados)
+function ciProjecao(total, dia, dias) { return dia >= 3 && total > 0 ? total / dia * dias : null; }
+
+function ciConfigDe(linhas) {
+  const c = {};
+  for (const l of linhas || []) c[l.chave] = l.valor;
+  return {
+    limite: ciNum(c.limite_mensal_usd),
+    cotacao: ciNum(c.cotacao_usd_brl) || CI_COTACAO_PADRAO,
+    saldo: c.saldo_google_usd == null ? null : ciNum(c.saldo_google_usd),
+    saldoEm: c.saldo_google_em || null
+  };
+}
+
+// ── Desenho ──────────────────────────────────────────────────
+
+function ciDataHora(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function ciHtmlCorpo(e) {
+  if (e.semTabela) {
+    return '<div class="ci-vazio"><i class="ti ti-database-off"></i><p>O medidor ainda não foi ativado. Rode o arquivo <b>consumo-ia.sql</b> no Supabase (SQL Editor) e recarregue.</p></div>';
+  }
+  const { agg, cfg } = e;
+  const a = agg.atual, ant = agg.anterior, cot = cfg.cotacao;
+  const nivel = ciNivel(a.total, cfg.limite);
+  const proj = ciProjecao(a.total, agg.diaDoMes, agg.diasNoMes);
+  let h = '';
+
+  if (nivel === 'estourou') h += `<div class="ci-alerta ci-estourou"><i class="ti ti-alert-triangle"></i> Limite mensal de IA ultrapassado: ${ciUsd(a.total)} de ${ciUsd(cfg.limite)}.</div>`;
+  else if (nivel === 'atencao') h += `<div class="ci-alerta ci-atencao"><i class="ti ti-alert-circle"></i> Você já usou ${Math.round(a.total / cfg.limite * 100)}% do limite mensal de IA (${ciUsd(a.total)} de ${ciUsd(cfg.limite)}).</div>`;
+  else if (nivel === 'ok' && proj && proj > cfg.limite) h += `<div class="ci-alerta ci-atencao"><i class="ti ti-trending-up"></i> No ritmo atual o mês fecha em ${ciUsd(proj)}, acima do limite de ${ciUsd(cfg.limite)}.</div>`;
+
+  h += `<div class="ci-cards">
+    <div class="ci-card"><div class="ci-rot">Este mês</div><div class="ci-val">${ciUsd(a.total)}</div><div class="ci-sub">${ciBrl(a.total, cot)}${a.estimado ? ' · parte estimada' : ''}</div></div>
+    <div class="ci-card"><div class="ci-rot">Claude (Anthropic)</div><div class="ci-val">${ciUsd(a.claude)}</div><div class="ci-sub">${ciBrl(a.claude, cot)}</div></div>
+    <div class="ci-card"><div class="ci-rot">Gemini (Google)</div><div class="ci-val">${ciUsd(a.gemini)}</div><div class="ci-sub">${ciBrl(a.gemini, cot)}</div></div>
+  </div>`;
+
+  if (cfg.limite > 0) {
+    const pct = Math.min(100, a.total / cfg.limite * 100);
+    h += `<div class="ci-limite"><div class="ci-limite-topo"><span>Limite mensal: ${ciUsd(cfg.limite)}</span><span>${Math.round(a.total / cfg.limite * 100)}% usado${proj ? ' · projeção do mês: ' + ciUsd(proj) : ''}</span></div>
+      <div class="ci-barra"><div class="ci-barra-cheia ci-${nivel}" style="width:${pct.toFixed(1)}%"></div></div></div>`;
+  } else {
+    h += `<div class="ci-nota">Defina um limite mensal em <b>Configurar</b> para receber avisos${proj ? ` (projeção do mês: ${ciUsd(proj)})` : ''}.</div>`;
+  }
+
+  const funcoes = Object.entries(a.porFuncao).sort((x, y) => y[1].custo - x[1].custo);
+  if (funcoes.length) {
+    h += '<table class="ci-tabela"><thead><tr><th>Função</th><th>Chamadas</th><th>Custo</th></tr></thead><tbody>'
+      + funcoes.map(([f, v]) => `<tr><td>${escHtml(CI_NOMES[f] || f)}</td><td>${v.chamadas}</td><td>${ciUsd(v.custo)}</td></tr>`).join('')
+      + '</tbody></table>';
+  } else {
+    h += '<div class="ci-nota">Nenhuma chamada de IA registrada neste mês ainda.</div>';
+  }
+  if (ant.total > 0) h += `<div class="ci-nota">Mês anterior: ${ciUsd(ant.total)} (${ciBrl(ant.total, cot)}).</div>`;
+
+  // Saldo do Google: o Google não deixa o app ler o saldo; ele é ESTIMADO a partir do que você informou
+  h += '<div class="ci-google"><div class="ci-rot">Saldo do Gemini (Google)</div>';
+  if (cfg.saldo != null && cfg.saldoEm && e.gastoDesde != null) {
+    const est = cfg.saldo - e.gastoDesde;
+    h += `<div class="ci-val ${est < 0 ? 'ci-neg' : ''}">${ciUsd(est)} <small>${ciBrl(est, cot)}</small></div>
+      <div class="ci-sub">Estimado: ${ciUsd(cfg.saldo)} informado em ${ciDataHora(cfg.saldoEm)}, menos ${ciUsd(e.gastoDesde)} gastos desde então (laudos e aulas). Não inclui receitas por vídeo nem gastos fora do app.</div>`;
+  } else {
+    h += '<div class="ci-sub">O Google não permite que o app leia o saldo. Em <b>Configurar</b>, informe o saldo que aparece no Google AI Studio (página Billing) e o painel passa a estimar quanto sobrou.</div>';
+  }
+  h += ' <a class="ci-link" href="https://aistudio.google.com/" target="_blank" rel="noopener">Ver o saldo real no Google AI Studio →</a></div>';
+  return h;
+}
+
+function ciDesenhar(e) {
+  const corpo = document.getElementById('ci-corpo');
+  if (corpo) corpo.innerHTML = ciHtmlCorpo(e);
+  const chip = document.getElementById('lg-consumo');
+  if (!chip) return;
+  if (e.semTabela) { chip.style.display = 'none'; return; }
+  const a = e.agg.atual, nivel = ciNivel(a.total, e.cfg.limite);
+  chip.style.display = '';
+  chip.className = 'lg-consumo ci-chip-' + nivel;
+  chip.textContent = 'IA no mês: ' + ciUsd(a.total) + (e.cfg.limite > 0 ? ` · ${Math.round(a.total / e.cfg.limite * 100)}% do limite` : '');
+}
+
+// Avisa uma vez por sessão ao passar de 80% e de 100%
+function ciAvisar(e) {
+  if (e.semTabela) return;
+  const nivel = ciNivel(e.agg.atual.total, e.cfg.limite);
+  if (nivel !== 'atencao' && nivel !== 'estourou') { ciAvisado = null; return; }
+  if (ciAvisado === nivel) return;
+  ciAvisado = nivel;
+  toast(nivel === 'estourou'
+    ? `Limite mensal de IA ultrapassado: ${ciUsd(e.agg.atual.total)} de ${ciUsd(e.cfg.limite)}.`
+    : `Atenção: ${Math.round(e.agg.atual.total / e.cfg.limite * 100)}% do limite mensal de IA já foi usado.`, 'error');
+}
+
+// ── Carga e configuração ─────────────────────────────────────
+
+async function carregarConsumo() {
+  if (ciCarregando) return;
+  ciCarregando = true;
+  try {
+    const hoje = new Date();
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const [rd, ra, rc] = await Promise.all([
+      db.from('uso_ia_diario').select('dia,provedor,funcao,chamadas,custo_usd,tem_estimado').gte('dia', `${ciMes(inicio)}-01`),
+      db.from('curso_aulas').select('custo_usd,analisada_em').gte('analisada_em', inicio.toISOString()),
+      db.from('ia_config').select('chave,valor')
+    ]);
+    let e;
+    if (rd.error) {
+      e = { semTabela: true };
+    } else {
+      const cfg = ciConfigDe(rc.error ? [] : rc.data);
+      const agg = ciAgregar({ dias: rd.data, aulas: ra.error ? [] : ra.data, hoje });
+      let gastoDesde = null;
+      if (cfg.saldo != null && cfg.saldoEm) {
+        const r = await db.rpc('ia_gasto_gemini', { p_desde: cfg.saldoEm });
+        if (!r.error) gastoDesde = ciNum(r.data);
+      }
+      e = { agg, cfg, gastoDesde };
+    }
+    ciUltimo = e;
+    ciDesenhar(e);
+    ciAvisar(e);
+  } catch (err) {
+    console.error('[consumo]', err);
+    const corpo = document.getElementById('ci-corpo');
+    if (corpo) corpo.innerHTML = '<div class="ci-vazio"><p>Não consegui carregar o consumo agora.</p></div>';
+  } finally {
+    ciCarregando = false;
+  }
+}
+
+function ciAbrirConfig() {
+  const cfg = ciUltimo && ciUltimo.cfg ? ciUltimo.cfg : { limite: 0, cotacao: CI_COTACAO_PADRAO, saldo: null };
+  document.getElementById('ci-f-limite').value = cfg.limite > 0 ? String(cfg.limite).replace('.', ',') : '';
+  document.getElementById('ci-f-cotacao').value = String(cfg.cotacao).replace('.', ',');
+  document.getElementById('ci-f-saldo').value = cfg.saldo != null ? String(cfg.saldo).replace('.', ',') : '';
+  document.getElementById('modal-ci-config').classList.add('open');
+}
+
+async function ciSalvarConfig() {
+  const cfg = ciUltimo && ciUltimo.cfg ? ciUltimo.cfg : { saldo: null };
+  const limite = ciParseNumero(document.getElementById('ci-f-limite').value);
+  const cotacao = ciParseNumero(document.getElementById('ci-f-cotacao').value);
+  const saldo = ciParseNumero(document.getElementById('ci-f-saldo').value);
+  if ((limite !== null && !(limite >= 0)) || (cotacao !== null && !(cotacao > 0)) || Number.isNaN(saldo)) {
+    toast('Confira os números: use só dígitos, com vírgula ou ponto para os centavos.', 'error');
+    return;
+  }
+  const linhas = [
+    { chave: 'limite_mensal_usd', valor: limite || 0 },
+    { chave: 'cotacao_usd_brl', valor: cotacao || CI_COTACAO_PADRAO }
+  ];
+  let apagar = false;
+  if (saldo !== null) {
+    if (saldo !== cfg.saldo) linhas.push({ chave: 'saldo_google_usd', valor: saldo }, { chave: 'saldo_google_em', valor: new Date().toISOString() });
+  } else if (cfg.saldo != null) {
+    apagar = true;
+  }
+  const { error } = await db.from('ia_config').upsert(linhas, { onConflict: 'chave' });
+  if (error) { toast('Não consegui salvar: ' + error.message, 'error'); return; }
+  if (apagar) await db.from('ia_config').delete().in('chave', ['saldo_google_usd', 'saldo_google_em']);
+  closeModal('modal-ci-config');
+  toast('Configuração do consumo salva');
+  ciAvisado = null;
+  await carregarConsumo();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -8997,23 +9650,32 @@ document.addEventListener('selectionchange', () => {
 // ── Padrão do laudo: fonte, tamanho e título da conclusão ──
 // O que não tem formatação própria usa a fonte e o tamanho padrão (tanto na tela quanto ao copiar).
 // Fica guardado neste navegador. Título vazio = não acrescentar título da conclusão ao copiar.
-const LG_PADRAO_INICIAL = { f: 'Arial', s: 11, titulo: 'Conclusão' };
+const LG_PADRAO_INICIAL = { f: 'Arial', s: 11, titulo: 'Conclusão', formato: 'br', zoom: 100 };
+const LG_ZOOMS = [70, 80, 90, 100, 110, 120];
 
 function lgPadrao() {
-  let f = LG_PADRAO_INICIAL.f, s = LG_PADRAO_INICIAL.s, titulo = LG_PADRAO_INICIAL.titulo;
+  let { f, s, titulo, formato, zoom } = LG_PADRAO_INICIAL;
   try {
     f = rtFonteValida(localStorage.getItem('lg_padrao_f')) || f;
     s = rtTamanhoValido(localStorage.getItem('lg_padrao_s')) || s;
     const t = localStorage.getItem('lg_titulo_conc');
     if (t !== null) titulo = t;
+    const fm = localStorage.getItem('lg_fmt_copia');
+    if (['p', 'div', 'br'].includes(fm)) formato = fm;
+    const z = Number(localStorage.getItem('lg_zoom_editor'));
+    if (LG_ZOOMS.includes(z)) zoom = z;
   } catch (_) { /* sem armazenamento: usa o padrão inicial */ }
-  return { f, s, titulo };
+  return { f, s, titulo, formato, zoom };
 }
 
 // As caixas de texto mostram o padrão, para a tela ser igual ao que vai ser copiado
 function lgAplicarPadraoVisual() {
   const pad = lgPadrao();
-  document.querySelectorAll('.lg-rt').forEach(el => { el.style.fontFamily = `'${pad.f}', sans-serif`; el.style.fontSize = pad.s + 'pt'; });
+  document.querySelectorAll('.lg-rt').forEach(el => {
+    el.style.fontFamily = `'${pad.f}', sans-serif`;
+    el.style.fontSize = pad.s + 'pt';
+    el.style.setProperty('zoom', String(pad.zoom / 100));      // só na tela: aproxima do tamanho que você vê no Word
+  });
 }
 
 function lgPreencherAjustes() {
@@ -9025,6 +9687,10 @@ function lgPreencherAjustes() {
   sf.value = pad.f;
   st.value = String(pad.s);
   ti.value = pad.titulo;
+  const fm = lgEl('lg-pad-formato'), zm = lgEl('lg-pad-zoom');
+  if (zm && !zm.options.length) zm.innerHTML = LG_ZOOMS.map(z => `<option value="${z}">${z}%</option>`).join('');
+  if (fm) fm.value = pad.formato;
+  if (zm) zm.value = String(pad.zoom);
 }
 
 // ── Onde entram as alterações do ditado (por modalidade) ──
@@ -9043,6 +9709,15 @@ function lgModalidadesInicio() {
 }
 
 const lgModoAlteracoes = () => lgModalidadesInicio().includes(lgModalidadeDe(lgMascaraAtual.tipo_exame)) ? 'inicio' : 'lugar';
+
+// Atualiza a etiqueta de consumo de IA (no máximo uma vez a cada 20 s)
+let lgConsumoEm = 0;
+function lgAtualizarConsumo(forcar = false) {
+  if (typeof carregarConsumo !== 'function') return;
+  if (!forcar && Date.now() - lgConsumoEm < 20000) return;
+  lgConsumoEm = Date.now();
+  carregarConsumo();
+}
 
 function lgPreencherModo() {
   const caixa = lgEl('lg-modo-inicio');
@@ -9064,6 +9739,8 @@ function lgSalvarPadrao() {
     localStorage.setItem('lg_padrao_f', lgEl('lg-pad-fonte').value);
     localStorage.setItem('lg_padrao_s', lgEl('lg-pad-tam').value);
     localStorage.setItem('lg_titulo_conc', lgEl('lg-pad-titulo').value);
+    if (lgEl('lg-pad-formato')) localStorage.setItem('lg_fmt_copia', lgEl('lg-pad-formato').value);
+    if (lgEl('lg-pad-zoom')) localStorage.setItem('lg_zoom_editor', lgEl('lg-pad-zoom').value);
   } catch (_) { /* sem armazenamento: vale só nesta sessão */ }
   lgAplicarPadraoVisual();
   const el = rtAtivo;
@@ -9241,9 +9918,13 @@ function lgDocDaMascara(m, campo) {
 // ── Máscaras ─────────────────────────────────────────────────
 
 async function loadLaudosPage() {
-  lgEl('lg-mic').disabled = !(window.SpeechRecognition || window.webkitSpeechRecognition);
+  lgAtualizarConsumo(true);
+  lgPreencherVoz();
+  const temVozNavegador = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const temCaptura = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext));
+  lgEl('lg-mic').disabled = !(temVozNavegador || temCaptura);
   if (lgEl('lg-mic').disabled) {
-    lgEl('lg-status').textContent = 'Este navegador não tem reconhecimento de voz. Abra no Chrome ou no Edge.';
+    lgEl('lg-status').textContent = 'Este navegador não consegue captar a voz. Abra no Chrome ou no Edge.';
   }
   try { lgEl('lg-auto-conf').checked = localStorage.getItem('lg_auto_conferir') !== '0'; }
   catch (_) { lgEl('lg-auto-conf').checked = true; }
@@ -9531,7 +10212,8 @@ const LG_NAO_ANTES = new Set(['o', 'a', 'um', 'uma', 'esse', 'este', 'desse', 'd
 const LG_NAO_DEPOIS = new Set(['de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas', 'com', 'sem', 'para', 'por', 'a', 'ao']);
 
 function lgPontuar(texto) {
-  const sem = (x) => (x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // sinais colados na palavra ("ponto.", "vírgula,") não atrapalham o reconhecimento da palavra de pontuação
+  const sem = (x) => (x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[.,;:!?"“”()]+|[.,;:!?"“”()]+$/g, '');
   const w = lgCorrigirVoz(texto || '').trim().split(/\s+/).filter(Boolean);
   let s = '';
   const palavra = (p) => { s += (s && !/[\s(]$/.test(s) ? ' ' : '') + p; };
@@ -9578,8 +10260,10 @@ function lgAtualizarBotoesVoz() {
   lgEl('lg-mic-txt').textContent = noDitado ? 'Parar' : 'Ditar';
   lgEl('lg-mic-disc').classList.toggle('ligado', naDisc);
   lgEl('lg-mic-disc-txt').textContent = naDisc ? 'Parar' : 'Falar';
-  lgEl('lg-status').textContent = !lgOuvindo ? LG_STATUS_PADRAO
-    : (naDisc ? 'Ouvindo… o que você falar vai para a discussão.' : 'Ouvindo… fale os achados.');
+  const transcrevendo = lgVozPendentes > 0;
+  if (!lgOuvindo) lgEl('lg-status').textContent = transcrevendo ? 'Transcrevendo o que você falou…' : LG_STATUS_PADRAO;
+  else if (lgGem) lgEl('lg-status').textContent = (naDisc ? 'Ouvindo (vai para a discussão)… ' : 'Ouvindo… ') + 'o texto aparece depois de cada pausa.' + (transcrevendo ? ' Transcrevendo…' : '');
+  else lgEl('lg-status').textContent = naDisc ? 'Ouvindo… o que você falar vai para a discussão.' : 'Ouvindo… fale os achados.';
 }
 
 function lgAlternarVoz(alvo = 'ditado') {
@@ -9594,7 +10278,7 @@ function lgAlternarVoz(alvo = 'ditado') {
   lgIniciarVoz(alvo);
 }
 
-function lgIniciarVoz(alvo = 'ditado') {
+function lgIniciarVozNavegador(alvo = 'ditado') {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { toast('Este navegador não tem reconhecimento de voz. Use o Chrome ou o Edge.', 'error'); return; }
   lgAlvoVoz = alvo;
@@ -9653,6 +10337,7 @@ function lgIniciarVoz(alvo = 'ditado') {
 
 function lgPararVoz() {
   lgOuvindo = false;
+  lgPararVozGemini();
   if (lgRec) {
     const r = lgRec;
     lgRec = null;
@@ -9742,6 +10427,7 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
       caixa.style.display = 'none';
     }
     if (origem === 'ditado') toast('Laudo atualizado');
+    lgAtualizarConsumo();
     return j;
   } catch (e) {
     console.error('[laudos] aplicar', e);
@@ -9834,10 +10520,12 @@ async function lgCopiarAgora() {
   const titulo = pad.titulo.trim();
   const plano = conclusao ? `${corpo}\n\n${titulo ? titulo + '\n' : ''}${conclusao}` : corpo;
   if (!plano) { toast('O laudo está vazio', 'error'); return; }
-  const estilo = `font-family:'${pad.f}';font-size:${pad.s}pt`;
-  const tituloHtml = titulo ? `<p style="margin:0;${estilo}"><span style="${estilo}"><b>${escHtml(titulo)}</b></span></p>` : '';
-  const html = rtHtmlDeDoc(docCorpo, 'clip', pad)
-    + (conclusao ? `<p style="margin:0;${estilo}">&nbsp;</p>` + tituloHtml + rtHtmlDeDoc(docConclusao, 'clip', pad) : '');
+  // Um texto formatado só: corpo, linha em branco, título da conclusão (em negrito) e conclusão.
+  // Assim o formato de linhas escolhido vale para o laudo inteiro.
+  const docCopia = conclusao
+    ? [...docCorpo, rtLinhaVazia(), ...(titulo ? [{ a: 'left', r: [{ t: titulo, b: 1 }] }] : []), ...docConclusao]
+    : docCorpo;
+  const html = rtHtmlDeDoc(docCopia, 'clip', pad, pad.formato);
 
   const via = await lgCopiarTexto(plano, html);
   if (!via) { toast('Não consegui copiar. Selecione o texto e copie manualmente.', 'error'); return; }
@@ -9851,6 +10539,7 @@ async function lgCopiarAgora() {
   toast(aprendidas
     ? `Laudo copiado. ${aprendidas === 1 ? '1 correção aprendida' : aprendidas + ' correções aprendidas'}.`
     : 'Laudo copiado');
+  lgAtualizarConsumo();
 }
 
 
