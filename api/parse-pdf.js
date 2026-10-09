@@ -1,4 +1,5 @@
 import { requireAuth } from './_auth.js';
+import { registrarUso, usoDoClaude } from './_uso.js';
 
 // api/parse-pdf.js
 export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
@@ -102,6 +103,7 @@ ${text}`;
       return res.status(500).json({ error: data.error?.message || 'Erro na API da Anthropic' });
     }
 
+    await registrarUso(req, { funcao: 'fatura', modelo: 'claude-sonnet-4-6', ...usoDoClaude(data) });
     const rawText = data.content.map(b => b.text || '').join('').trim();
     let transactions;
     try {
