@@ -1,4 +1,5 @@
 import { requireAuth } from './_auth.js';
+import { registrarUso, usoDoClaude, usoDoGemini } from './_uso.js';
 
 // api/_laudo.js
 // (Arquivo auxiliar: comeca com "_", por isso NAO conta como funcao da Vercel.
@@ -8,7 +9,8 @@ import { requireAuth } from './_auth.js';
 //    ?tipo=laudo-anterior  -> resume o laudo do exame anterior (resumirAnterior)
 //    ?tipo=laudo-discutir  -> conversa sobre o caso, com imagens (discutirCaso; Claude ou Gemini),
 //                             consultando a base pessoal (aulas e artigos) quando for pertinente
-//    ?tipo=laudo-consolidar-> extrai da discussao o que o medico concluiu (consolidarDiscussao))
+//    ?tipo=laudo-consolidar-> extrai da discussao o que o medico concluiu (consolidarDiscussao)
+//    ?tipo=laudo-voz       -> transcreve um trecho de ditado (audio) com o Gemini (transcreverVoz))
 //
 // Nada e gravado aqui: o navegador guarda mascaras e correcoes no Supabase.
 // O texto do laudo NAO e registrado nos logs.
@@ -17,6 +19,8 @@ import { requireAuth } from './_auth.js';
 // SUPABASE_URL e SUPABASE_KEY (a base de aulas e artigos e lida com a sessao do proprio usuario)
 
 const MODELO = 'claude-sonnet-4-6';
+// Tarefas simples (extrair termos, resumir texto) usam o modelo mais barato; se ele falhar, o Sonnet assume.
+const MODELO_BARATO = 'claude-haiku-4-5-20251001';
 
 const LIM_DITADO    = 4000;
 const LIM_CORPO     = 40000;      // o texto vai com marcação de formatação, que ocupa espaço
@@ -237,9 +241,13 @@ function extrairJson(bruto) {
 }
 
 // Chamada de baixo nivel a Claude API. Devolve { texto, cortada }.
-async function chamarClaude({ sistema, messages, maxTokens, temperature = 0.2 }) {
+async function chamarClaude({ sistema, messages, maxTokens, temperature = 0.2, modelo = MODELO, cache = false, ctx = null }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new ErroHttp(500, 'ANTHROPIC_API_KEY nao configurada');
+
+  // Com cache, a instrucao (grande e igual em todas as chamadas) e lida a 10% do preco nas chamadas
+  // seguintes feitas em poucos minutos. So vale para instrucoes com mais de ~1000 tokens.
+  const system = cache ? [{ type: 'text', text: sistema, cache_control: { type: 'ephemeral' } }] : sistema;
 
   const resposta = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -249,39 +257,50 @@ async function chamarClaude({ sistema, messages, maxTokens, temperature = 0.2 })
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: MODELO,
+      model: modelo,
       max_tokens: maxTokens,
       temperature,
-      system: sistema,
+      system,
       messages
     })
   });
 
   if (!resposta.ok) {
     // So o status e o inicio do erro da API; nunca o texto do laudo.
-    console.error('[laudo] claude', resposta.status, (await resposta.text()).slice(0, 200));
+    console.error('[laudo] claude', modelo, resposta.status, (await resposta.text()).slice(0, 200));
     throw new ErroHttp(502, 'A Claude API recusou a requisicao');
   }
 
   const data = await resposta.json();
+  if (ctx) await registrarUso(ctx.req, { funcao: ctx.funcao, modelo, ...usoDoClaude(data) });
   const bruto = (data.content || [])
     .filter(c => c.type === 'text').map(c => c.text).join('\n');
   return { texto: bruto, cortada: data.stop_reason === 'max_tokens' };
 }
 
 // Pergunta que deve voltar em JSON
-async function perguntar(sistema, mensagem, maxTokens) {
-  const { texto: bruto, cortada } = await chamarClaude({
-    sistema, messages: [{ role: 'user', content: mensagem }], maxTokens
-  });
-  if (cortada) throw new ErroHttp(502, 'A resposta veio cortada. Tente de novo com um texto menor.');
+async function perguntar(sistema, mensagem, maxTokens, { cache = false, barato = false, ctx = null } = {}) {
+  const messages = [{ role: 'user', content: mensagem }];
 
-  const saida = extrairJson(bruto);
-  if (!saida) {
-    console.error('[laudo] resposta fora do formato esperado');
-    throw new ErroHttp(502, 'Nao consegui ler a resposta da IA. Tente de novo.');
+  async function uma(modelo) {
+    const { texto: bruto, cortada } = await chamarClaude({ sistema, messages, maxTokens, modelo, cache, ctx });
+    if (cortada) throw new ErroHttp(502, 'A resposta veio cortada. Tente de novo com um texto menor.');
+    const saida = extrairJson(bruto);
+    if (!saida) {
+      console.error('[laudo] resposta fora do formato esperado', modelo);
+      throw new ErroHttp(502, 'Nao consegui ler a resposta da IA. Tente de novo.');
+    }
+    return saida;
   }
-  return saida;
+
+  if (!barato) return uma(MODELO);
+  try {
+    return await uma(MODELO_BARATO);
+  } catch (e) {
+    if (!(e instanceof ErroHttp) || e.status !== 502) throw e;
+    console.error('[laudo] modelo barato falhou; usando o Sonnet');
+    return uma(MODELO);
+  }
 }
 
 // Autenticacao, metodo, tratamento de erro: iguais para os tres servicos
@@ -307,7 +326,7 @@ const blocoAnterior = (anterior, data) => anterior
 // ─────────────────────────────────────────────────────────────
 
 export function tratarLaudo(req, res) {
-  return executar(req, res, async (b) => {
+  return executar(req, res, async (b, req) => {
     const ditado = texto(b.ditado, LIM_DITADO + 1).trim();
     if (!ditado) throw new ErroHttp(400, 'Nada foi ditado');
     if (ditado.length > LIM_DITADO) {
@@ -360,7 +379,7 @@ DITADO DO MÉDICO (aplique ao laudo):
 ${ditado}
 >>>`;
 
-    const saida = await perguntar(sistemaDitado(modo), mensagem, 4000);
+    const saida = await perguntar(sistemaDitado(modo), mensagem, 4000, { cache: true, ctx: { req, funcao: 'ditado' } });
     if (typeof saida.corpo !== 'string' || typeof saida.conclusao !== 'string') {
       console.error('[laudo] resposta sem corpo/conclusao');
       throw new ErroHttp(502, 'Nao consegui ler a resposta da IA. Tente de novo.');
@@ -384,7 +403,7 @@ ${ditado}
 const ORDEM_GRAVIDADE = { alta: 0, media: 1, baixa: 2 };
 
 export function checarLaudo(req, res) {
-  return executar(req, res, async (b) => {
+  return executar(req, res, async (b, req) => {
     const corpo = String(b.corpo ?? '');
     const conclusao = String(b.conclusao ?? '');
     if (corpo.length > LIM_CORPO || conclusao.length > LIM_CONCLUSAO) {
@@ -409,7 +428,7 @@ CONCLUSÃO:
 ${conclusao}
 >>>${blocoAnterior(anterior, dataAnterior)}`;
 
-    const saida = await perguntar(SISTEMA_CONFERENCIA, mensagem, 1500);
+    const saida = await perguntar(SISTEMA_CONFERENCIA, mensagem, 1500, { ctx: { req, funcao: 'conferencia' } });
 
     const problemas = (Array.isArray(saida.problemas) ? saida.problemas : [])
       .map(p => ({
@@ -431,13 +450,13 @@ ${conclusao}
 // ─────────────────────────────────────────────────────────────
 
 export function resumirAnterior(req, res) {
-  return executar(req, res, async (b) => {
+  return executar(req, res, async (b, req) => {
     const anterior = texto(b.anterior, LIM_ANTERIOR + 1).trim();
     if (!anterior) throw new ErroHttp(400, 'Cole o laudo anterior');
     if (anterior.length > LIM_ANTERIOR) throw new ErroHttp(400, 'Laudo anterior grande demais');
 
     const mensagem = `LAUDO ANTERIOR:\n<<<\n${anterior}\n>>>`;
-    const saida = await perguntar(SISTEMA_ANTERIOR, mensagem, 1500);
+    const saida = await perguntar(SISTEMA_ANTERIOR, mensagem, 1500, { barato: true, ctx: { req, funcao: 'anterior' } });
 
     return {
       data: texto(saida.data, 40).trim(),
@@ -521,10 +540,10 @@ const norm = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,
 const TERMOS_GENERICOS = new Set(['ressonancia', 'imagem', 'achado', 'achados', 'paciente', 'exame', 'lesao', 'laudo', 'caso', 'tomografia', 'ultrassom']);
 
 // Termos de busca a partir do fim da conversa (chamada curta ao Claude)
-async function extrairTermos(msgs, tipo) {
+async function extrairTermos(msgs, tipo, ctx = null) {
   const ultimas = msgs.slice(-4).map(m =>
     `${m.role === 'assistant' ? 'IA' : 'MÉDICO'}: ${(m.texto || '(imagem)').slice(0, 800)}`).join('\n\n');
-  const saida = await perguntar(SISTEMA_TERMOS, `TIPO DE EXAME: ${tipo}\n\nCONVERSA:\n${ultimas}`, 300);
+  const saida = await perguntar(SISTEMA_TERMOS, `TIPO DE EXAME: ${tipo}\n\nCONVERSA:\n${ultimas}`, 300, { barato: true, ctx });
   const vistos = new Set();
   const termos = [];
   for (const t of Array.isArray(saida.termos) ? saida.termos : []) {
@@ -677,7 +696,7 @@ function aproveitarCitacoes(resposta, apoio) {
   return { texto, fontes };
 }
 
-async function claudeDiscussao(msgs, tipo, apoio = []) {
+async function claudeDiscussao(msgs, tipo, apoio = [], ctx = null) {
   const messages = msgs.map(m => {
     if (m.role === 'assistant') return { role: 'assistant', content: m.texto || '(sem texto)' };
     const content = m.imagens.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.tipo, data: im.dados } }));
@@ -686,7 +705,7 @@ async function claudeDiscussao(msgs, tipo, apoio = []) {
   });
   const r = await chamarClaude({
     sistema: `${SISTEMA_DISCUSSAO}${apoio.length ? REGRAS_APOIO : ''}\n\nTIPO DE EXAME: ${tipo}${blocoApoio(apoio)}`,
-    messages, maxTokens: 1500, temperature: 0.4
+    messages, maxTokens: 1500, temperature: 0.4, ctx
   });
   const resposta = r.texto.trim();
   if (!resposta) throw new ErroHttp(502, 'O Claude respondeu em branco. Tente de novo.');
@@ -715,10 +734,7 @@ const mensagemGoogle = (corpo) => {
 };
 
 // A API "interactions" do Gemini recebe uma lista de blocos; a conversa vai como transcricao.
-async function geminiDiscussao(msgs, tipo, apoio = [], prazoFinal = Date.now() + 50_000) {
-  const chave = process.env.GEMINI_API_KEY;
-  if (!chave) throw new ErroHttp(500, 'GEMINI_API_KEY nao configurada na Vercel');
-
+async function geminiDiscussao(msgs, tipo, apoio = [], prazoFinal = Date.now() + 50_000, ctx = null) {
   const input = [{
     type: 'text',
     text: `${SISTEMA_DISCUSSAO}${apoio.length ? REGRAS_APOIO : ''}\n\nTIPO DE EXAME: ${tipo}${blocoApoio(apoio)}\n\nA conversa até agora está abaixo. Responda somente à última mensagem do médico.`
@@ -739,49 +755,70 @@ async function geminiDiscussao(msgs, tipo, apoio = [], prazoFinal = Date.now() +
   }
   input.push({ type: 'text', text: 'RESPOSTA DO ASSISTENTE:' });
 
+  const imagens = msgs.reduce((n, m) => n + (m.imagens ? m.imagens.length : 0), 0);
+  return chamarGemini(input, prazoFinal, 'O Gemini nao conseguiu responder agora. Tente de novo ou troque para o Claude.',
+    { ctx, entradaChars: JSON.stringify(input).length - imagens * 600, extraTokens: imagens * 1000 });
+}
+
+// Chama a API "interactions" do Gemini, tentando os modelos da lista em ordem. Devolve { texto, modelo }.
+async function chamarGemini(input, prazoFinal, mensagemFinal, { ctx = null, pensar = null, audioSeg = 0, entradaChars = 0, extraTokens = 0 } = {}) {
+  const chave = process.env.GEMINI_API_KEY;
+  if (!chave) throw new ErroHttp(500, 'GEMINI_API_KEY nao configurada na Vercel');
   const prazo = prazoFinal;   // a Vercel corta a funcao aos 60 s
   for (const modelo of MODELOS_GEMINI) {
-    const resta = prazo - Date.now();
-    if (resta < 5000) break;
+    // "pensar" (nivel de raciocinio) reduz o custo em tarefas simples; se a API recusar o parametro, tenta sem ele
+    for (const comPensar of pensar ? [true, false] : [false]) {
+      const resta = prazo - Date.now();
+      if (resta < 5000) break;
 
-    const controle = new AbortController();
-    const timer = setTimeout(() => controle.abort(), resta);
-    let res, corpo;
-    try {
-      res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
-        body: JSON.stringify({ model: modelo, input }),
-        signal: controle.signal
-      });
-      corpo = await res.text();
-    } catch (e) {
-      if (e.name === 'AbortError') throw new ErroHttp(504, 'O Gemini demorou demais para responder.');
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
+      const controle = new AbortController();
+      const timer = setTimeout(() => controle.abort(), resta);
+      let res, corpo;
+      try {
+        res = await fetch(`${GEMINI_BASE}/v1beta/interactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
+          body: JSON.stringify({ model: modelo, input, ...(comPensar ? { generation_config: { thinking_level: pensar } } : {}) }),
+          signal: controle.signal
+        });
+        corpo = await res.text();
+      } catch (e) {
+        if (e.name === 'AbortError') throw new ErroHttp(504, 'O Gemini demorou demais para responder.');
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
 
-    if (res.ok) {
-      let dados = {};
-      try { dados = JSON.parse(corpo); } catch { /* resposta fora do formato: tenta o proximo modelo */ }
-      const saida = textoDaInteracao(dados);
-      if (saida) return { texto: saida };
-      console.error('[laudo gemini]', modelo, 'resposta vazia');
-      continue;
-    }
+      if (res.ok) {
+        let dados = {};
+        try { dados = JSON.parse(corpo); } catch { /* resposta fora do formato: tenta o proximo modelo */ }
+        const saida = textoDaInteracao(dados);
+        if (saida) {
+          if (ctx) {
+            await registrarUso(ctx.req, {
+              funcao: ctx.funcao, modelo, audioSeg,
+              ...usoDoGemini(dados, { entradaChars, saidaChars: saida.length, extraTokens: extraTokens + Math.round(audioSeg * 25) })
+            });
+          }
+          return { texto: saida, modelo };
+        }
+        console.error('[laudo gemini]', modelo, 'resposta vazia');
+        break;                                     // proximo modelo
+      }
 
-    const msg = mensagemGoogle(corpo);
-    console.error('[laudo gemini]', modelo, res.status, msg.slice(0, 160));
-    if (res.status === 401 || res.status === 403 || /API key/i.test(msg)) {
-      throw new ErroHttp(502, 'A chave do Gemini foi recusada. Confira a GEMINI_API_KEY na Vercel.');
+      const msg = mensagemGoogle(corpo);
+      console.error('[laudo gemini]', modelo, res.status, msg.slice(0, 160));
+      if (res.status === 401 || res.status === 403 || /API key/i.test(msg)) {
+        throw new ErroHttp(502, 'A chave do Gemini foi recusada. Confira a GEMINI_API_KEY na Vercel.');
+      }
+      if (res.status === 400) {
+        if (comPensar && /thinking|generation_config/i.test(msg)) continue;     // recusou o nivel de raciocinio: repete sem ele
+        throw new ErroHttp(502, `O Gemini recusou a requisicao: ${msg.replace(/\s+/g, ' ').slice(0, 120)}`);
+      }
+      break;                                       // 404 (modelo), 429 (cota por modelo) e 5xx: proximo modelo da lista
     }
-    if (res.status === 400) {
-      throw new ErroHttp(502, `O Gemini recusou a requisicao: ${msg.replace(/\s+/g, ' ').slice(0, 120)}`);
-    }
-    // 404 (modelo), 429 (cota por modelo) e 5xx (sobrecarga): tenta o proximo modelo da lista
   }
-  throw new ErroHttp(502, 'O Gemini nao conseguiu responder agora. Tente de novo ou troque para o Claude.');
+  throw new ErroHttp(502, mensagemFinal);
 }
 
 export function discutirCaso(req, res) {
@@ -796,7 +833,7 @@ export function discutirCaso(req, res) {
     const autorizacao = String(req.headers?.authorization || '');
     if (b.usar_base !== false && /^Bearer /.test(autorizacao)) {
       try {
-        termos = await extrairTermos(msgs, tipo);
+        termos = await extrairTermos(msgs, tipo, { req, funcao: 'termos' });
         apoio = await buscarBase(termos, autorizacao);
       } catch (e) {
         console.error('[laudo] base indisponivel:', e?.message || e);
@@ -806,8 +843,8 @@ export function discutirCaso(req, res) {
 
     const prazoFinal = inicio + 52_000;
     const r = ia === 'gemini'
-      ? await geminiDiscussao(msgs, tipo, apoio, prazoFinal)
-      : await claudeDiscussao(msgs, tipo, apoio);
+      ? await geminiDiscussao(msgs, tipo, apoio, prazoFinal, { req, funcao: 'discussao' })
+      : await claudeDiscussao(msgs, tipo, apoio, { req, funcao: 'discussao' });
 
     const { texto: resposta, fontes } = aproveitarCitacoes(r.texto, apoio);
     return { resposta, ia, fontes, termos };
@@ -819,7 +856,7 @@ export function discutirCaso(req, res) {
 // ─────────────────────────────────────────────────────────────
 
 export function consolidarDiscussao(req, res) {
-  return executar(req, res, async (b) => {
+  return executar(req, res, async (b, req) => {
     const tipo = texto(b.tipo_exame, 120).trim() || 'nao informado';
     const msgs = validarMensagens(b.mensagens, { comImagens: false, terminaNoMedico: false });
 
@@ -831,7 +868,8 @@ export function consolidarDiscussao(req, res) {
     const saida = await perguntar(
       SISTEMA_CONSOLIDAR,
       `TIPO DE EXAME: ${tipo}\n\nTRANSCRIÇÃO DA DISCUSSÃO:\n<<<\n${transcricao}\n>>>`,
-      1500
+      1500,
+      { ctx: { req, funcao: 'consolidar' } }
     );
 
     return {
@@ -839,5 +877,55 @@ export function consolidarDiscussao(req, res) {
       em_aberto: (Array.isArray(saida.em_aberto) ? saida.em_aberto : [])
         .map(x => texto(x, 200).trim()).filter(Boolean).slice(0, 6)
     };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// 6) Transcrever um trecho de ditado (audio) — Gemini
+// ─────────────────────────────────────────────────────────────
+
+const LIM_AUDIO_CHARS = 3_600_000;       // base64 (~2,7 MB; a Vercel aceita ~4,5 MB por requisicao)
+const AUDIO_MIME = { 'audio/wav': 'audio/wav', 'audio/x-wav': 'audio/wav', 'audio/mp3': 'audio/mp3', 'audio/mpeg': 'audio/mp3', 'audio/aac': 'audio/aac', 'audio/ogg': 'audio/ogg', 'audio/flac': 'audio/flac', 'audio/aiff': 'audio/aiff' };
+
+const LIM_CONTEXTO_VOZ = 1000;           // o contexto vai junto com CADA fala: quanto menor, mais barato
+
+const SISTEMA_VOZ = `Você transcreve ditados de um médico radiologista brasileiro (português do Brasil) para um editor de laudos. Você é um transcritor, não um assistente.
+1. Transcreva EXATAMENTE o que foi dito, na ordem, sem resumir, corrigir, completar nem responder.
+2. Use a grafia médica correta de radiologia (rim, calicinal, colelitíase, nefrolitíase, aponeurose, menisco, linfonodomegalias, hipoecogênico, parênquima, ectasia). Na dúvida, escolha o que faz sentido num laudo de imagem e no contexto abaixo.
+3. Medidas em algarismos, com vírgula decimal e unidade abreviada (0,3 cm, 12 mm).
+4. Palavras de pontuação e de comando (ponto, ponto final, vírgula, dois pontos, ponto e vírgula, nova linha, novo parágrafo, abre/fecha parênteses, aplicar, conferir, copiar laudo, desfazer, apagar ditado, abrir ..., enviar, capturar, encerrar discussão) ficam POR EXTENSO, como foram ditas. Não as converta em sinais.
+5. Não acrescente pontuação nem maiúsculas: tudo em minúsculas, exceto siglas (TC, RM, US) e nomes próprios.
+6. Sem fala inteligível (silêncio, ruído, tosse): responda exatamente [silêncio].
+7. Responda só com a transcrição.`;
+
+// Remove o que o modelo às vezes acrescenta (aspas, "Transcrição:", marcador de silêncio) e junta as linhas
+function limparTranscricao(bruto) {
+  let t = String(bruto || '').replace(/\s*\n+\s*/g, ' ').trim();
+  t = t.replace(/^(transcri[cç][aã]o\s*:\s*)/i, '').replace(/^["“”']+|["“”']+$/g, '').trim();
+  if (/^[\[(]?\s*sil[eê]ncio\s*[\])]?\.?$/i.test(t)) return '';
+  return t;
+}
+
+export function transcreverVoz(req, res) {
+  return executar(req, res, async (b, req) => {
+    const inicio = Date.now();
+    const mimeBruto = String(b.mime_type || 'audio/wav').split(';')[0].trim().toLowerCase();
+    const mime = AUDIO_MIME[mimeBruto];
+    if (!mime) throw new ErroHttp(400, 'Formato de audio nao aceito (use WAV)');
+    const dados = String(b.audio || '');
+    if (!dados) throw new ErroHttp(400, 'Nao ha audio');
+    if (dados.length > LIM_AUDIO_CHARS) throw new ErroHttp(400, 'Audio longo demais: fale em trechos menores');
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(dados)) throw new ErroHttp(400, 'Audio invalido');
+
+    const contexto = texto(b.contexto, LIM_CONTEXTO_VOZ).trim();
+    const prompt = SISTEMA_VOZ + (contexto ? `\n\nCONTEXTO (só para acertar a grafia; não o repita):\n${contexto}` : '');
+    const input = [
+      { type: 'text', text: prompt },
+      { type: 'audio', data: dados, mime_type: mime }
+    ];
+    const audioSeg = Math.max(0, dados.length * 0.75 - 44) / 32000;     // WAV de 16 kHz, 16 bits, mono: 32000 bytes por segundo
+    const r = await chamarGemini(input, inicio + 52_000, 'O Gemini nao conseguiu transcrever agora. Tente de novo ou troque para a voz do navegador.',
+      { ctx: { req, funcao: 'voz' }, pensar: 'low', audioSeg, entradaChars: prompt.length });
+    return { texto: limparTranscricao(r.texto) };
   });
 }
