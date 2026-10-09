@@ -1,5 +1,6 @@
 import { requireAuth } from './_auth.js';
-import { tratarLaudo, checarLaudo, resumirAnterior, discutirCaso, consolidarDiscussao } from './_laudo.js';
+import { registrarUso, usoDoClaude } from './_uso.js';
+import { tratarLaudo, checarLaudo, resumirAnterior, discutirCaso, consolidarDiscussao, transcreverVoz } from './_laudo.js';
 
 // api/receita-nutrir.js
 // Estima calorias e proteina por porcao a partir da lista de ingredientes.
@@ -49,12 +50,14 @@ export default async function handler(req, res) {
   //   ?tipo=laudo-anterior  -> editor de laudos: resume o laudo do exame anterior
   //   ?tipo=laudo-discutir  -> editor de laudos: conversa sobre o caso (Claude ou Gemini)
   //   ?tipo=laudo-consolidar-> editor de laudos: extrai a conclusao do medico da discussao
+  //   ?tipo=laudo-voz       -> editor de laudos: transcreve um trecho de ditado (Gemini)
   const servicoLaudo = {
     'laudo': tratarLaudo,
     'laudo-checar': checarLaudo,
     'laudo-anterior': resumirAnterior,
     'laudo-discutir': discutirCaso,
-    'laudo-consolidar': consolidarDiscussao
+    'laudo-consolidar': consolidarDiscussao,
+    'laudo-voz': transcreverVoz
   }[new URL(req.url, 'http://localhost').searchParams.get('tipo')];
   if (servicoLaudo) return servicoLaudo(req, res);
 
@@ -106,6 +109,7 @@ export default async function handler(req, res) {
     }
 
     const data = await resposta.json();
+    await registrarUso(req, { funcao: 'nutricao', modelo: MODELO, ...usoDoClaude(data) });
     const texto = (data.content || [])
       .filter(b => b.type === 'text').map(b => b.text).join('\n')
       .replace(/```json/gi, '').replace(/```/g, '').trim();
