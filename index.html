@@ -8786,6 +8786,45 @@ function rtHtmlDeDoc(doc, modo = 'editor', padrao = null, formato = 'p') {
   }).join('');
 }
 
+// ── Achados adicionais: seção no fim da conclusão (achados fora da área do estudo)
+// No laudo ela fica abaixo da conclusão: título "Achados adicionais:" em negrito e tudo em tamanho 10.
+// Para a IA ela viaja separada (campo "adicionais"), e o formato é sempre montado aqui, não pela IA.
+const RT_ADICIONAIS_TITULO = 'Achados adicionais:';
+const RT_ADICIONAIS_TAM = 10;
+const rtEhTituloAdicionais = (l) => /^\s*achados?\s+adicion(?:ais|al)\s*:?\s*$/i.test(rtTextoDeLinha(l));
+
+// Separa a seção (do título até o fim) do resto da conclusão. Devolve { doc: conclusão sem a seção, linhas: achados em texto }
+function rtSepararAdicionais(doc) {
+  const i = doc.findIndex(rtEhTituloAdicionais);
+  if (i < 0) return { doc, linhas: [] };
+  const antes = doc.slice(0, i);
+  while (antes.length && !rtTextoDeLinha(antes[antes.length - 1]).trim()) antes.pop();   // tira as linhas em branco que separavam a seção
+  const linhas = doc.slice(i + 1).map(rtTextoDeLinha).map(t => t.trim()).filter(Boolean);
+  return { doc: antes.length ? antes : [rtLinhaVazia()], linhas };
+}
+
+// Põe a seção no fim da conclusão: uma linha em branco, o título em negrito e os achados, tudo em tamanho 10
+function rtJuntarAdicionais(doc, linhas) {
+  if (!linhas || !linhas.length) return doc;
+  const base = doc.slice();
+  while (base.length > 1 && !rtTextoDeLinha(base[base.length - 1]).trim()) base.pop();
+  const vazio = base.every(l => !rtTextoDeLinha(l).trim());
+  return [
+    ...(vazio ? [] : [...base, rtLinhaVazia()]),
+    { a: 'left', r: [{ t: RT_ADICIONAIS_TITULO, b: 1, s: RT_ADICIONAIS_TAM }] },
+    ...linhas.map(t => ({ a: 'left', r: [{ t, s: RT_ADICIONAIS_TAM }] }))
+  ];
+}
+
+// Garante o formato da seção (título em negrito e tamanho 10; achados em tamanho 10), mesmo que a IA ou uma edição o tenham mudado
+function rtFormatarAdicionais(doc) {
+  const i = doc.findIndex(rtEhTituloAdicionais);
+  if (i < 0) return doc;
+  return doc.map((l, k) => k < i ? l
+    : k === i ? { a: 'left', r: [{ t: RT_ADICIONAIS_TITULO, b: 1, s: RT_ADICIONAIS_TAM }] }
+    : { ...l, r: l.r.map(r => ({ ...r, s: RT_ADICIONAIS_TAM })) });
+}
+
 // ── Marcação para a IA ───────────────────────────────────────
 // <b>, <i>, <u>, <fs f="Arial" s="12"> (fonte e tamanho), e a linha inteira dentro de
 // <c> (centro), <r> (direita) ou <j> (justificado). Cada linha é independente. < > & viram &lt; &gt; &amp;.
@@ -10448,25 +10487,33 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
 
     const tipo      = lgTipoAprendizado();
     const docCorpoAntes = rtDoc(lgEl('lg-corpo'));
-    const docConclusaoAntes = rtDoc(lgEl('lg-conclusao'));
+    // Achados adicionais ficam no fim da conclusão; para a IA viajam separados
+    const docConclusaoTodaAntes = rtDoc(lgEl('lg-conclusao'));
+    const { doc: docConclusaoAntes, linhas: adicionaisAntes } = rtSepararAdicionais(docConclusaoTodaAntes);
     const exemplos  = await lgCarregarExemplos(tipo);
 
     const r = await fetch('/api/receita-nutrir?tipo=laudo', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: rtMarkupDeDoc(docCorpoAntes), conclusao: rtMarkupDeDoc(docConclusaoAntes), ditado, exemplos, modo_alteracoes: lgModoAlteracoes(), ...lgDadosAnterior() })
+      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: rtMarkupDeDoc(docCorpoAntes), conclusao: rtMarkupDeDoc(docConclusaoAntes), adicionais: adicionaisAntes.join('\n'), ditado, exemplos, modo_alteracoes: lgModoAlteracoes(), ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao aplicar o ditado');
 
     // Linhas que a IA devolveu iguais mantêm a formatação de antes, mesmo que ela tenha mexido na marcação
     const docCorpoDepois = rtRestaurarLinhasIguais(docCorpoAntes, rtDocDeMarkup(j.corpo));
-    const docConclusaoDepois = rtRestaurarLinhasIguais(docConclusaoAntes, rtDocDeMarkup(j.conclusao));
+    // A seção é montada aqui (título em negrito, tamanho 10), qualquer que seja a formatação que a IA devolver
+    const linhasAdicionais = typeof j.adicionais === 'string' ? j.adicionais.replace(/<[^>]+>/g, '').split('\n').map(x => x.trim()).filter(Boolean) : adicionaisAntes.slice();
+    // Se a IA escreveu a seção por conta própria dentro da conclusão, ela é tirada de lá e entra junto, sem duplicar
+    const daIA = rtSepararAdicionais(rtDocDeMarkup(j.conclusao));
+    for (const l of daIA.linhas) if (!linhasAdicionais.includes(l)) linhasAdicionais.push(l);
+    const docConclusaoSo = rtRestaurarLinhasIguais(docConclusaoAntes, daIA.doc);
+    const docConclusaoDepois = rtFormatarAdicionais(rtRestaurarLinhasIguais(docConclusaoTodaAntes, rtJuntarAdicionais(docConclusaoSo, linhasAdicionais)));
     const txtCorpoAntes = rtTextoDeDoc(docCorpoAntes), txtCorpoDepois = rtTextoDeDoc(docCorpoDepois);
-    const txtConclusaoAntes = rtTextoDeDoc(docConclusaoAntes), txtConclusaoDepois = rtTextoDeDoc(docConclusaoDepois);
+    const txtConclusaoAntes = rtTextoDeDoc(docConclusaoTodaAntes), txtConclusaoDepois = rtTextoDeDoc(docConclusaoDepois);
 
     lgAnterior = {
-      corpoDoc: docCorpoAntes, conclusaoDoc: docConclusaoAntes, ditado, origem,
+      corpoDoc: docCorpoAntes, conclusaoDoc: docConclusaoTodaAntes, ditado, origem,
       baseline: { ...lgBaseline }
     };
 
@@ -10648,8 +10695,10 @@ async function lgConferir() {
   if (!lgMascaraAtual) { toast('Escolha uma máscara primeiro', 'error'); return null; }
   if (lgConferindo) return null;
   const corpo = lgEl('lg-corpo').value;
-  const conclusao = lgEl('lg-conclusao').value;
-  if (!corpo.trim() && !conclusao.trim()) { toast('O laudo está vazio', 'error'); return null; }
+  const { doc: docConclusaoSo, linhas: linhasAdicionais } = rtSepararAdicionais(rtDoc(lgEl('lg-conclusao')));
+  const conclusao = rtTextoDeDoc(docConclusaoSo);
+  const adicionais = linhasAdicionais.join('\n');
+  if (!corpo.trim() && !conclusao.trim() && !adicionais.trim()) { toast('O laudo está vazio', 'error'); return null; }
 
   lgConferindo = true;
   const btn = lgEl('lg-conferir');
@@ -10658,7 +10707,7 @@ async function lgConferir() {
 
   const problemas = [];
   let falhou = false;
-  const brancos = lgPlaceholders(corpo + '\n' + conclusao);
+  const brancos = lgPlaceholders(corpo + '\n' + conclusao + '\n' + adicionais);
   if (brancos.length) {
     problemas.push({ gravidade: 'alta', titulo: 'Campo do modelo não preenchido',
       detalhe: 'Sobrou marcador de preenchimento no laudo.', trecho: brancos.join(' | ') });
@@ -10667,7 +10716,7 @@ async function lgConferir() {
     const r = await fetch('/api/receita-nutrir?tipo=laudo-checar', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo, conclusao, ...lgDadosAnterior() })
+      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo, conclusao, adicionais, ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha na conferência');
