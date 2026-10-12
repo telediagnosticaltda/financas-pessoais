@@ -1998,6 +1998,11 @@ tr.duplicate-row:hover { background: #FFF6D6; }
     <div id="page-employees" class="page">
       <div class="page-header">
         <h1 class="page-title">Funcionárias</h1>
+        <div class="header-right">
+          <button class="btn btn-ghost" id="btn-buscar-folha" onclick="buscarEmailFolha()" title="Procura no Gmail o e-mail do fechamento (holerites + DARF) enviado pela contabilidade">
+            <i class="ti ti-mail"></i> Buscar e-mail agora
+          </button>
+        </div>
       </div>
 
       <!-- Navegação mês/ano -->
@@ -4705,6 +4710,13 @@ async function processGmailQueue(silent = false) {
     try {
       let txs = [];
 
+      if (item.kind === 'folha') {
+        // E-mail do fechamento das funcionárias (holerites + DARF)
+        await importarFolhaEmail(item.msg_id, item.parsed?.atts || [], item.email_date);
+        await db.from('gmail_queue').update({ status: 'done' }).eq('id', item.id);
+        continue;
+      }
+
       if (item.kind === 'notification') {
         // Dados já parseados no servidor
         const p = item.parsed;
@@ -5756,16 +5768,9 @@ async function handleReciboUpload(employeeName, file) {
     }
 
     // Busca o total líquido no texto
-    const match = fullText.match(/TOTAL\s+L[IÍ]QUIDO[:\s]*R?\$?\s*([\d.,]+)/i);
-    if (!match) {
+    const netSalary = extrairLiquido(fullText);
+    if (netSalary == null) {
       toast('Não encontrei "TOTAL LIQUIDO" no PDF. Verifique se é o arquivo correto.', true);
-      return;
-    }
-    // Converte para número (ex: "1.385,60" → 1385.60)
-    const raw = match[1].replace(/\./g, '').replace(',', '.');
-    const netSalary = parseFloat(raw);
-    if (isNaN(netSalary)) {
-      toast('Não consegui ler o valor do salário líquido.', true);
       return;
     }
 
@@ -5792,33 +5797,10 @@ async function handleDarfUpload(employeeName, file) {
       const content = await page.getTextContent();
       fullText += content.items.map(item => item.str).join(' ') + '\n';
     }
-    const matchValor = fullText.match(/Valor\s+Total\s+do\s+Documento[:\s]*R?\$?\s*([\d.,]+)/i)
-      || fullText.match(/Valor[:\s]*R?\$?\s*([\d.,]+)/i);
-    const darfAmount = matchValor
-      ? parseFloat(matchValor[1].replace(/\./g,'').replace(',','.'))
-      : null;
+    const darfAmount = extrairValorDarf(fullText);
 
-    // Renderiza a última página para extrair o QR code
-    const lastPage = await pdf.getPage(pdf.numPages);
-    const scale = 3.0; // alta resolução para o QR ser legível
-    const viewport = lastPage.getViewport({ scale });
-    const canvas = document.createElement('canvas');
-    canvas.width  = viewport.width;
-    canvas.height = viewport.height;
-    await lastPage.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-
-    // Recorta apenas a parte inferior da página onde fica o QR code
-    // (últimos ~38% da altura, lado direito)
-    const qrCanvas = document.createElement('canvas');
-    const qrY = Math.floor(canvas.height * 0.62);
-    const qrX = Math.floor(canvas.width  * 0.55);
-    qrCanvas.width  = canvas.width  - qrX;
-    qrCanvas.height = canvas.height - qrY;
-    qrCanvas.getContext('2d').drawImage(
-      canvas, qrX, qrY, qrCanvas.width, qrCanvas.height,
-      0, 0, qrCanvas.width, qrCanvas.height
-    );
-    const qrDataUrl = qrCanvas.toDataURL('image/png');
+    // Renderiza a última página e recorta o QR code
+    const qrDataUrl = await gerarQrDarf(pdf);
 
     await upsertEmpPayment(employeeName, {
       darf_amount: darfAmount,
@@ -5841,13 +5823,13 @@ async function toggleEmpPaid(employeeName, paid) {
   loadEmpPage();
 }
 
-async function upsertEmpPayment(employeeName, fields) {
+async function upsertEmpPayment(employeeName, fields, month = empMonth, year = empYear) {
   // Busca registro existente
   const { data: existing } = await db.from('employee_payments')
     .select('id')
     .eq('employee_name', employeeName)
-    .eq('month', empMonth)
-    .eq('year', empYear)
+    .eq('month', month)
+    .eq('year', year)
     .maybeSingle();
 
   if (existing) {
@@ -5856,7 +5838,207 @@ async function upsertEmpPayment(employeeName, fields) {
       .eq('id', existing.id);
   } else {
     await db.from('employee_payments')
-      .insert({ employee_name: employeeName, month: empMonth, year: empYear, ...fields });
+      .insert({ employee_name: employeeName, month, year, ...fields });
+  }
+}
+
+// ── Leitura de holerite / DARF (compartilhada entre envio manual e e-mail) ──
+function extrairLiquido(texto) {
+  const m = texto.match(/TOTAL\s+L[IÍ]QUIDO[:\s]*R?\$?\s*([\d.,]+)/i);
+  if (!m) return null;
+  const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+  return isNaN(v) ? null : v;
+}
+
+function extrairValorDarf(texto) {
+  const m = texto.match(/Valor\s+Total\s+do\s+Documento[:\s]*R?\$?\s*([\d.,]+)/i)
+         || texto.match(/Valor[:\s]*R?\$?\s*([\d.,]+)/i);
+  if (!m) return null;
+  const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+  return isNaN(v) ? null : v;
+}
+
+// Renderiza a última página da DARF e recorta o canto inferior direito (QR code)
+async function gerarQrDarf(pdf) {
+  const lastPage = await pdf.getPage(pdf.numPages);
+  const viewport = lastPage.getViewport({ scale: 3.0 }); // alta resolução para o QR ser legível
+  const canvas = document.createElement('canvas');
+  canvas.width  = viewport.width;
+  canvas.height = viewport.height;
+  await lastPage.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  const qrY = Math.floor(canvas.height * 0.62);
+  const qrX = Math.floor(canvas.width  * 0.55);
+  const qrCanvas = document.createElement('canvas');
+  qrCanvas.width  = canvas.width  - qrX;
+  qrCanvas.height = canvas.height - qrY;
+  qrCanvas.getContext('2d').drawImage(canvas, qrX, qrY, qrCanvas.width, qrCanvas.height, 0, 0, qrCanvas.width, qrCanvas.height);
+  return qrCanvas.toDataURL('image/png');
+}
+
+// ─────────────────────────────────────────────────────────────
+// FUNCIONÁRIAS — importação automática do e-mail de fechamento
+// Remetente: pessoal4@cioarato.com.br → 3 PDFs: 1 DARF (das duas) + 2 holerites
+// ─────────────────────────────────────────────────────────────
+const MESES_NOMES_SEM_ACENTO = ['janeiro','fevereiro','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+// Tenta achar a competência (mês/ano) escrita no documento
+function detectarCompetencia(texto) {
+  const t = semAcento(texto);
+  const chave = '(?:competencia|referente a|referencia|periodo[^0-9a-z]{0,3}(?:de apuracao)?|mes/ano)';
+  let m = t.match(new RegExp(chave + '[^0-9a-z]{0,15}(\\d{1,2})\\s*/\\s*(20\\d{2})'));
+  if (m && +m[1] >= 1 && +m[1] <= 12) return { m: +m[1], y: +m[2] };
+  m = t.match(new RegExp(chave + '[^0-9a-z]{0,15}(' + MESES_NOMES_SEM_ACENTO.join('|') + ')\\s*(?:/|de)?\\s*(20\\d{2})'));
+  if (m) return { m: MESES_NOMES_SEM_ACENTO.indexOf(m[1]) + 1, y: +m[2] };
+  return null;
+}
+
+// Abre o PDF sem senha; se pedir, tenta o CPF salvo (inteiro e os 5 primeiros dígitos)
+async function abrirPdfFolha(bytes) {
+  let cpf = (getSavedCPF() || '').replace(/\D/g, '');
+  if (!cpf) {
+    const { data } = await db.from('app_tokens').select('value').eq('key', 'user_cpf').maybeSingle();
+    cpf = (data?.value || '').replace(/\D/g, '');
+  }
+  const senhas = [''];
+  if (cpf) senhas.push(cpf, cpf.slice(0, 5));
+  for (const pw of senhas) {
+    try {
+      return await pdfjsLib.getDocument({ data: bytes.slice(), password: pw || undefined }).promise;
+    } catch (err) {
+      if (err.name !== 'PasswordException') throw err;
+    }
+  }
+  throw new Error('PDF protegido por senha que não consegui abrir');
+}
+
+async function textoPdfSimples(pdf) {
+  let t = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    t += content.items.map(it => it.str).join(' ') + '\n';
+  }
+  return t;
+}
+
+// Baixa os anexos de UM e-mail, descobre pelo conteúdo o que é cada um e preenche a aba
+async function processarFolha(msgId, atts, emailDate) {
+  const docs = [];
+  for (const a of atts) {
+    const r = await fetch('/api/gmail-get-pdf', {
+      method: 'POST', headers: await authHeaders(),
+      body: JSON.stringify({ msgId, attId: a.attId })
+    });
+    const { base64 } = await r.json();
+    if (!base64) continue;
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const pdf  = await abrirPdfFolha(bytes);
+    const text = await textoPdfSimples(pdf);
+    docs.push({ att: a, pdf, text });
+  }
+
+  const holerites = [];
+  let darf = null;
+  const avisos = [];
+  for (const d of docs) {
+    const liquido = extrairLiquido(d.text);
+    const norm = semAcento(d.text);
+    if (liquido != null) {
+      // Funcionária = nome que aparece primeiro no documento
+      let nome = null, pos = Infinity;
+      for (const n of EMPLOYEES) {
+        const i = norm.indexOf(semAcento(n));
+        if (i >= 0 && i < pos) { nome = n; pos = i; }
+      }
+      if (nome) holerites.push({ nome, liquido, text: d.text });
+      else avisos.push(`holerite sem nome reconhecido (${d.att.filename || 'sem nome'})`);
+    } else if (!darf && (
+        /valor\s+total\s+do\s+documento/.test(norm) ||
+        /\bdarf\b|\bdae\b|documento de arrecadacao/.test(norm) ||
+        /darf|dae|guia/.test(semAcento(d.att.filename || '')))) {
+      darf = d;
+    } else {
+      avisos.push(`anexo não reconhecido (${d.att.filename || 'sem nome'})`);
+    }
+  }
+
+  if (!holerites.length && !darf) throw new Error('Não reconheci nenhum holerite nem DARF nos anexos');
+
+  // Mês de referência: o que estiver escrito no documento; senão, o mês do e-mail
+  let comp = null;
+  for (const t of [darf?.text, ...holerites.map(h => h.text)]) {
+    if (t && (comp = detectarCompetencia(t))) break;
+  }
+  let usouMesDoEmail = false;
+  if (!comp) {
+    const [ey, em] = emailDate.split('-').map(Number);
+    comp = { m: em, y: ey };
+    usouMesDoEmail = true;
+  }
+
+  for (const h of holerites) await upsertEmpPayment(h.nome, { net_salary: h.liquido }, comp.m, comp.y);
+  if (darf) {
+    const amount = extrairValorDarf(darf.text);
+    const qr = await gerarQrDarf(darf.pdf);
+    if (amount == null) avisos.push('não consegui ler o valor da DARF');
+    // A guia é única para as duas: mesmo QR code e valor total nos dois cartões
+    for (const n of EMPLOYEES) await upsertEmpPayment(n, { darf_amount: amount, darf_qrcode: qr }, comp.m, comp.y);
+  }
+  const faltam = EMPLOYEES.filter(n => !holerites.some(h => h.nome === n));
+  if (faltam.length) avisos.push('faltou o holerite de ' + faltam.join(' e '));
+  if (!darf) avisos.push('faltou a DARF');
+  if (usouMesDoEmail) avisos.push('não achei o mês no documento, usei o mês do e-mail');
+
+  return { mes: comp.m, ano: comp.y, avisos };
+}
+
+// Importa um e-mail e avisa o resultado (usado pela fila do cron e pelo botão)
+async function importarFolhaEmail(msgId, atts, emailDate) {
+  try {
+    const r = await processarFolha(msgId, atts, emailDate);
+    await db.from('app_tokens').upsert({ key: `gmail_proc_${msgId}`, value: '1' });
+    empMonth = r.mes; empYear = r.ano;
+    toast(`Funcionárias de ${EMP_MONTHS[r.mes - 1]}/${r.ano} importadas do e-mail ✓` +
+          (r.avisos.length ? ` — atenção: ${r.avisos.join('; ')}` : ''), r.avisos.length ? 'error' : 'success');
+    if (currentPage === 'employees') initEmpNav();
+    return r;
+  } catch (err) {
+    console.warn('[Folha]', err);
+    toast('Erro ao importar o e-mail da folha: ' + err.message, 'error');
+    throw err;
+  }
+}
+
+async function buscarEmailFolha() {
+  const btn = document.getElementById('btn-buscar-folha');
+  const htmlOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Buscando...';
+  try {
+    const r = await fetch('/api/folha-sync', {
+      method: 'POST', headers: await authHeaders(), body: JSON.stringify({ days: 60 })
+    });
+    const j = await r.json();
+    if (!r.ok || !j.success) throw new Error(j.error || ('HTTP ' + r.status));
+    if (!j.folhas.length) { toast(`Nenhum e-mail de ${j.remetente} com PDF nos últimos 60 dias.`, 'error'); return; }
+
+    const novas = [];
+    for (const f of j.folhas) {
+      const { data } = await db.from('app_tokens').select('key').eq('key', `gmail_proc_${f.msgId}`).limit(1);
+      if (!data?.length) novas.push(f);
+    }
+    if (!novas.length) { toast('Nenhum e-mail novo — todos já foram importados ✓'); return; }
+    for (const f of novas) {
+      try { await importarFolhaEmail(f.msgId, f.atts, f.date); } catch (_) { /* já avisou */ }
+    }
+  } catch (err) {
+    console.error(err);
+    toast('Não consegui buscar o e-mail: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = htmlOriginal;
   }
 }
 

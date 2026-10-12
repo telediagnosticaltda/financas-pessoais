@@ -1,4 +1,5 @@
 import { requireCronSecret } from './_auth.js';
+import { buscarFolhas } from './_folha.js';
 
 // api/cron-sync.js — Roda às 9h pelo Vercel cron
 // Busca e-mails no Gmail e enfileira PDFs para o browser processar
@@ -211,6 +212,24 @@ export default async function handler(req, res) {
         // Marca como processado mesmo sem transação (marketing, etc)
         await sbPost('app_tokens', { key: `gmail_proc_${msgId}`, value: '0' }, 'resolution=merge-duplicates');
       }
+    }
+
+    // ── Folha das funcionárias (pessoal4@cioarato.com.br: DARF + 2 holerites) ──
+    // Um item na fila por e-mail, com a lista dos anexos; o navegador baixa e lê.
+    try {
+      const folhas = await buscarFolhas(token, days);
+      log.push(`Folha funcionárias: ${folhas.length} e-mails`);
+      for (const f of folhas) {
+        if (await isAlreadyQueued(f.msgId)) continue;
+        const r = await sbPost('gmail_queue', {
+          msg_id: f.msgId, bank: 'folha', email_date: f.date, kind: 'folha',
+          parsed: { subject: f.subject, atts: f.atts }, status: 'pending'
+        }, 'resolution=ignore-duplicates');
+        if (r.ok) queued++;
+        else log.push(`⚠ Folha: falha ao enfileirar (${r.status}) ${(await r.text()).slice(0, 200)}`);
+      }
+    } catch (e) {
+      log.push(`⚠ Folha funcionárias: ${e.message}`);
     }
 
     log.push(`Total enfileirado: ${queued} itens (${notifImported} notificações prontas)`);

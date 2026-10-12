@@ -12,6 +12,9 @@
     "api/cron-sync.js": {
       "maxDuration": 60
     },
+    "api/folha-sync.js": {
+      "maxDuration": 30
+    },
     "api/parse-pdf.js": {
       "maxDuration": 60
     },
