@@ -38,6 +38,29 @@ Regras:
 - Se um campo nao existir no documento, use null. Nunca invente dados.
 - confidence "baixa" se a imagem estiver ilegivel ou faltarem campos essenciais.`;
 
+
+// ── Modo "folha": holerite / guia (DARF, DAE, FGTS) da empregada, geralmente PDF em imagem ──
+const PROMPT_FOLHA = `Voce esta lendo um documento da folha de pagamento de empregada domestica (eSocial), em geral um PDF escaneado ou "impresso como PDF" (so imagem). Pode haver paginas repetidas (via do empregado e via do empregador).
+
+Responda APENAS com um objeto JSON, sem markdown, sem crases, sem texto antes ou depois.
+
+Formato exato:
+{
+  "tipo": "holerite" | "guia" | "outro",
+  "empregado": "nome completo do EMPREGADO (nunca o do empregador), ou null",
+  "competencia_mes": 1 a 12 ou null,
+  "competencia_ano": AAAA ou null,
+  "total_liquido": 0000.00 ou null,
+  "valor_guia": 0000.00 ou null
+}
+
+Regras:
+- "holerite": Recibo de Salario / Recibo de pagamento. total_liquido e o valor da linha "TOTAL LIQUIDO" (nao o total bruto, nao o valor a recolher).
+- "guia": DARF, DAE, guia do eSocial/FGTS Digital ou GPS, com valor a pagar e/ou QR code. valor_guia e o valor total a pagar.
+- Competencia: mes/ano de referencia escrito no documento (ex.: "Setembro/2026" vira 9 e 2026).
+- Numeros: ponto como separador decimal, sem "R$" e sem separador de milhar. "R$ 1.655,04" vira 1655.04.
+- Se um campo nao existir ou estiver ilegivel, use null. Nunca invente dados.`;
+
 export default async function handler(req, res) {
   if (!(await requireAuth(req, res))) return;
 
@@ -51,7 +74,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { fileData, mediaType } = req.body || {};
+    const { fileData, mediaType, tipo } = req.body || {};
+    const modoFolha = tipo === 'folha';
 
     if (!fileData || !mediaType) {
       return res.status(400).json({ error: 'Envie fileData (base64) e mediaType' });
@@ -85,9 +109,9 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 1000,
+        max_tokens: modoFolha ? 400 : 1000,
         messages: [
-          { role: 'user', content: [fileBlock, { type: 'text', text: PROMPT }] }
+          { role: 'user', content: [fileBlock, { type: 'text', text: modoFolha ? PROMPT_FOLHA : PROMPT }] }
         ]
       })
     });
@@ -102,7 +126,7 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    await registrarUso(req, { funcao: 'recibo', modelo: MODEL, ...usoDoClaude(data) });
+    await registrarUso(req, { funcao: modoFolha ? 'folha' : 'recibo', modelo: MODEL, ...usoDoClaude(data) });
 
     const texto = (data.content || [])
       .filter((bloco) => bloco.type === 'text')
@@ -120,6 +144,18 @@ export default async function handler(req, res) {
       return res.status(502).json({
         error: 'Nao consegui ler o recibo. Tente uma foto mais nitida.',
         raw: limpo.slice(0, 500)
+      });
+    }
+
+    if (modoFolha) {
+      const num = (v) => (v === null || v === undefined || isNaN(Number(v))) ? null : Number(v);
+      return res.status(200).json({
+        tipo: ['holerite', 'guia'].includes(extraido.tipo) ? extraido.tipo : 'outro',
+        empregado: extraido.empregado ? String(extraido.empregado) : null,
+        competencia_mes: num(extraido.competencia_mes),
+        competencia_ano: num(extraido.competencia_ano),
+        total_liquido: num(extraido.total_liquido),
+        valor_guia: num(extraido.valor_guia)
       });
     }
 

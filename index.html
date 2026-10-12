@@ -792,6 +792,26 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
   flex-shrink: 0;
 }
 .emp-name { font-size: 16px; font-weight: 700; }
+.emp-month-group { margin-bottom: 1.75rem; }
+.emp-month-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .75rem; }
+.emp-month-head h2 { font-size: 17px; font-weight: 700; margin: 0; }
+.emp-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--primary-l); color: var(--primary); }
+.emp-badge.wait { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
+.emp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; }
+.emp-paid-title { font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); margin: .5rem 0 .75rem; }
+.emp-hist { display: flex; flex-direction: column; gap: .5rem; max-width: 760px; }
+.emp-hist-item { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-lg); }
+.emp-hist-item summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: .75rem; padding: .8rem 1rem; }
+.emp-hist-item summary::-webkit-details-marker { display: none; }
+.emp-hist-item summary .mes { font-weight: 700; flex: 1; }
+.emp-hist-item summary .total { font-weight: 700; color: var(--green); }
+.emp-hist-item summary i { color: var(--text-3); transition: transform .15s; }
+.emp-hist-item[open] summary i { transform: rotate(180deg); }
+.emp-hist-body { border-top: 1.5px solid var(--border); padding: .5rem 1rem .75rem; display: flex; flex-direction: column; gap: .15rem; }
+.emp-hist-line { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: .45rem 0; font-size: 13px; color: var(--text-2); }
+.emp-hist-line b { color: var(--text); min-width: 90px; }
+.emp-hist-line .grow { flex: 1; }
+.emp-hist-line .btn { padding: .3rem .7rem; font-size: 12px; }
 .emp-month-label { font-size: 12px; color: var(--text-3); }
 .emp-field-label {
   font-size: 10px;
@@ -1904,130 +1924,9 @@ tr.duplicate-row:hover { background: #FFF6D6; }
         </div>
       </div>
 
-      <!-- Navegação mês/ano -->
-      <div id="chart-month-nav" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:.875rem">
-        <div class="period-tabs" id="chart-month-tabs" style="gap:2px">
-          <button class="ptab" onclick="setChartMonth(1,this)">Jan</button>
-          <button class="ptab" onclick="setChartMonth(2,this)">Fev</button>
-          <button class="ptab" onclick="setChartMonth(3,this)">Mar</button>
-          <button class="ptab" onclick="setChartMonth(4,this)">Abr</button>
-          <button class="ptab" onclick="setChartMonth(5,this)">Mai</button>
-          <button class="ptab" onclick="setChartMonth(6,this)">Jun</button>
-          <button class="ptab" onclick="setChartMonth(7,this)">Jul</button>
-          <button class="ptab" onclick="setChartMonth(8,this)">Ago</button>
-          <button class="ptab" onclick="setChartMonth(9,this)">Set</button>
-          <button class="ptab" onclick="setChartMonth(10,this)">Out</button>
-          <button class="ptab" onclick="setChartMonth(11,this)">Nov</button>
-          <button class="ptab" onclick="setChartMonth(12,this)">Dez</button>
-        </div>
-        <select class="filter-select" id="chart-year-sel" onchange="setChartYear(this.value)" style="font-weight:700;color:var(--primary)"></select>
-      </div>
-
-      <!-- Pizza + Detalhes da categoria -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem" id="charts-top-grid">
-        <div class="card" style="padding:1.25rem">
-          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)" id="pie-chart-title">Despesas por categoria</div>
-          <div style="position:relative;max-width:320px;margin:0 auto">
-            <canvas id="pie-chart" height="300"></canvas>
-            <div id="pie-center" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
-              <div style="font-size:.75rem;color:var(--text-muted)">Total</div>
-              <div id="pie-total" style="font-size:1.1rem;font-weight:700;color:var(--text)">—</div>
-            </div>
-          </div>
-        </div>
-        <div class="card" style="padding:1.25rem;overflow:auto" id="cat-detail-card">
-          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)">Detalhes por categoria</div>
-          <div id="cat-detail-content"><div class="loading-msg">Selecione uma categoria no gráfico</div></div>
-        </div>
-      </div>
-
-      <!-- Gráfico evolutivo -->
-      <div class="card" style="padding:1.25rem">
-        <div style="font-weight:600;margin-bottom:1rem;color:var(--text)"><span id="evo-chart-title">Evolução de despesas</span> <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">(últimos 12 meses)</span></div>
-        <canvas id="evo-chart" height="120"></canvas>
-      </div>
-    </div>
-
-    <!-- PAGE: SETTINGS -->
-    <div id="page-settings" class="page">
-      <div class="page-header">
-        <h1 class="page-title">Configurações</h1>
-      </div>
-      <div style="max-width:480px;display:flex;flex-direction:column;gap:1rem">
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title">Importação automática de faturas PDF</span>
-          </div>
-          <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
-            Informe seu CPF para que o app abra automaticamente os PDFs protegidos por senha.
-            Fica salvo apenas neste navegador — nunca é enviado para nenhum servidor.
-          </p>
-          <div class="form-row">
-            <label>CPF <span style="color:var(--text-3);font-weight:400">(somente números, sem pontos)</span></label>
-            <input type="password" id="settings-cpf" placeholder="00000000000" maxlength="11"
-              oninput="this.value=this.value.replace(/\D/g,'')">
-          </div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;font-size:12px;color:var(--text-2);margin-bottom:1rem;line-height:1.7">
-            <i class="ti ti-info-circle" style="color:var(--primary)"></i>
-            <b> EQI/BTG:</b> CPF completo (11 dígitos) ·
-            <b>XP:</b> primeiros 5 dígitos do CPF
-          </div>
-          <div id="settings-cpf-status" style="margin-bottom:.875rem;font-size:13px;display:none"></div>
-          <button class="btn btn-primary" onclick="saveSettings()">
-            <i class="ti ti-device-floppy"></i> Salvar CPF
-          </button>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title">Autorização do Google</span>
-          </div>
-          <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
-            Conecte sua conta Google para que o app possa buscar faturas no Gmail e tocar as aulas
-            guardadas no seu Drive (aba Cursos). Caso o Gmail ou o Drive retornem erro, clique aqui para renovar a autorização.
-          </p>
-          <div id="gmail-auth-status" style="margin-bottom:.875rem;font-size:13px"></div>
-          <button class="btn btn-primary" onclick="window.location.href='/api/gmail-callback?iniciar=1'">
-            <i class="ti ti-brand-google"></i> Autorizar Google
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- PAGE: EMPLOYEES -->
-    <div id="page-employees" class="page">
-      <div class="page-header">
-        <h1 class="page-title">Funcionárias</h1>
-        <div class="header-right">
-          <button class="btn btn-ghost" id="btn-buscar-folha" onclick="buscarEmailFolha()" title="Procura no Gmail o e-mail do fechamento (holerites + DARF) enviado pela contabilidade">
-            <i class="ti ti-mail"></i> Buscar e-mail agora
-          </button>
-        </div>
-      </div>
-
-      <!-- Navegação mês/ano -->
-      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:1rem">
-        <div class="period-tabs" style="gap:2px">
-          <button class="ptab" onclick="setEmpMonth(1,this)">Jan</button>
-          <button class="ptab" onclick="setEmpMonth(2,this)">Fev</button>
-          <button class="ptab" onclick="setEmpMonth(3,this)">Mar</button>
-          <button class="ptab" onclick="setEmpMonth(4,this)">Abr</button>
-          <button class="ptab" onclick="setEmpMonth(5,this)">Mai</button>
-          <button class="ptab" onclick="setEmpMonth(6,this)">Jun</button>
-          <button class="ptab" onclick="setEmpMonth(7,this)">Jul</button>
-          <button class="ptab" onclick="setEmpMonth(8,this)">Ago</button>
-          <button class="ptab" onclick="setEmpMonth(9,this)">Set</button>
-          <button class="ptab" onclick="setEmpMonth(10,this)">Out</button>
-          <button class="ptab" onclick="setEmpMonth(11,this)">Nov</button>
-          <button class="ptab" onclick="setEmpMonth(12,this)">Dez</button>
-        </div>
-        <select class="filter-select" id="emp-year-sel" onchange="setEmpYear(this.value)" style="font-weight:700;color:var(--primary)"></select>
-      </div>
-
-      <!-- Cards das funcionárias -->
-      <div id="emp-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1.25rem">
-        <div class="loading-msg">Carregando...</div>
-      </div>
+      <!-- Meses em aberto (cards) e meses pagos (lista) -->
+      <div id="emp-open"><div class="loading-msg">Carregando...</div></div>
+      <div id="emp-paid"></div>
     </div>
 
     <!-- PAGE: IR -->
@@ -3149,6 +3048,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -5661,64 +5561,27 @@ async function deleteAllDuplicates() {
 const EMPLOYEES = ['Andresa', 'Maria Lucia'];
 const EMP_MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-function initEmpNav() {
-  // Highlight current month
-  const tabs = document.querySelectorAll('#page-employees .period-tabs .ptab');
-  tabs.forEach((t, i) => { t.classList.toggle('active', i + 1 === empMonth); });
+function initEmpNav() { loadEmpPage(); }
 
-  // Build year dropdown
-  const sel = document.getElementById('emp-year-sel');
-  const now = new Date().getFullYear();
-  sel.innerHTML = '';
-  for (let y = now; y >= now - 2; y--) {
-    const opt = document.createElement('option');
-    opt.value = y; opt.textContent = y;
-    if (y === empYear) opt.selected = true;
-    sel.appendChild(opt);
-  }
-  loadEmpPage();
-}
+function nomeMesLongo(m) { const n = MESES_LONGOS[m - 1]; return n.charAt(0).toUpperCase() + n.slice(1); }
 
-function setEmpMonth(month, el) {
-  empMonth = month;
-  document.querySelectorAll('#page-employees .period-tabs .ptab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  loadEmpPage();
-}
+function empCardHtml(name, p, m, y) {
+  const hasRecibo = p?.net_salary != null;
+  const hasDarf   = p?.darf_amount != null || !!p?.darf_qrcode;
+  const isPaid    = p?.paid === true;
+  const paidDate  = p?.paid_at ? new Date(p.paid_at).toLocaleDateString('pt-BR') : '';
+  const qrHtml    = p?.darf_qrcode
+    ? `<img src="${p.darf_qrcode}" alt="QR Code DARF" style="width:100%;max-width:300px;display:block;margin:0 auto;border-radius:8px;background:#fff">`
+    : `<div style="color:var(--text-3);font-size:12px;text-align:center;padding:.5rem">QR code não carregado</div>`;
+  const args = `'${name}'`;
 
-function setEmpYear(year) {
-  empYear = parseInt(year);
-  loadEmpPage();
-}
-
-async function loadEmpPage() {
-  const container = document.getElementById('emp-cards');
-  container.innerHTML = '<div class="loading-msg">Carregando...</div>';
-
-  const { data: payments } = await db.from('employee_payments')
-    .select('*')
-    .eq('month', empMonth)
-    .eq('year', empYear);
-
-  const monthLabel = `${EMP_MONTHS[empMonth - 1]}/${empYear}`;
-
-  container.innerHTML = EMPLOYEES.map(name => {
-    const p = (payments || []).find(x => x.employee_name === name);
-    const hasRecibo = p?.net_salary != null;
-    const hasDarf   = p?.darf_amount != null;
-    const isPaid    = p?.paid === true;
-    const paidDate  = p?.paid_at ? new Date(p.paid_at).toLocaleDateString('pt-BR') : '';
-    const qrHtml    = p?.darf_qrcode
-      ? `<img src="${p.darf_qrcode}" alt="QR Code DARF" style="max-width:180px;display:block;margin:0 auto;border-radius:8px">`
-      : `<div style="color:var(--text-3);font-size:12px;text-align:center;padding:.5rem">QR code não carregado</div>`;
-
-    return `
-    <div class="emp-card" id="emp-card-${name.replace(' ','-')}">
+  return `
+    <div class="emp-card">
       <div class="emp-card-header">
         <div class="emp-avatar">👩</div>
         <div>
           <div class="emp-name">${name}</div>
-          <div class="emp-month-label">${monthLabel}</div>
+          <div class="emp-month-label">${nomeMesLongo(m)}/${y}</div>
         </div>
       </div>
 
@@ -5732,34 +5595,96 @@ async function loadEmpPage() {
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <label class="emp-upload-btn ${hasRecibo ? 'loaded' : ''}" title="Carregar PDF do recibo de salário">
           <i class="ti ti-file-text"></i> ${hasRecibo ? '✓ Recibo carregado' : 'Carregar recibo'}
-          <input type="file" accept="application/pdf" style="display:none" onchange="handleReciboUpload('${name}',this.files[0])">
+          <input type="file" accept="application/pdf" style="display:none" onchange="handleReciboUpload(${args},this.files[0],${m},${y})">
         </label>
         <label class="emp-upload-btn ${hasDarf ? 'loaded' : ''}" title="Carregar PDF da DARF para extrair QR code">
           <i class="ti ti-qrcode"></i> ${hasDarf ? '✓ DARF carregada' : 'Carregar DARF'}
-          <input type="file" accept="application/pdf" style="display:none" onchange="handleDarfUpload('${name}',this.files[0])">
+          <input type="file" accept="application/pdf" style="display:none" onchange="handleDarfUpload(${args},this.files[0],${m},${y})">
         </label>
       </div>
 
       <div class="emp-qr-wrap">
-        <div class="emp-field-label" style="width:100%;text-align:center">QR Code da DARF ${hasDarf ? '— ' + R(p.darf_amount) : ''}</div>
+        <div class="emp-field-label" style="width:100%;text-align:center">QR Code da DARF ${p?.darf_amount != null ? '— ' + R(p.darf_amount) : ''}</div>
         ${qrHtml}
       </div>
 
-      <div class="emp-paid-row ${isPaid ? 'paid' : ''}" onclick="toggleEmpPaid('${name}', ${!isPaid})">
-        <input type="checkbox" ${isPaid ? 'checked' : ''} onclick="event.stopPropagation();toggleEmpPaid('${name}',this.checked)">
+      <div class="emp-paid-row ${isPaid ? 'paid' : ''}" onclick="toggleEmpPaid(${args}, ${!isPaid}, ${m}, ${y})">
+        <input type="checkbox" ${isPaid ? 'checked' : ''} onclick="event.stopPropagation();toggleEmpPaid(${args},this.checked,${m},${y})">
         <span class="emp-paid-label">${isPaid ? '✓ Pago' : 'Marcar como pago'}</span>
         ${paidDate ? `<span class="emp-paid-date">${paidDate}</span>` : ''}
       </div>
     </div>`;
-  }).join('');
 }
 
-async function handleReciboUpload(employeeName, file) {
+// Meses em aberto → cards. Meses com as duas funcionárias pagas → lista embaixo.
+async function loadEmpPage() {
+  const openEl = document.getElementById('emp-open');
+  const paidEl = document.getElementById('emp-paid');
+  openEl.innerHTML = '<div class="loading-msg">Carregando...</div>';
+  paidEl.innerHTML = '';
+
+  const { data, error } = await db.from('employee_payments').select('*');
+  if (error) { openEl.innerHTML = '<div class="empty"><p>Não consegui carregar as funcionárias.</p></div>'; return; }
+
+  // Agrupa por mês/ano
+  const grupos = new Map();
+  (data || []).forEach(p => {
+    const k = `${p.year}-${p.month}`;
+    if (!grupos.has(k)) grupos.set(k, { m: p.month, y: p.year, regs: [] });
+    grupos.get(k).regs.push(p);
+  });
+  // O mês atual sempre aparece (para poder carregar/importar), mesmo sem registros
+  const hoje = new Date();
+  const kHoje = `${hoje.getFullYear()}-${hoje.getMonth() + 1}`;
+  if (!grupos.has(kHoje)) grupos.set(kHoje, { m: hoje.getMonth() + 1, y: hoje.getFullYear(), regs: [] });
+
+  const todos = [...grupos.values()].map(g => ({
+    ...g,
+    pago: EMPLOYEES.every(n => g.regs.find(x => x.employee_name === n)?.paid === true)
+  }));
+  const ord = g => g.y * 12 + g.m;
+  const abertos = todos.filter(g => !g.pago).sort((a, b) => ord(a) - ord(b));   // mais antigo primeiro
+  const pagos   = todos.filter(g => g.pago).sort((a, b) => ord(b) - ord(a));    // mais recente primeiro
+
+  openEl.innerHTML = abertos.length ? abertos.map(g => `
+    <div class="emp-month-group">
+      <div class="emp-month-head">
+        <h2>${nomeMesLongo(g.m)}/${g.y}</h2>
+        ${g.regs.length ? '<span class="emp-badge">em aberto</span>' : '<span class="emp-badge wait">aguardando fechamento</span>'}
+      </div>
+      <div class="emp-grid">
+        ${EMPLOYEES.map(n => empCardHtml(n, g.regs.find(x => x.employee_name === n), g.m, g.y)).join('')}
+      </div>
+    </div>`).join('')
+    : '<div class="due-ok"><i class="ti ti-circle-check"></i> Nenhum mês em aberto.</div>';
+
+  paidEl.innerHTML = pagos.length ? `
+    <div class="emp-paid-title">Meses pagos</div>
+    <div class="emp-hist">${pagos.map(g => {
+      const total = g.regs.reduce((t, x) => t + (x.net_salary || 0), 0);
+      const darf  = g.regs.find(x => x.darf_amount != null)?.darf_amount;
+      return `
+      <details class="emp-hist-item">
+        <summary><span class="mes">${nomeMesLongo(g.m)}/${g.y}</span><span class="total">${R(total)}</span><i class="ti ti-chevron-down"></i></summary>
+        <div class="emp-hist-body">
+          ${EMPLOYEES.map(n => {
+            const x = g.regs.find(r => r.employee_name === n);
+            const dt = x?.paid_at ? new Date(x.paid_at).toLocaleDateString('pt-BR') : '';
+            return `<div class="emp-hist-line"><b>${n}</b><span class="grow">Líquido ${x?.net_salary != null ? R(x.net_salary) : '—'}${dt ? ' · pago em ' + dt : ''}</span>
+              <button class="btn btn-ghost" onclick="toggleEmpPaid('${n}', false, ${g.m}, ${g.y})">Reabrir</button></div>`;
+          }).join('')}
+          ${darf != null ? `<div class="emp-hist-line"><b>DARF</b><span class="grow">${R(darf)} (as duas)</span></div>` : ''}
+        </div>
+      </details>`;
+    }).join('')}</div>` : '';
+}
+
+async function handleReciboUpload(employeeName, file, m = empMonth, y = empYear) {
   if (!file) return;
   toast('Lendo recibo...');
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
     let fullText = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -5768,13 +5693,19 @@ async function handleReciboUpload(employeeName, file) {
     }
 
     // Busca o total líquido no texto
-    const netSalary = extrairLiquido(fullText);
+    let netSalary = extrairLiquido(fullText);
+    if (netSalary == null) {
+      // PDF só com imagem (sem texto): lê com a IA
+      toast('PDF sem texto — lendo com IA...');
+      const r = await lerFolhaComIA(bytesParaBase64(bytes));
+      netSalary = r.tipo === 'holerite' ? r.total_liquido : null;
+    }
     if (netSalary == null) {
       toast('Não encontrei "TOTAL LIQUIDO" no PDF. Verifique se é o arquivo correto.', true);
       return;
     }
 
-    await upsertEmpPayment(employeeName, { net_salary: netSalary });
+    await upsertEmpPayment(employeeName, { net_salary: netSalary }, m, y);
     toast(`Recibo de ${employeeName} carregado: ${R(netSalary)}`);
     loadEmpPage();
   } catch (err) {
@@ -5783,12 +5714,12 @@ async function handleReciboUpload(employeeName, file) {
   }
 }
 
-async function handleDarfUpload(employeeName, file) {
+async function handleDarfUpload(employeeName, file, m = empMonth, y = empYear) {
   if (!file) return;
   toast('Lendo DARF...');
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
 
     // Extrai valor total da DARF do texto
     let fullText = '';
@@ -5797,15 +5728,19 @@ async function handleDarfUpload(employeeName, file) {
       const content = await page.getTextContent();
       fullText += content.items.map(item => item.str).join(' ') + '\n';
     }
-    const darfAmount = extrairValorDarf(fullText);
+    let darfAmount = extrairValorDarf(fullText);
+    if (darfAmount == null) {
+      // Não achou o valor no texto (ou o PDF é imagem): tenta com a IA
+      try { darfAmount = (await lerFolhaComIA(bytesParaBase64(bytes))).valor_guia; } catch (_) { /* segue sem o valor */ }
+    }
 
-    // Renderiza a última página e recorta o QR code
+    // Localiza o QR code e recorta só ele
     const qrDataUrl = await gerarQrDarf(pdf);
 
     await upsertEmpPayment(employeeName, {
       darf_amount: darfAmount,
       darf_qrcode: qrDataUrl
-    });
+    }, m, y);
     toast(`DARF de ${employeeName} carregada${darfAmount ? ': ' + R(darfAmount) : ''}`);
     loadEmpPage();
   } catch (err) {
@@ -5814,11 +5749,11 @@ async function handleDarfUpload(employeeName, file) {
   }
 }
 
-async function toggleEmpPaid(employeeName, paid) {
+async function toggleEmpPaid(employeeName, paid, m = empMonth, y = empYear) {
   await upsertEmpPayment(employeeName, {
     paid,
     paid_at: paid ? new Date().toISOString() : null
-  });
+  }, m, y);
   toast(paid ? `${employeeName} marcada como paga ✓` : `${employeeName} desmarcada`);
   loadEmpPage();
 }
@@ -5858,14 +5793,48 @@ function extrairValorDarf(texto) {
   return isNaN(v) ? null : v;
 }
 
-// Renderiza a última página da DARF e recorta o canto inferior direito (QR code)
-async function gerarQrDarf(pdf) {
-  const lastPage = await pdf.getPage(pdf.numPages);
-  const viewport = lastPage.getViewport({ scale: 3.0 }); // alta resolução para o QR ser legível
+// Procura o QR code na página renderizada e devolve uma imagem só com ele (+ margem branca de segurança)
+function recortarQr(canvas) {
+  if (typeof jsQR !== 'function') return null;
+  const img  = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(img.data, img.width, img.height);
+  if (!code) return null;
+  const L  = code.location;
+  const xs = [L.topLeftCorner.x, L.topRightCorner.x, L.bottomRightCorner.x, L.bottomLeftCorner.x];
+  const ys = [L.topLeftCorner.y, L.topRightCorner.y, L.bottomRightCorner.y, L.bottomLeftCorner.y];
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const lado = Math.max(maxX - minX, maxY - minY);
+  const meio = lado / 2 + lado * 0.15;               // margem ≈ 4 módulos, exigida por leitores de QR
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const alvo = 640;
+  const out = document.createElement('canvas');
+  out.width = out.height = alvo;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#fff';
+  octx.fillRect(0, 0, alvo, alvo);
+  octx.drawImage(canvas, cx - meio, cy - meio, meio * 2, meio * 2, 0, 0, alvo, alvo);
+  return out.toDataURL('image/png');
+}
+
+async function renderizarPagina(pdf, n, scale) {
+  const page = await pdf.getPage(n);
+  const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   canvas.width  = viewport.width;
   canvas.height = viewport.height;
-  await lastPage.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  return canvas;
+}
+
+// Do fim para o começo, acha a primeira página com QR code e recorta só ele.
+// Plano B (QR não detectado): o corte antigo do canto inferior direito da última página.
+async function gerarQrDarf(pdf) {
+  for (let n = pdf.numPages; n >= 1; n--) {
+    const canvas = await renderizarPagina(pdf, n, 3.0);
+    const recorte = recortarQr(canvas);
+    if (recorte) return recorte;
+  }
+  const canvas = await renderizarPagina(pdf, pdf.numPages, 3.0);
   const qrY = Math.floor(canvas.height * 0.62);
   const qrX = Math.floor(canvas.width  * 0.55);
   const qrCanvas = document.createElement('canvas');
@@ -5873,6 +5842,34 @@ async function gerarQrDarf(pdf) {
   qrCanvas.height = canvas.height - qrY;
   qrCanvas.getContext('2d').drawImage(canvas, qrX, qrY, qrCanvas.width, qrCanvas.height, 0, 0, qrCanvas.width, qrCanvas.height);
   return qrCanvas.toDataURL('image/png');
+}
+
+// PDFs "impressos como PDF" são só imagem (sem texto): a IA lê o holerite/guia
+function bytesParaBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+async function lerFolhaComIA(base64) {
+  const r = await fetch('/api/extract-receipt', {
+    method: 'POST', headers: await authHeaders(),
+    body: JSON.stringify({ tipo: 'folha', fileData: base64, mediaType: 'application/pdf' })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('falha ao ler com IA (HTTP ' + r.status + ')'));
+  return j;
+}
+
+// Qual funcionária é (pelo nome que aparece primeiro no texto)
+function funcionariaPeloNome(texto) {
+  const norm = semAcento(texto || '');
+  let nome = null, pos = Infinity;
+  for (const n of EMPLOYEES) {
+    const i = norm.indexOf(semAcento(n));
+    if (i >= 0 && i < pos) { nome = n; pos = i; }
+  }
+  return nome;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -5921,7 +5918,8 @@ async function textoPdfSimples(pdf) {
   return t;
 }
 
-// Baixa os anexos de UM e-mail, descobre pelo conteúdo o que é cada um e preenche a aba
+// Baixa os anexos de UM e-mail, descobre pelo conteúdo o que é cada um e preenche a aba.
+// Primeiro tenta ler o texto do PDF (grátis); se for só imagem, a IA lê.
 async function processarFolha(msgId, atts, emailDate) {
   const docs = [];
   for (const a of atts) {
@@ -5936,62 +5934,78 @@ async function processarFolha(msgId, atts, emailDate) {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const pdf  = await abrirPdfFolha(bytes);
     const text = await textoPdfSimples(pdf);
-    docs.push({ att: a, pdf, text });
+    docs.push({ att: a, pdf, text, bytes });
   }
 
   const holerites = [];
   let darf = null;
   const avisos = [];
+
   for (const d of docs) {
-    const liquido = extrairLiquido(d.text);
+    const nomeArq = d.att.filename || 'sem nome';
     const norm = semAcento(d.text);
-    if (liquido != null) {
-      // Funcionária = nome que aparece primeiro no documento
-      let nome = null, pos = Infinity;
-      for (const n of EMPLOYEES) {
-        const i = norm.indexOf(semAcento(n));
-        if (i >= 0 && i < pos) { nome = n; pos = i; }
-      }
-      if (nome) holerites.push({ nome, liquido, text: d.text });
-      else avisos.push(`holerite sem nome reconhecido (${d.att.filename || 'sem nome'})`);
-    } else if (!darf && (
-        /valor\s+total\s+do\s+documento/.test(norm) ||
-        /\bdarf\b|\bdae\b|documento de arrecadacao/.test(norm) ||
-        /darf|dae|guia/.test(semAcento(d.att.filename || '')))) {
-      darf = d;
+    let tipo = null, nome = null, liquido = null, valor = null, comp = detectarCompetencia(d.text);
+
+    const liqTexto = extrairLiquido(d.text);
+    const ehGuiaPorTexto = /valor\s+total\s+do\s+documento/.test(norm)
+      || /\bdarf\b|\bdae\b|documento de arrecadacao/.test(norm)
+      || /darf|dae|guia/.test(semAcento(d.att.filename || ''));
+
+    if (liqTexto != null) {
+      tipo = 'holerite'; liquido = liqTexto; nome = funcionariaPeloNome(d.text);
+    } else if (ehGuiaPorTexto) {
+      tipo = 'guia'; valor = extrairValorDarf(d.text);
     } else {
-      avisos.push(`anexo não reconhecido (${d.att.filename || 'sem nome'})`);
+      try {
+        const r = await lerFolhaComIA(bytesParaBase64(d.bytes));
+        tipo = r.tipo; nome = funcionariaPeloNome(r.empregado); liquido = r.total_liquido; valor = r.valor_guia;
+        if (!comp && r.competencia_mes && r.competencia_ano) comp = { m: r.competencia_mes, y: r.competencia_ano };
+      } catch (e) {
+        avisos.push(`não consegui ler ${nomeArq} (${e.message})`);
+        continue;
+      }
+    }
+
+    if (tipo === 'holerite') {
+      if (nome && liquido != null) holerites.push({ nome, liquido, comp });
+      else avisos.push(`holerite sem nome ou valor reconhecido (${nomeArq})`);
+    } else if (tipo === 'guia') {
+      if (!darf) darf = { doc: d, valor, comp };
+    } else {
+      avisos.push(`anexo não reconhecido (${nomeArq})`);
     }
   }
 
   if (!holerites.length && !darf) throw new Error('Não reconheci nenhum holerite nem DARF nos anexos');
 
-  // Mês de referência: o que estiver escrito no documento; senão, o mês do e-mail
-  let comp = null;
-  for (const t of [darf?.text, ...holerites.map(h => h.text)]) {
-    if (t && (comp = detectarCompetencia(t))) break;
-  }
-  let usouMesDoEmail = false;
-  if (!comp) {
-    const [ey, em] = emailDate.split('-').map(Number);
-    comp = { m: em, y: ey };
-    usouMesDoEmail = true;
+  // Guia sem valor no texto: pede à IA
+  if (darf && darf.valor == null) {
+    try {
+      const r = await lerFolhaComIA(bytesParaBase64(darf.doc.bytes));
+      darf.valor = r.valor_guia;
+      if (!darf.comp && r.competencia_mes && r.competencia_ano) darf.comp = { m: r.competencia_mes, y: r.competencia_ano };
+    } catch (_) { /* segue sem o valor */ }
   }
 
-  for (const h of holerites) await upsertEmpPayment(h.nome, { net_salary: h.liquido }, comp.m, comp.y);
+  // Mês de referência: o que estiver escrito no documento; senão, o mês do e-mail
+  const comp = darf?.comp || holerites.find(h => h.comp)?.comp || null;
+  let mes, ano, usouMesDoEmail = false;
+  if (comp) { mes = comp.m; ano = comp.y; }
+  else { [ano, mes] = emailDate.split('-').map(Number); usouMesDoEmail = true; }
+
+  for (const h of holerites) await upsertEmpPayment(h.nome, { net_salary: h.liquido }, mes, ano);
   if (darf) {
-    const amount = extrairValorDarf(darf.text);
-    const qr = await gerarQrDarf(darf.pdf);
-    if (amount == null) avisos.push('não consegui ler o valor da DARF');
+    const qr = await gerarQrDarf(darf.doc.pdf);
+    if (darf.valor == null) avisos.push('não consegui ler o valor da DARF');
     // A guia é única para as duas: mesmo QR code e valor total nos dois cartões
-    for (const n of EMPLOYEES) await upsertEmpPayment(n, { darf_amount: amount, darf_qrcode: qr }, comp.m, comp.y);
+    for (const n of EMPLOYEES) await upsertEmpPayment(n, { darf_amount: darf.valor, darf_qrcode: qr }, mes, ano);
   }
   const faltam = EMPLOYEES.filter(n => !holerites.some(h => h.nome === n));
   if (faltam.length) avisos.push('faltou o holerite de ' + faltam.join(' e '));
   if (!darf) avisos.push('faltou a DARF');
   if (usouMesDoEmail) avisos.push('não achei o mês no documento, usei o mês do e-mail');
 
-  return { mes: comp.m, ano: comp.y, avisos };
+  return { mes, ano, avisos };
 }
 
 // Importa um e-mail e avisa o resultado (usado pela fila do cron e pelo botão)
@@ -6002,7 +6016,7 @@ async function importarFolhaEmail(msgId, atts, emailDate) {
     empMonth = r.mes; empYear = r.ano;
     toast(`Funcionárias de ${EMP_MONTHS[r.mes - 1]}/${r.ano} importadas do e-mail ✓` +
           (r.avisos.length ? ` — atenção: ${r.avisos.join('; ')}` : ''), r.avisos.length ? 'error' : 'success');
-    if (currentPage === 'employees') initEmpNav();
+    if (currentPage === 'employees') loadEmpPage();
     return r;
   } catch (err) {
     console.warn('[Folha]', err);
@@ -9422,6 +9436,7 @@ const CI_NOMES = {
   voz: 'Voz (Gemini)',
   cursos: 'Análise de aulas do Cursos (Gemini)',
   recibo: 'Recibos médicos (Claude)',
+  folha: 'Holerites e guias em imagem (Claude)',
   fatura: 'Faturas em PDF (Claude)',
   nutricao: 'Nutrição de receitas (Claude)'
 };
