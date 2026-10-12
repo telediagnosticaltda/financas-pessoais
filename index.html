@@ -1532,6 +1532,10 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .lg-consumo { font-size: 12px; font-weight: 700; padding: 6px 11px; border-radius: 99px; cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
 .lg-consumo.ci-chip-atencao { background: #FFF6E0; color: #8A5A00; border-color: #F2D58A; }
 .lg-consumo.ci-chip-estourou { background: #FDECEC; color: #B3261E; border-color: #F3B8B4; }
+
+.ci-cards-home { grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .75rem; }
+.ci-cards-home .ci-val { font-size: 17px; }
+@media (max-width: 520px) { .ci-cards-home { grid-template-columns: 1fr 1fr 1fr; } .ci-cards-home .ci-val { font-size: 14px; } }
 </style>
 </head>
 <body>
@@ -1639,6 +1643,14 @@ tr.duplicate-row:hover { background: #FFF6D6; }
               </div>
               <div id="home-due"><div class="loading-msg">Carregando...</div></div>
             </div>
+          </div>
+
+          <div class="panel" id="ci-home-painel">
+            <div class="panel-header">
+              <span class="panel-title">Consumo de IA</span>
+              <span class="panel-link" onclick="navigate('dashboard')">Detalhes em Finanças →</span>
+            </div>
+            <div id="ci-home-corpo"><div class="loading-msg">Carregando...</div></div>
           </div>
 
           <div class="panel">
@@ -3319,6 +3331,7 @@ function loadHome() {
   loadHomeResumo();
   loadHomePrazos();
   loadNoticias();
+  if (typeof carregarConsumo === 'function') carregarConsumo();
 }
 
 // ── Cotações com gráfico (via /api/inicio; reserva: AwesomeAPI só para o preço) ──
@@ -9327,9 +9340,47 @@ function ciHtmlCorpo(e) {
   return h;
 }
 
+// Versão compacta (tela Início): alerta, totais do mês, barra do limite e saldo do Google. O detalhe por função fica em Finanças.
+function ciHtmlResumo(e) {
+  if (e.semTabela) return ciHtmlCorpo(e);
+  const { agg, cfg } = e;
+  const a = agg.atual, cot = cfg.cotacao;
+  const nivel = ciNivel(a.total, cfg.limite);
+  const proj = ciProjecao(a.total, agg.diaDoMes, agg.diasNoMes);
+  let h = '';
+  if (nivel === 'estourou') h += `<div class="ci-alerta ci-estourou"><i class="ti ti-alert-triangle"></i> Limite mensal de IA ultrapassado: ${ciUsd(a.total)} de ${ciUsd(cfg.limite)}.</div>`;
+  else if (nivel === 'atencao') h += `<div class="ci-alerta ci-atencao"><i class="ti ti-alert-circle"></i> Você já usou ${Math.round(a.total / cfg.limite * 100)}% do limite mensal de IA.</div>`;
+  else if (nivel === 'ok' && proj && proj > cfg.limite) h += `<div class="ci-alerta ci-atencao"><i class="ti ti-trending-up"></i> No ritmo atual o mês fecha em ${ciUsd(proj)}, acima do limite de ${ciUsd(cfg.limite)}.</div>`;
+
+  h += `<div class="ci-cards ci-cards-home">
+    <div class="ci-card"><div class="ci-rot">Este mês</div><div class="ci-val">${ciUsd(a.total)}</div><div class="ci-sub">${ciBrl(a.total, cot)}</div></div>
+    <div class="ci-card"><div class="ci-rot">Claude</div><div class="ci-val">${ciUsd(a.claude)}</div></div>
+    <div class="ci-card"><div class="ci-rot">Gemini</div><div class="ci-val">${ciUsd(a.gemini)}</div></div>
+  </div>`;
+
+  if (cfg.limite > 0) {
+    const pct = Math.min(100, a.total / cfg.limite * 100);
+    h += `<div class="ci-limite"><div class="ci-limite-topo"><span>Limite: ${ciUsd(cfg.limite)}</span><span>${Math.round(a.total / cfg.limite * 100)}% usado${proj ? ' · projeção: ' + ciUsd(proj) : ''}</span></div>
+      <div class="ci-barra"><div class="ci-barra-cheia ci-${nivel}" style="width:${pct.toFixed(1)}%"></div></div></div>`;
+  } else {
+    h += '<div class="ci-nota">Sem limite mensal definido. <span class="ci-link" onclick="ciAbrirConfig()" style="cursor:pointer">Definir limite →</span></div>';
+  }
+
+  if (cfg.saldo != null && cfg.saldoEm && e.gastoDesde != null) {
+    const est = cfg.saldo - e.gastoDesde;
+    h += `<div class="ci-google"><div class="ci-rot">Saldo do Gemini (Google) · estimado</div><div class="ci-val ${est < 0 ? 'ci-neg' : ''}">${ciUsd(est)} <small>${ciBrl(est, cot)}</small></div>
+      <div class="ci-sub">${ciUsd(cfg.saldo)} informado em ${ciDataHora(cfg.saldoEm)}, menos ${ciUsd(e.gastoDesde)} gastos desde então.</div></div>`;
+  } else {
+    h += '<div class="ci-nota">Saldo do Google: o app não consegue ler; informe o valor do AI Studio em Configurar para ver uma estimativa.</div>';
+  }
+  return h;
+}
+
 function ciDesenhar(e) {
   const corpo = document.getElementById('ci-corpo');
   if (corpo) corpo.innerHTML = ciHtmlCorpo(e);
+  const resumo = document.getElementById('ci-home-corpo');
+  if (resumo) resumo.innerHTML = ciHtmlResumo(e);
   const chip = document.getElementById('lg-consumo');
   if (!chip) return;
   if (e.semTabela) { chip.style.display = 'none'; return; }
@@ -9382,8 +9433,8 @@ async function carregarConsumo() {
     ciAvisar(e);
   } catch (err) {
     console.error('[consumo]', err);
-    const corpo = document.getElementById('ci-corpo');
-    if (corpo) corpo.innerHTML = '<div class="ci-vazio"><p>Não consegui carregar o consumo agora.</p></div>';
+    const msg = '<div class="ci-vazio"><p>Não consegui carregar o consumo agora.</p></div>';
+    for (const id of ['ci-corpo', 'ci-home-corpo']) { const el = document.getElementById(id); if (el) el.innerHTML = msg; }
   } finally {
     ciCarregando = false;
   }
@@ -10211,12 +10262,18 @@ const LG_NAO_ANTES = new Set(['o', 'a', 'um', 'uma', 'esse', 'este', 'desse', 'd
   'algum', 'alguma', 'cada', 'unico', 'mesmo', 'qualquer', 'no', 'na', 'do', 'da', 'de', 'em', 'por', 'mais', 'menos', 'dois', 'tres']);
 const LG_NAO_DEPOIS = new Set(['de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas', 'com', 'sem', 'para', 'por', 'a', 'ao']);
 
+// "barra" vira "/" ("L4 barra L5" → "L4/L5", "direito barra esquerdo" → "direito/esquerdo"), menos quando é
+// o substantivo: depois de artigo/preposição ("uma barra", "com barra") ou antes de "óssea", "metálica", "de"...
+const LG_BARRA_NAO_ANTES = new Set(['um', 'uma', 'a', 'o', 'de', 'da', 'do', 'na', 'no', 'em', 'com', 'sem', 'pela', 'pelo',
+  'esta', 'essa', 'outra', 'mesma', 'pequena', 'fina', 'longa']);
+const LG_BARRA_NAO_DEPOIS = new Set(['ossea', 'osseas', 'fibrosa', 'fibrosas', 'metalica', 'metalicas', 'de', 'do', 'da', 'dos', 'das']);
+
 function lgPontuar(texto) {
   // sinais colados na palavra ("ponto.", "vírgula,") não atrapalham o reconhecimento da palavra de pontuação
   const sem = (x) => (x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[.,;:!?"“”()]+|[.,;:!?"“”()]+$/g, '');
   const w = lgCorrigirVoz(texto || '').trim().split(/\s+/).filter(Boolean);
   let s = '';
-  const palavra = (p) => { s += (s && !/[\s(]$/.test(s) ? ' ' : '') + p; };
+  const palavra = (p) => { s += (s && !/[\s(\/]$/.test(s) ? ' ' : '') + p; };
   const sinal   = (p) => { s = s.replace(/ +$/, '') + p; };
   const quebra  = () => { s = s.replace(/ +$/, '') + '\n'; };
 
@@ -10231,6 +10288,8 @@ function lgPontuar(texto) {
     if (a === 'ponto' && !LG_NAO_ANTES.has(ant) && !LG_NAO_DEPOIS.has(b)) { sinal('.'); continue; }
     if ((a === 'nova' || a === 'proxima') && b === 'linha')    { quebra(); i += 1; continue; }
     if (a === 'novo' && b === 'paragrafo')                     { quebra(); quebra(); i += 1; continue; }
+    if (a === 'paragrafo')                                     { quebra(); quebra(); continue; }          // "parágrafo" sozinho: pula uma linha (linha em branco)
+    if (a === 'barra' && !LG_BARRA_NAO_ANTES.has(ant) && !LG_BARRA_NAO_DEPOIS.has(b)) { sinal('/'); continue; }
     if (a === 'abre' && b === 'parenteses')                    { s += (s && !/[\s(]$/.test(s) ? ' ' : '') + '('; i += 1; continue; }
     if (a === 'fecha' && b === 'parenteses')                   { sinal(')'); i += 1; continue; }
     palavra(w[i]);
@@ -10243,10 +10302,10 @@ function lgPontuar(texto) {
 function lgAnexar(base, trecho) {
   trecho = (trecho || '').replace(/^[ \t]+|[ \t]+$/g, '');
   if (!trecho) return base;
-  if (/^[.,;:?!)\n]/.test(trecho)) base = base.replace(/[ \t]+$/, '');
-  else if (base && !/[\s(]$/.test(base)) base += ' ';
+  if (/^[.,;:?!)\n\/]/.test(trecho)) base = base.replace(/[ \t]+$/, '');
+  else if (base && !/[\s(\/]$/.test(base)) base += ' ';
   if (!base.trim() || /[.?!]\s*$|\n\s*$/.test(base)) trecho = trecho.replace(/^(\p{L})/u, (l) => l.toUpperCase());
-  return base + trecho + (/[\n(]$/.test(trecho) ? '' : ' ');
+  return base + trecho + (/[\n(\/]$/.test(trecho) ? '' : ' ');
 }
 
 const lgCampoVoz = () => lgEl(lgAlvoVoz === 'discussao' ? 'lg-disc-texto' : 'lg-ditado');
