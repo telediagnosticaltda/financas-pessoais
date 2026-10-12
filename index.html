@@ -797,6 +797,15 @@ td.loading-cell { text-align: center; padding: 2.5rem; color: var(--text-3); fon
 .emp-month-head h2 { font-size: 17px; font-weight: 700; margin: 0; }
 .emp-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--primary-l); color: var(--primary); }
 .emp-badge.wait { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
+.emp-panel { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-lg); padding: .9rem 1.1rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.emp-panel-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; font-size: 13px; color: var(--text-2); }
+.emp-panel-row b { color: var(--text); }
+.emp-panel-row .lbl { font-weight: 600; color: var(--text); min-width: 150px; }
+.emp-panel input[type=text] { width: 110px; padding: .35rem .5rem; border: 1.5px solid var(--border); border-radius: 8px; font: inherit; font-weight: 600; background: var(--surface-2); }
+.emp-panel input[type=text]:focus { outline: none; border-color: var(--primary); }
+.emp-panel .ok { color: var(--green); font-weight: 600; }
+.emp-panel .hint { color: var(--text-3); font-size: 12px; }
+.emp-panel label.chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; color: var(--text); }
 .emp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; }
 .emp-paid-title { font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); margin: .5rem 0 .75rem; }
 .emp-hist { display: flex; flex-direction: column; gap: .5rem; max-width: 760px; }
@@ -5717,32 +5726,233 @@ function empCardHtml(name, p, m, y) {
     </div>`;
 }
 
-// Meses em aberto → cards. Meses com as duas funcionárias pagas → lista embaixo.
+// ── Vales, baixa automática do salário e da DARF (cruzando com as saídas do Nubank) ──
+// Tudo fica em app_tokens (sem mexer no banco):
+//   folha_vales_AAAA_MM  → valor dos vales (soma das duas)
+//   folha_baixa_AAAA_MM  → JSON dos 2 Pix achados (ou "off" se você reabriu à mão)
+//   folha_darf_AAAA_MM   → JSON da saída "Ministério da Fazenda" (ou "off")
+const pad2 = n => String(n).padStart(2, '0');
+const kFolha = (tipo, y, m) => `folha_${tipo}_${y}_${pad2(m)}`;
+const cents = v => Math.round(Number(v) * 100);
+const jsonCfg = v => { try { const j = JSON.parse(v); return j && typeof j === 'object' ? j : null; } catch (_) { return null; } };
+function isoLocal(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function dataBR(iso) { return iso ? new Date(String(iso).slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR') : ''; }
+function fmtInput(v) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function parseValorBR(t) {
+  t = String(t || '').trim().replace(/[R$\s]/g, '');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  const v = parseFloat(t);
+  return isNaN(v) || v < 0 ? null : Math.round(v * 100) / 100;
+}
+
+async function carregarCfgFolha() {
+  const { data } = await db.from('app_tokens').select('key,value').like('key', 'folha_%');
+  const cfg = {};
+  (data || []).forEach(r => { cfg[r.key] = r.value; });
+  return cfg;
+}
+async function gravarCfgFolha(key, value) {
+  await db.from('app_tokens').upsert({ key, value: typeof value === 'string' ? value : JSON.stringify(value) });
+}
+
+// Vales do mês: o que você salvou; se não houver, repete o último mês anterior salvo (reajuste é anual)
+function valesEfetivo(cfg, y, m) {
+  const proprio = parseFloat(cfg[kFolha('vales', y, m)]);
+  if (isFinite(proprio)) return { valor: proprio, herdado: false };
+  const alvo = y * 12 + m;
+  let melhor = null;
+  for (const [key, val] of Object.entries(cfg)) {
+    const mt = key.match(/^folha_vales_(\d{4})_(\d{2})$/);
+    const v = parseFloat(val);
+    if (!mt || !isFinite(v)) continue;
+    const o = +mt[1] * 12 + +mt[2];
+    if (o < alvo && (!melhor || o > melhor.o)) melhor = { o, valor: v };
+  }
+  return melhor ? { valor: melhor.valor, herdado: true } : null;
+}
+
+function agruparFolha(regs) {
+  const grupos = new Map();
+  (regs || []).forEach(p => {
+    const k = `${p.year}-${p.month}`;
+    if (!grupos.has(k)) grupos.set(k, { m: p.month, y: p.year, regs: [] });
+    grupos.get(k).regs.push(p);
+  });
+  return grupos;
+}
+const regDe = (g, nome) => g.regs.find(x => x.employee_name === nome);
+const darfEstaPaga = (cfg, g) => { const v = cfg[kFolha('darf', g.y, g.m)]; return !!v && v !== 'off'; };
+
+let conciliandoFolha = null;
+function conciliarFolha() {
+  if (!conciliandoFolha) conciliandoFolha = _conciliarFolha().finally(() => { conciliandoFolha = null; });
+  return conciliandoFolha;
+}
+
+// Procura no Nubank as saídas que quitam cada mês e dá baixa. Retorna a lista de baixas feitas.
+async function _conciliarFolha() {
+  const baixas = [];
+  const contas = (accounts || []).filter(a => (a.institution || '').toLowerCase().includes('nubank') && a.type !== 'credit').map(a => a.id);
+  if (!contas.length) return baixas;
+  const [{ data: regs }, cfg] = await Promise.all([db.from('employee_payments').select('*'), carregarCfgFolha()]);
+  if (!regs?.length) return baixas;
+
+  // Lançamentos já usados para quitar outros meses não valem de novo
+  const usados = new Set();
+  Object.entries(cfg).forEach(([k, v]) => {
+    if (!/^folha_(baixa|darf)_/.test(k)) return;
+    const j = jsonCfg(v); if (!j) return;
+    (j.pix || []).forEach(p => p.tx && usados.add(p.tx));
+    if (j.tx) usados.add(j.tx);
+  });
+
+  const hoje = isoLocal(new Date());
+  for (const g of agruparFolha(regs).values()) {
+    // Janela: do dia 20 do mês de competência até o fim do mês seguinte (evita pegar o mês anterior, que costuma ter o mesmo valor)
+    const ini = isoLocal(new Date(g.y, g.m - 1, 20));
+    let fim = isoLocal(new Date(g.y, g.m + 1, 0));
+    if (fim > hoje) fim = hoje;
+    if (fim < ini) continue;
+
+    let lista = null;
+    const saidas = async () => {
+      if (!lista) {
+        const { data } = await db.from('transactions').select('id,date,amount,description,type,account_id')
+          .in('account_id', contas).eq('type', 'expense').gte('date', ini).lte('date', fim);
+        lista = data || [];
+      }
+      return lista;
+    };
+
+    // ── Salários + vales: 1 Pix para cada, achados pelo nome; a soma tem de bater exatamente ──
+    const regs2 = EMPLOYEES.map(n => regDe(g, n));
+    const vales = valesEfetivo(cfg, g.y, g.m);
+    if (!cfg[kFolha('baixa', g.y, g.m)] && vales && regs2.every(r => r && r.net_salary != null && !r.paid)) {
+      const esperado = regs2.reduce((t, r) => t + cents(r.net_salary), 0) + cents(vales.valor);
+      const todas = await saidas();
+      const cand = EMPLOYEES.map((n, i) => todas.filter(t =>
+        !usados.has(t.id) && semAcento(t.description).includes(semAcento(n)) && cents(t.amount) >= cents(regs2[i].net_salary)));
+      let par = null;
+      for (const a of cand[0]) for (const b of cand[1]) {
+        if (a.id !== b.id && cents(a.amount) + cents(b.amount) === esperado && (!par || a.date + b.date < par[0].date + par[1].date)) par = [a, b];
+      }
+      if (par) {
+        const pix = par.map((t, i) => ({ nome: EMPLOYEES[i], tx: t.id, date: t.date, valor: Number(t.amount) }));
+        for (let i = 0; i < EMPLOYEES.length; i++) {
+          await upsertEmpPayment(EMPLOYEES[i], { paid: true, paid_at: par[i].date + 'T12:00:00' }, g.m, g.y);
+        }
+        await gravarCfgFolha(kFolha('baixa', g.y, g.m), { pix });
+        cfg[kFolha('baixa', g.y, g.m)] = JSON.stringify({ pix });
+        par.forEach(t => usados.add(t.id));
+        baixas.push({ tipo: 'salario', m: g.m, y: g.y });
+      }
+    }
+
+    // ── DARF: saída "Ministério da Fazenda" com o valor exato ──
+    const darfValor = g.regs.find(x => x.darf_amount != null)?.darf_amount;
+    if (darfValor != null && !cfg[kFolha('darf', g.y, g.m)]) {
+      const todas = await saidas();
+      const t = todas
+        .filter(x => !usados.has(x.id) && cents(x.amount) === cents(darfValor) && /ministerio da fazenda|receita federal/.test(semAcento(x.description)))
+        .sort((a, b) => a.date.localeCompare(b.date))[0];
+      if (t) {
+        const info = { tx: t.id, date: t.date, valor: Number(t.amount), auto: true };
+        await gravarCfgFolha(kFolha('darf', g.y, g.m), info);
+        cfg[kFolha('darf', g.y, g.m)] = JSON.stringify(info);
+        usados.add(t.id);
+        baixas.push({ tipo: 'darf', m: g.m, y: g.y });
+      }
+    }
+  }
+  return baixas;
+}
+
+function avisarBaixas(baixas) {
+  (baixas || []).forEach(b => toast(b.tipo === 'salario'
+    ? `Salários de ${nomeMesLongo(b.m)}/${b.y} baixados automaticamente ✓`
+    : `DARF de ${nomeMesLongo(b.m)}/${b.y} paga — baixa automática ✓`));
+}
+
+async function salvarVales(m, y, texto) {
+  const v = parseValorBR(texto);
+  if (texto.trim() && v == null) { toast('Valor dos vales inválido. Use, por exemplo, 450,00', 'error'); return loadEmpPage(); }
+  await gravarCfgFolha(kFolha('vales', y, m), v == null ? '' : String(v));
+  toast(v == null ? 'Vales: voltou a repetir o mês anterior' : `Vales de ${nomeMesLongo(m)}/${y}: ${R(v)} (valem também para os próximos meses até você mudar)`);
+  loadEmpPage();
+}
+
+async function toggleDarfPaga(m, y, paga) {
+  if (paga) await gravarCfgFolha(kFolha('darf', y, m), { manual: true, date: isoLocal(new Date()) });
+  else await gravarCfgFolha(kFolha('darf', y, m), 'off'); // reaberta à mão: o app não baixa de novo sozinho
+  toast(paga ? 'DARF marcada como paga ✓' : 'DARF reaberta');
+  loadEmpPage();
+}
+
+// Painel do mês: vales, valor esperado, status da baixa e DARF
+function empPainelHtml(g, cfg) {
+  const regs2   = EMPLOYEES.map(n => regDe(g, n));
+  const vales   = valesEfetivo(cfg, g.y, g.m);
+  const carreg  = regs2.every(r => r && r.net_salary != null);
+  const somaNet = regs2.reduce((t, r) => t + (r?.net_salary || 0), 0);
+  const total   = carreg && vales ? (cents(somaNet) + cents(vales.valor)) / 100 : null;
+  const baixa   = jsonCfg(cfg[kFolha('baixa', g.y, g.m)]);
+  const darfV   = g.regs.find(x => x.darf_amount != null)?.darf_amount;
+  const darfCfg = cfg[kFolha('darf', g.y, g.m)];
+  const darfJ   = jsonCfg(darfCfg);
+  const darfPaga = darfEstaPaga(cfg, g);
+
+  let statusSal;
+  if (baixa?.pix) statusSal = `<span class="ok">✓ Baixa automática:</span> ${baixa.pix.map(p => `${p.nome} ${R(p.valor)} em ${dataBR(p.date)}`).join(' · ')}`;
+  else if (total != null) statusSal = `Aguardando os 2 Pix no Nubank — a soma exata deve ser <b>${R(total)}</b> (líquidos ${R(somaNet)} + vales ${R(vales.valor)})`;
+  else statusSal = '<span class="hint">Para a baixa automática: carregue os dois holerites e informe os vales.</span>';
+
+  let statusDarf;
+  if (darfPaga) statusDarf = darfJ?.auto
+    ? `<span class="ok">✓ Saída de ${R(darfJ.valor)} em ${dataBR(darfJ.date)} (Ministério da Fazenda)</span>`
+    : '<span class="ok">✓ marcada como paga</span>';
+  else if (darfV != null) statusDarf = `${R(darfV)} — aguardando saída "Ministério da Fazenda" com esse valor`;
+  else statusDarf = '<span class="hint">DARF ainda não carregada</span>';
+
+  return `
+    <div class="emp-panel">
+      <div class="emp-panel-row">
+        <span class="lbl">Vales (soma das duas)</span>
+        R$ <input type="text" inputmode="decimal" placeholder="0,00" value="${vales ? fmtInput(vales.valor) : ''}"
+                  onchange="salvarVales(${g.m},${g.y},this.value)">
+        ${vales?.herdado ? '<span class="hint">repetido do mês anterior — edite se houve reajuste</span>' : ''}
+      </div>
+      <div class="emp-panel-row"><span class="lbl">Salários</span><span>${statusSal}</span></div>
+      <div class="emp-panel-row">
+        <span class="lbl"><label class="chk"><input type="checkbox" ${darfPaga ? 'checked' : ''} onchange="toggleDarfPaga(${g.m},${g.y},this.checked)"> DARF paga</label></span>
+        <span>${statusDarf}</span>
+      </div>
+    </div>`;
+}
+
+// Meses em aberto → cards. Mês só vai para a lista quando as duas estão pagas E a DARF também.
 async function loadEmpPage() {
   const openEl = document.getElementById('emp-open');
   const paidEl = document.getElementById('emp-paid');
   openEl.innerHTML = '<div class="loading-msg">Carregando...</div>';
   paidEl.innerHTML = '';
 
-  const { data, error } = await db.from('employee_payments').select('*');
+  try { avisarBaixas(await conciliarFolha()); } catch (e) { console.warn('[conciliar folha]', e); }
+
+  const [{ data, error }, cfg] = await Promise.all([db.from('employee_payments').select('*'), carregarCfgFolha()]);
   if (error) { openEl.innerHTML = '<div class="empty"><p>Não consegui carregar as funcionárias.</p></div>'; return; }
 
-  // Agrupa por mês/ano
-  const grupos = new Map();
-  (data || []).forEach(p => {
-    const k = `${p.year}-${p.month}`;
-    if (!grupos.has(k)) grupos.set(k, { m: p.month, y: p.year, regs: [] });
-    grupos.get(k).regs.push(p);
-  });
+  const grupos = agruparFolha(data);
   // O mês atual sempre aparece (para poder carregar/importar), mesmo sem registros
   const hoje = new Date();
   const kHoje = `${hoje.getFullYear()}-${hoje.getMonth() + 1}`;
   if (!grupos.has(kHoje)) grupos.set(kHoje, { m: hoje.getMonth() + 1, y: hoje.getFullYear(), regs: [] });
 
-  const todos = [...grupos.values()].map(g => ({
-    ...g,
-    pago: EMPLOYEES.every(n => g.regs.find(x => x.employee_name === n)?.paid === true)
-  }));
+  const todos = [...grupos.values()].map(g => {
+    const salPago = EMPLOYEES.every(n => regDe(g, n)?.paid === true);
+    return { ...g, salPago, darfPaga: darfEstaPaga(cfg, g), pago: salPago && darfEstaPaga(cfg, g) };
+  });
   const ord = g => g.y * 12 + g.m;
   const abertos = todos.filter(g => !g.pago).sort((a, b) => ord(a) - ord(b));   // mais antigo primeiro
   const pagos   = todos.filter(g => g.pago).sort((a, b) => ord(b) - ord(a));    // mais recente primeiro
@@ -5751,10 +5961,12 @@ async function loadEmpPage() {
     <div class="emp-month-group">
       <div class="emp-month-head">
         <h2>${nomeMesLongo(g.m)}/${g.y}</h2>
-        ${g.regs.length ? '<span class="emp-badge">em aberto</span>' : '<span class="emp-badge wait">aguardando fechamento</span>'}
+        ${g.salPago && !g.darfPaga ? '<span class="emp-badge">falta a DARF</span>'
+          : g.regs.length ? '<span class="emp-badge">em aberto</span>' : '<span class="emp-badge wait">aguardando fechamento</span>'}
       </div>
+      ${empPainelHtml(g, cfg)}
       <div class="emp-grid">
-        ${EMPLOYEES.map(n => empCardHtml(n, g.regs.find(x => x.employee_name === n), g.m, g.y)).join('')}
+        ${EMPLOYEES.map(n => empCardHtml(n, regDe(g, n), g.m, g.y)).join('')}
       </div>
     </div>`).join('')
     : '<div class="due-ok"><i class="ti ti-circle-check"></i> Nenhum mês em aberto.</div>';
@@ -5762,19 +5974,26 @@ async function loadEmpPage() {
   paidEl.innerHTML = pagos.length ? `
     <div class="emp-paid-title">Meses pagos</div>
     <div class="emp-hist">${pagos.map(g => {
-      const total = g.regs.reduce((t, x) => t + (x.net_salary || 0), 0);
-      const darf  = g.regs.find(x => x.darf_amount != null)?.darf_amount;
+      const vales = valesEfetivo(cfg, g.y, g.m);
+      const somaNet = g.regs.reduce((t, x) => t + (x.net_salary || 0), 0);
+      const total = somaNet + (vales ? vales.valor : 0);
+      const baixa = jsonCfg(cfg[kFolha('baixa', g.y, g.m)]);
+      const darfV = g.regs.find(x => x.darf_amount != null)?.darf_amount;
+      const darfJ = jsonCfg(cfg[kFolha('darf', g.y, g.m)]);
       return `
       <details class="emp-hist-item">
         <summary><span class="mes">${nomeMesLongo(g.m)}/${g.y}</span><span class="total">${R(total)}</span><i class="ti ti-chevron-down"></i></summary>
         <div class="emp-hist-body">
           ${EMPLOYEES.map(n => {
-            const x = g.regs.find(r => r.employee_name === n);
-            const dt = x?.paid_at ? new Date(x.paid_at).toLocaleDateString('pt-BR') : '';
-            return `<div class="emp-hist-line"><b>${n}</b><span class="grow">Líquido ${x?.net_salary != null ? R(x.net_salary) : '—'}${dt ? ' · pago em ' + dt : ''}</span>
+            const x = regDe(g, n);
+            const pix = baixa?.pix?.find(p => p.nome === n);
+            const dt = pix ? dataBR(pix.date) : (x?.paid_at ? dataBR(x.paid_at) : '');
+            return `<div class="emp-hist-line"><b>${n}</b><span class="grow">Líquido ${x?.net_salary != null ? R(x.net_salary) : '—'}${pix ? ' · Pix ' + R(pix.valor) : ''}${dt ? ' · pago em ' + dt : ''}${baixa ? ' (automático)' : ''}</span>
               <button class="btn btn-ghost" onclick="toggleEmpPaid('${n}', false, ${g.m}, ${g.y})">Reabrir</button></div>`;
           }).join('')}
-          ${darf != null ? `<div class="emp-hist-line"><b>DARF</b><span class="grow">${R(darf)} (as duas)</span></div>` : ''}
+          ${vales ? `<div class="emp-hist-line"><b>Vales</b><span class="grow">${R(vales.valor)} (as duas)</span></div>` : ''}
+          <div class="emp-hist-line"><b>DARF</b><span class="grow">${darfV != null ? R(darfV) : '—'}${darfJ?.date ? ' · paga em ' + dataBR(darfJ.date) + (darfJ.auto ? ' (automático)' : '') : ' · paga'}</span>
+            <button class="btn btn-ghost" onclick="toggleDarfPaga(${g.m}, ${g.y}, false)">Reabrir</button></div>
         </div>
       </details>`;
     }).join('')}</div>` : '';
@@ -5851,6 +6070,7 @@ async function handleDarfUpload(employeeName, file, m = empMonth, y = empYear) {
 }
 
 async function toggleEmpPaid(employeeName, paid, m = empMonth, y = empYear) {
+  if (!paid) await gravarCfgFolha(kFolha('baixa', y, m), 'off'); // reaberto à mão: o app não baixa de novo sozinho
   await upsertEmpPayment(employeeName, {
     paid,
     paid_at: paid ? new Date().toISOString() : null
@@ -6144,7 +6364,13 @@ async function buscarEmailFolha() {
       const { data } = await db.from('app_tokens').select('key').eq('key', `gmail_proc_${f.msgId}`).limit(1);
       if (!data?.length) novas.push(f);
     }
-    if (!novas.length) { toast('Nenhum e-mail novo — todos já foram importados ✓'); return; }
+    if (!novas.length) {
+      const ultimo = j.folhas[j.folhas.length - 1];   // lista vem do mais antigo para o mais recente
+      if (confirm(`Todos os e-mails já foram importados.\n\nReler o mais recente (de ${dataBR(ultimo.date)})? Isso refaz a leitura dos holerites e da DARF desse e-mail; os "pago" não mudam.`)) {
+        try { await importarFolhaEmail(ultimo.msgId, ultimo.atts, ultimo.date); } catch (_) { /* já avisou */ }
+      }
+      return;
+    }
     for (const f of novas) {
       try { await importarFolhaEmail(f.msgId, f.atts, f.date); } catch (_) { /* já avisou */ }
     }
@@ -8827,7 +9053,7 @@ async function startApp() {
       toast(`${n} novos lançamentos importados ✓`);
       if (currentPage === 'home') loadHomeResumo(); else loadDashboard();
     }
-  }), 3000);
+  }).then(() => conciliarFolha()).then(avisarBaixas).catch(e => console.warn('[conciliar folha]', e)), 3000);
   // Cotações se atualizam a cada 5 minutos enquanto a tela inicial estiver aberta
   setInterval(() => {
     if (currentPage === 'home' && !document.hidden && qPeriodo === '1d') loadCotacoes();
