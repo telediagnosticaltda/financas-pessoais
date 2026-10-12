@@ -25,6 +25,7 @@ const MODELO_BARATO = 'claude-haiku-4-5-20251001';
 const LIM_DITADO    = 4000;
 const LIM_CORPO     = 40000;      // o texto vai com marcação de formatação, que ocupa espaço
 const LIM_CONCLUSAO = 10000;
+const LIM_ADICIONAIS = 6000;      // seção "achados adicionais" (texto simples)
 const LIM_ANTERIOR  = 12000;
 const LIM_EXEMPLOS  = 12;
 const LIM_EXEMPLO   = 700;
@@ -84,6 +85,7 @@ Responda APENAS com um objeto JSON, sem markdown, sem crases e sem texto em volt
 {
   "corpo": "corpo completo do laudo, já atualizado, com as mesmas marcações de formatação",
   "conclusao": "conclusão completa, já atualizada, com as mesmas marcações de formatação",
+  "adicionais": "achados adicionais completos e atualizados, um por linha, em texto simples (sem marcações); string vazia se não houver",
   "avisos": ["pontos que ficaram ambíguos ou que o médico deve conferir; lista vazia se não houver"]
 }`;
 
@@ -99,6 +101,7 @@ Procure somente:
 7. Erro de digitação ou termo claramente trocado (por exemplo, achado hepático descrito no baço).
 
 Regras:
+- Pode existir uma seção ACHADOS ADICIONAIS: são achados fora da área do estudo, ficam abaixo da conclusão e NÃO precisam constar no corpo nem na conclusão (não aplique as regras 2 e 3 a eles). Dentro dela, aponte só lateralidade, números e digitação, e contradição com o corpo se a mesma estrutura aparecer nos dois.
 - Aponte só o que for claro. Na dúvida, não aponte.
 - Não comente estilo, conduta clínica, diagnóstico diferencial nem o que "faltou examinar".
 - Não aponte campos em branco do modelo (como "___" ou "[ ]"): isso é verificado por outro mecanismo.
@@ -212,10 +215,24 @@ const REGRA_ALTERACOES_NO_INICIO = `
    Adrenais de morfologia e dimensões preservadas.
    >>>`;
 
+// Achados fora da área do estudo: seção separada, que o aplicativo coloca abaixo da conclusão
+const regraAdicionais = (n) => `
+${n}. ACHADOS ADICIONAIS: alguns laudos têm achados em estruturas fora da área anatômica do estudo. O médico os dita depois de dizer "achados adicionais" (ou "achado adicional"), seguido da descrição. Eles formam uma seção separada, que o aplicativo coloca ABAIXO da conclusão.
+   a) Tudo o que o médico ditar depois de "achados adicionais" (até o fim do ditado, a menos que ele volte claramente aos achados da área do estudo) vai SOMENTE no campo "adicionais". Não coloque esses achados no corpo nem na conclusão, e não crie linha de conclusão para eles, a não ser que o médico peça expressamente.
+   b) Escreva cada achado adicional em uma linha, em frase curta e objetiva no estilo do médico (localização, lateralidade, característica e medida somente se ditas), em texto simples (sem marcações), sem numeração e sem linhas em branco entre eles.
+   c) O campo "adicionais" traz a seção COMPLETA já atualizada: mantenha os achados adicionais que já estavam no laudo (bloco "ACHADOS ADICIONAIS ATUAIS", quando existir) e acrescente os novos; se o médico corrigir ou retirar um, aplique. Não escreva o título "Achados adicionais" no campo: o aplicativo o coloca.
+   d) Sem achados adicionais atuais nem ditados, "adicionais" é uma string vazia. Nunca use essa seção para achados da própria área do estudo.`;
+
 // Prompt do ditado conforme a organização escolhida: 'inicio' (alterações no início da análise) ou 'lugar'
 function sistemaDitado(modo) {
-  if (modo !== 'inicio') return SISTEMA_DITADO;
-  return SISTEMA_DITADO.replace('\nFORMATO DA RESPOSTA', REGRA_ALTERACOES_NO_INICIO + '\n\nFORMATO DA RESPOSTA');
+  const inicio = modo === 'inicio';
+  const regras = (inicio ? REGRA_ALTERACOES_NO_INICIO : '') + regraAdicionais(inicio ? 15 : 14);
+  return SISTEMA_DITADO.replace('\nFORMATO DA RESPOSTA', regras + '\n\nFORMATO DA RESPOSTA');
+}
+
+// Texto simples, uma linha por achado (a IA às vezes devolve marcações ou linhas em branco)
+function limparAdicionais(t) {
+  return String(t ?? '').replace(/<[^>]+>/g, '').split(/\n+/).map(x => x.trim()).filter(Boolean).join('\n').slice(0, LIM_ADICIONAIS);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -335,6 +352,7 @@ export function tratarLaudo(req, res) {
 
     const corpoOriginal     = String(b.corpo ?? '');
     const conclusaoOriginal = String(b.conclusao ?? '');
+    const adicionaisOriginal = limparAdicionais(texto(b.adicionais, LIM_ADICIONAIS));
     if (corpoOriginal.length > LIM_CORPO || conclusaoOriginal.length > LIM_CONCLUSAO) {
       throw new ErroHttp(400, 'Laudo grande demais para processar');
     }
@@ -369,7 +387,12 @@ ${corpoOriginal}
 CONCLUSÃO ATUAL:
 <<<
 ${conclusaoOriginal}
->>>
+>>>${adicionaisOriginal ? `
+
+ACHADOS ADICIONAIS ATUAIS (seção separada, abaixo da conclusão):
+<<<
+${adicionaisOriginal}
+>>>` : ''}
 
 EXEMPLOS DE CORREÇÃO DO MÉDICO (referência de estilo):
 ${blocoExemplos}${blocoAnterior(anterior, dataAnterior)}
@@ -391,6 +414,8 @@ ${ditado}
     return {
       corpo: saida.corpo.replace(/\r\n/g, '\n'),
       conclusao: saida.conclusao.replace(/\r\n/g, '\n'),
+      // se a IA não devolver o campo, os achados adicionais que já estavam no laudo são preservados
+      adicionais: typeof saida.adicionais === 'string' ? limparAdicionais(saida.adicionais) : adicionaisOriginal,
       avisos
     };
   });
@@ -406,6 +431,7 @@ export function checarLaudo(req, res) {
   return executar(req, res, async (b, req) => {
     const corpo = String(b.corpo ?? '');
     const conclusao = String(b.conclusao ?? '');
+    const adicionais = limparAdicionais(texto(b.adicionais, LIM_ADICIONAIS));
     if (corpo.length > LIM_CORPO || conclusao.length > LIM_CONCLUSAO) {
       throw new ErroHttp(400, 'Laudo grande demais para conferir');
     }
@@ -426,7 +452,12 @@ ${corpo}
 CONCLUSÃO:
 <<<
 ${conclusao}
->>>${blocoAnterior(anterior, dataAnterior)}`;
+>>>${adicionais ? `
+
+ACHADOS ADICIONAIS (seção separada, abaixo da conclusão):
+<<<
+${adicionais}
+>>>` : ''}${blocoAnterior(anterior, dataAnterior)}`;
 
     const saida = await perguntar(SISTEMA_CONFERENCIA, mensagem, 1500, { ctx: { req, funcao: 'conferencia' } });
 
