@@ -1924,6 +1924,107 @@ tr.duplicate-row:hover { background: #FFF6D6; }
         </div>
       </div>
 
+      <!-- Navegação mês/ano -->
+      <div id="chart-month-nav" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:.875rem">
+        <div class="period-tabs" id="chart-month-tabs" style="gap:2px">
+          <button class="ptab" onclick="setChartMonth(1,this)">Jan</button>
+          <button class="ptab" onclick="setChartMonth(2,this)">Fev</button>
+          <button class="ptab" onclick="setChartMonth(3,this)">Mar</button>
+          <button class="ptab" onclick="setChartMonth(4,this)">Abr</button>
+          <button class="ptab" onclick="setChartMonth(5,this)">Mai</button>
+          <button class="ptab" onclick="setChartMonth(6,this)">Jun</button>
+          <button class="ptab" onclick="setChartMonth(7,this)">Jul</button>
+          <button class="ptab" onclick="setChartMonth(8,this)">Ago</button>
+          <button class="ptab" onclick="setChartMonth(9,this)">Set</button>
+          <button class="ptab" onclick="setChartMonth(10,this)">Out</button>
+          <button class="ptab" onclick="setChartMonth(11,this)">Nov</button>
+          <button class="ptab" onclick="setChartMonth(12,this)">Dez</button>
+        </div>
+        <select class="filter-select" id="chart-year-sel" onchange="setChartYear(this.value)" style="font-weight:700;color:var(--primary)"></select>
+      </div>
+
+      <!-- Pizza + Detalhes da categoria -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem" id="charts-top-grid">
+        <div class="card" style="padding:1.25rem">
+          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)" id="pie-chart-title">Despesas por categoria</div>
+          <div style="position:relative;max-width:320px;margin:0 auto">
+            <canvas id="pie-chart" height="300"></canvas>
+            <div id="pie-center" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
+              <div style="font-size:.75rem;color:var(--text-muted)">Total</div>
+              <div id="pie-total" style="font-size:1.1rem;font-weight:700;color:var(--text)">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="padding:1.25rem;overflow:auto" id="cat-detail-card">
+          <div style="font-weight:600;margin-bottom:1rem;color:var(--text)">Detalhes por categoria</div>
+          <div id="cat-detail-content"><div class="loading-msg">Selecione uma categoria no gráfico</div></div>
+        </div>
+      </div>
+
+      <!-- Gráfico evolutivo -->
+      <div class="card" style="padding:1.25rem">
+        <div style="font-weight:600;margin-bottom:1rem;color:var(--text)"><span id="evo-chart-title">Evolução de despesas</span> <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">(últimos 12 meses)</span></div>
+        <canvas id="evo-chart" height="120"></canvas>
+      </div>
+    </div>
+
+    <!-- PAGE: SETTINGS -->
+    <div id="page-settings" class="page">
+      <div class="page-header">
+        <h1 class="page-title">Configurações</h1>
+      </div>
+      <div style="max-width:480px;display:flex;flex-direction:column;gap:1rem">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Importação automática de faturas PDF</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
+            Informe seu CPF para que o app abra automaticamente os PDFs protegidos por senha.
+            Fica salvo apenas neste navegador — nunca é enviado para nenhum servidor.
+          </p>
+          <div class="form-row">
+            <label>CPF <span style="color:var(--text-3);font-weight:400">(somente números, sem pontos)</span></label>
+            <input type="password" id="settings-cpf" placeholder="00000000000" maxlength="11"
+              oninput="this.value=this.value.replace(/\D/g,'')">
+          </div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;font-size:12px;color:var(--text-2);margin-bottom:1rem;line-height:1.7">
+            <i class="ti ti-info-circle" style="color:var(--primary)"></i>
+            <b> EQI/BTG:</b> CPF completo (11 dígitos) ·
+            <b>XP:</b> primeiros 5 dígitos do CPF
+          </div>
+          <div id="settings-cpf-status" style="margin-bottom:.875rem;font-size:13px;display:none"></div>
+          <button class="btn btn-primary" onclick="saveSettings()">
+            <i class="ti ti-device-floppy"></i> Salvar CPF
+          </button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Autorização do Google</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-2);margin-bottom:1rem;line-height:1.6">
+            Conecte sua conta Google para que o app possa buscar faturas no Gmail e tocar as aulas
+            guardadas no seu Drive (aba Cursos). Caso o Gmail ou o Drive retornem erro, clique aqui para renovar a autorização.
+          </p>
+          <div id="gmail-auth-status" style="margin-bottom:.875rem;font-size:13px"></div>
+          <button class="btn btn-primary" onclick="window.location.href='/api/gmail-callback?iniciar=1'">
+            <i class="ti ti-brand-google"></i> Autorizar Google
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: EMPLOYEES -->
+    <div id="page-employees" class="page">
+      <div class="page-header">
+        <h1 class="page-title">Funcionárias</h1>
+        <div class="header-right">
+          <button class="btn btn-ghost" id="btn-buscar-folha" onclick="buscarEmailFolha()" title="Procura no Gmail o e-mail do fechamento (holerites + DARF) enviado pela contabilidade">
+            <i class="ti ti-mail"></i> Buscar e-mail agora
+          </button>
+        </div>
+      </div>
+
       <!-- Meses em aberto (cards) e meses pagos (lista) -->
       <div id="emp-open"><div class="loading-msg">Carregando...</div></div>
       <div id="emp-paid"></div>
