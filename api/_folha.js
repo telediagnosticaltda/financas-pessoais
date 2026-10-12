@@ -46,7 +46,7 @@ function coletarPDFs(payload, out = []) {
 export async function buscarFolhas(accessToken, days = 45) {
   const q = `from:${REMETENTE_FOLHA} has:attachment newer_than:${days}d`;
   const r = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=10`,
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=20`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   const lista = (await r.json()).messages || [];

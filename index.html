@@ -6363,11 +6363,11 @@ async function buscarEmailFolha() {
   btn.innerHTML = '<i class="ti ti-loader-2"></i> Buscando...';
   try {
     const r = await fetch('/api/gmail-sync', {
-      method: 'POST', headers: await authHeaders(), body: JSON.stringify({ tipo: 'folha', days: 60 })
+      method: 'POST', headers: await authHeaders(), body: JSON.stringify({ tipo: 'folha', days: 120 })
     });
     const j = await r.json();
     if (!r.ok || !j.success) throw new Error(j.error || ('HTTP ' + r.status));
-    if (!j.folhas.length) { toast(`Nenhum e-mail de ${j.remetente} com PDF nos últimos 60 dias.`, 'error'); return; }
+    if (!j.folhas.length) { toast(`Nenhum e-mail de ${j.remetente} com PDF nos últimos 120 dias.`, 'error'); return; }
 
     const novas = [];
     for (const f of j.folhas) {
@@ -6375,9 +6375,13 @@ async function buscarEmailFolha() {
       if (!data?.length) novas.push(f);
     }
     if (!novas.length) {
-      const ultimo = j.folhas[j.folhas.length - 1];   // lista vem do mais antigo para o mais recente
-      if (confirm(`Todos os e-mails já foram importados.\n\nReler o mais recente (de ${dataBR(ultimo.date)})? Isso refaz a leitura dos holerites e da DARF desse e-mail; os "pago" não mudam.`)) {
-        try { await importarFolhaEmail(ultimo.msgId, ultimo.atts, ultimo.date); } catch (_) { /* já avisou */ }
+      // Tudo já foi lido antes (talvez por uma versão antiga que não lia holerite em imagem): oferece reler todos
+      const n = j.folhas.length;
+      const meses = j.folhas.map(f => dataBR(f.date)).join(', ');
+      if (confirm(`Os ${n} e-mail(s) encontrados (${meses}) já foram importados.\n\nReler ${n === 1 ? 'esse e-mail' : 'todos eles'}? Refaz a leitura dos holerites e das DARFs (custa alguns centavos de IA); os "pago" e os vales não mudam.`)) {
+        for (const f of j.folhas) {                      // do mais antigo para o mais recente
+          try { await importarFolhaEmail(f.msgId, f.atts, f.date); } catch (_) { /* já avisou */ }
+        }
       }
       return;
     }
