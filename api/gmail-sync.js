@@ -1,4 +1,5 @@
 import { requireAuth } from './_auth.js';
+import { getGmailAccessToken, buscarFolhas, REMETENTE_FOLHA } from './_folha.js';
 
 // api/gmail-sync.js
 // Retorna APENAS metadados dos e-mails (sem baixar PDFs ainda)
@@ -170,6 +171,19 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   if (!(await requireAuth(req, res))) return;
+
+  // Botão "Buscar e-mail agora" da aba Funcionárias (holerites + DARF)
+  if (req.body?.tipo === 'folha') {
+    try {
+      const days = Math.min(parseInt(req.body?.days) || 45, 120);
+      const token = await getGmailAccessToken();
+      const folhas = await buscarFolhas(token, days);
+      return res.status(200).json({ success: true, remetente: REMETENTE_FOLHA, folhas });
+    } catch (err) {
+      console.error('[gmail-sync folha]', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
 
   const log = [];
   try {

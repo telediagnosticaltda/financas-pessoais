@@ -6017,8 +6017,8 @@ async function buscarEmailFolha() {
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader-2"></i> Buscando...';
   try {
-    const r = await fetch('/api/folha-sync', {
-      method: 'POST', headers: await authHeaders(), body: JSON.stringify({ days: 60 })
+    const r = await fetch('/api/gmail-sync', {
+      method: 'POST', headers: await authHeaders(), body: JSON.stringify({ tipo: 'folha', days: 60 })
     });
     const j = await r.json();
     if (!r.ok || !j.success) throw new Error(j.error || ('HTTP ' + r.status));
