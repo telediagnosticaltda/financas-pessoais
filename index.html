@@ -5692,6 +5692,8 @@ function empCardHtml(name, p, m, y, cfg = {}) {
     ? `<img src="${p.darf_qrcode}" alt="QR Code DARF" style="width:100%;max-width:300px;display:block;margin:0 auto;border-radius:8px;background:#fff">`
     : `<div style="color:var(--text-3);font-size:12px;text-align:center;padding:.5rem">QR code não carregado</div>`;
   const args = `'${name}'`;
+  const temDocHol  = !!jsonCfg(cfg[kEmp('doc', name, y, m)])?.msgId;
+  const temDocDarf = !!jsonCfg(cfg[kFolha('docdarf', y, m)])?.msgId;
 
   // Pix esperado = líquido do holerite + vale
   const vale   = valeEfetivo(cfg, name, y, m);
@@ -5742,6 +5744,11 @@ function empCardHtml(name, p, m, y, cfg = {}) {
           <input type="file" accept="application/pdf" style="display:none" onchange="handleDarfUpload(${args},this.files[0],${m},${y})">
         </label>
       </div>
+
+      ${(temDocHol || temDocDarf) ? `<div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        ${temDocHol ? `<button type="button" class="emp-upload-btn" onclick="abrirDocFolha('holerite',${args},${m},${y})"><i class="ti ti-external-link"></i> Abrir holerite</button>` : ''}
+        ${temDocDarf ? `<button type="button" class="emp-upload-btn" onclick="abrirDocFolha('darf',${args},${m},${y})"><i class="ti ti-external-link"></i> Abrir DARF</button>` : ''}
+      </div>` : ''}
 
       <div class="emp-qr-wrap">
         <div class="emp-field-label" style="width:100%;text-align:center">QR Code da DARF ${p?.darf_amount != null ? '— ' + R(p.darf_amount) : ''}</div>
@@ -5899,6 +5906,33 @@ async function _conciliarFolha() {
   return baixas;
 }
 
+let folhaCfgAtual = {};   // última configuração carregada (usada pelos botões "Abrir")
+
+// Abre o PDF importado (baixa do Gmail na hora) em outra aba
+async function abrirDocFolha(tipo, nome, m, y) {
+  const ref = jsonCfg(tipo === 'darf' ? folhaCfgAtual[kFolha('docdarf', y, m)] : folhaCfgAtual[kEmp('doc', nome, y, m)]);
+  if (!ref?.msgId) { toast('Esse documento ainda não está vinculado ao e-mail. Use "Buscar e-mail agora" e releia o e-mail.', 'error'); return; }
+  const w = window.open('', '_blank');   // abre já, no clique, para o navegador não bloquear
+  if (w) w.document.write('<p style="font-family:sans-serif;padding:2rem">Abrindo documento...</p>');
+  try {
+    const r = await fetch('/api/gmail-get-pdf', {
+      method: 'POST', headers: await authHeaders(),
+      body: JSON.stringify({ msgId: ref.msgId, filename: ref.filename })
+    });
+    const j = await r.json();
+    if (!r.ok || !j.base64) throw new Error(j.error || 'não consegui baixar o arquivo do Gmail');
+    const bin = atob(j.base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    if (w) w.location.href = url; else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  } catch (err) {
+    if (w) w.close();
+    toast('Não consegui abrir o documento: ' + err.message, 'error');
+  }
+}
+
 function avisarBaixas(baixas) {
   (baixas || []).forEach(b => toast(b.tipo === 'salario'
     ? `Salário de ${b.nome} (${nomeMesLongo(b.m)}/${b.y}) baixado automaticamente ✓`
@@ -5952,6 +5986,7 @@ async function loadEmpPage() {
 
   const [{ data, error }, cfg] = await Promise.all([db.from('employee_payments').select('*'), carregarCfgFolha()]);
   if (error) { openEl.innerHTML = '<div class="empty"><p>Não consegui carregar as funcionárias.</p></div>'; return; }
+  folhaCfgAtual = cfg;
 
   const grupos = agruparFolha(data);
   // O mês atual sempre aparece (para poder carregar/importar), mesmo sem registros
@@ -6000,9 +6035,11 @@ async function loadEmpPage() {
           ${linhas.map(l => {
             const dt = l.b ? dataBR(l.b.date) : (l.x?.paid_at ? dataBR(l.x.paid_at) : '');
             return `<div class="emp-hist-line"><b>${l.n}</b><span class="grow">Líquido ${l.x?.net_salary != null ? R(l.x.net_salary) : '—'}${l.b ? ' + vale = Pix de ' + R(l.b.valor) : ''}${dt ? ' · pago em ' + dt : ''}${l.b ? ' (automático)' : ''}</span>
+              ${jsonCfg(cfg[kEmp('doc', l.n, g.y, g.m)])?.msgId ? `<button class="btn btn-ghost" onclick="abrirDocFolha('holerite','${l.n}',${g.m},${g.y})">Holerite</button>` : ''}
               <button class="btn btn-ghost" onclick="toggleEmpPaid('${l.n}', false, ${g.m}, ${g.y})">Reabrir</button></div>`;
           }).join('')}
           <div class="emp-hist-line"><b>DARF</b><span class="grow">${darfV != null ? R(darfV) : '—'}${darfJ?.date ? ' · paga em ' + dataBR(darfJ.date) + (darfJ.auto ? ' (automático)' : '') : ' · paga'}</span>
+            ${jsonCfg(cfg[kFolha('docdarf', g.y, g.m)])?.msgId ? `<button class="btn btn-ghost" onclick="abrirDocFolha('darf','',${g.m},${g.y})">Abrir</button>` : ''}
             <button class="btn btn-ghost" onclick="toggleDarfPaga(${g.m}, ${g.y}, false)">Reabrir</button></div>
         </div>
       </details>`;
@@ -6298,7 +6335,7 @@ async function processarFolha(msgId, atts, emailDate) {
     }
 
     if (tipo === 'holerite') {
-      if (nome && liquido != null) holerites.push({ nome, liquido, comp });
+      if (nome && liquido != null) holerites.push({ nome, liquido, comp, filename: d.att.filename || '' });
       else avisos.push(`holerite sem nome ou valor reconhecido (${nomeArq})`);
     } else if (tipo === 'guia') {
       if (!darf) darf = { doc: d, valor, comp };
@@ -6325,6 +6362,9 @@ async function processarFolha(msgId, atts, emailDate) {
   else { [ano, mes] = emailDate.split('-').map(Number); usouMesDoEmail = true; }
 
   for (const h of holerites) await upsertEmpPayment(h.nome, { net_salary: h.liquido }, mes, ano);
+  // Guarda de qual e-mail/arquivo veio cada documento, para os botões "Abrir" dos cartões
+  for (const h of holerites) if (h.filename) await gravarCfgFolha(kEmp('doc', h.nome, ano, mes), { msgId, filename: h.filename });
+  if (darf?.doc.att.filename) await gravarCfgFolha(kFolha('docdarf', ano, mes), { msgId, filename: darf.doc.att.filename });
   if (darf) {
     const qr = await gerarQrDarf(darf.doc.pdf);
     if (darf.valor == null) avisos.push('não consegui ler o valor da DARF');

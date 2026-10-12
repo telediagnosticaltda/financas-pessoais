@@ -38,18 +38,39 @@ export default async function handler(req, res) {
 
   if (!(await requireAuth(req, res))) return;
 
-  const { msgId, attId } = req.body || {};
-  if (!msgId || !attId) return res.status(400).json({ error: 'msgId e attId são obrigatórios' });
+  const { msgId, attId, filename } = req.body || {};
+  if (!msgId || (!attId && !filename)) return res.status(400).json({ error: 'msgId e attId (ou filename) são obrigatórios' });
 
   try {
     const accessToken = await getAccessToken();
+    let idAnexo = attId;
+
+    // Com filename: acha o anexo pelo nome dentro do e-mail (o id do anexo pode mudar entre consultas)
+    if (filename) {
+      const rm = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const msg = await rm.json();
+      const achar = (p) => {
+        if (!p) return null;
+        if ((p.filename || '') === filename && p.body?.attachmentId) return p;
+        for (const sub of (p.parts || [])) { const f = achar(sub); if (f) return f; }
+        return null;
+      };
+      const parte = achar(msg.payload);
+      if (parte) idAnexo = parte.body.attachmentId;
+      else if (!idAnexo) return res.status(404).json({ error: 'Anexo não encontrado no e-mail' });
+    }
+
     const r = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${attId}`,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${idAnexo}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     const data = await r.json();
+    if (!data.data) return res.status(502).json({ error: data.error?.message || 'O Gmail não devolveu o anexo' });
     // Converte base64url para base64 padrão
-    const base64 = (data.data || '').replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = data.data.replace(/-/g, '+').replace(/_/g, '/');
     return res.status(200).json({ base64 });
   } catch (err) {
     return res.status(500).json({ error: err.message });
