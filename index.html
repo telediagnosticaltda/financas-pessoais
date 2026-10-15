@@ -1296,6 +1296,16 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 .cur-aula-nome { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cur-aula-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .cur-aula-tags span { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--primary-l); color: var(--primary-d); }
+.cur-aula-tags span.pat { background: #fdf1e3; color: #9a5b10; cursor: pointer; }
+.cur-aula-tags span.pat:hover { filter: brightness(.95); }
+.cur-aula-tags span.mais { background: transparent; color: var(--text-3); cursor: default; padding-left: 2px; }
+.cur-pat-filtro { display: flex; align-items: center; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
+.cur-pat-filtro input { flex: 1; min-width: 200px; max-width: 320px; padding: 7px 11px; font-size: 12.5px; }
+.cur-pat-filtro .cur-pat-limpar { font-family: var(--font); font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; }
+.cur-tema.pat { background: #fdf1e3; color: #9a5b10; }
+.cur-tema.pat .cur-pat-ir { cursor: pointer; }
+.cur-pat-add { font-family: var(--font); font-size: 11.5px; padding: 3px 8px; border-radius: 20px; border: 1px dashed var(--border); background: var(--surface); color: var(--text-2); width: 150px; }
+.cur-rotulo { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-top: .875rem; }
 .cur-aula-dir { display: flex; align-items: center; gap: .6rem; font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .cur-st { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
 .cur-st.pendente { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
@@ -2252,6 +2262,12 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                  oninput="buscarNoCursoDebounce()" style="flex:1;min-width:200px;max-width:460px;padding:8px 11px;font-size:12.5px">
         </div>
         <div class="cur-temas-filtro" id="cur-temas-filtro"></div>
+        <div class="cur-pat-filtro" id="cur-pat-filtro-box" style="display:none">
+          <input type="text" id="cur-pat-filtro" list="cur-pat-lista" placeholder="Filtrar por patologia (ex.: Bankart)…" oninput="filtrarPatologiaDigitada()">
+          <datalist id="cur-pat-lista"></datalist>
+          <button class="cur-pat-limpar" id="cur-pat-limpar" style="display:none" onclick="filtrarPatologiaCurso('')">Limpar</button>
+          <button class="btn btn-ghost cur-btn-peq" id="cur-pat-extrair" style="display:none" onclick="extrairPatologiasPendentes()"></button>
+        </div>
 
         <div id="cur-resultados" style="display:none"></div>
         <div id="cur-modulos"></div>
@@ -2312,6 +2328,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
                 <button class="active" data-aba="transcricao" onclick="abaCurso('transcricao')">Transcrição</button>
                 <button data-aba="slides" onclick="abaCurso('slides')">Slides</button>
                 <button data-aba="topicos" onclick="abaCurso('topicos')">Tópicos</button>
+                <button data-aba="patologias" onclick="abaCurso('patologias')">Patologias</button>
               </div>
               <input type="text" id="cur-busca" placeholder="Buscar nesta aula…" oninput="renderPainelCurso()">
               <div id="cur-lista" class="cur-lista"></div>
@@ -8006,6 +8023,8 @@ let curAula         = null;     // aula aberta
 let curTrechos      = { fala: [], slide: [] };
 let curAba          = 'transcricao';
 let curTemaFiltro   = '';
+let curPatFiltro    = '';      // texto digitado no filtro de patologia
+let curPatRodando   = false;
 let curModAbertos   = new Set();
 let curTokenAte     = 0;
 let curTokenTimer   = null;
@@ -8282,6 +8301,8 @@ async function abrirCurso(id) {
   await recarregarAulas();
   if (!curModAbertos.size && curAulas.length) curModAbertos.add(curAulas[0].modulo);
   curTemaFiltro = '';
+  curPatFiltro = '';
+  { const f = document.getElementById('cur-pat-filtro'); if (f) f.value = ''; const l = document.getElementById('cur-pat-limpar'); if (l) l.style.display = 'none'; }
   document.getElementById('cur-busca-curso').value = '';
   mostrarVistaCurso('curso');
   renderCurso();
@@ -8289,7 +8310,7 @@ async function abrirCurso(id) {
 
 async function recarregarAulas() {
   const { data } = await db.from('curso_aulas')
-    .select('id,curso_id,modulo,modulo_ordem,ordem,drive_arquivo_id,nome,tamanho,tipo,duracao_seg,no_drive,status_analise,erro_analise,titulo,resumo,temas,topicos,custo_usd,modelo,analisada_em,assistida,posicao_seg,anotacoes')
+    .select('id,curso_id,modulo,modulo_ordem,ordem,drive_arquivo_id,nome,tamanho,tipo,duracao_seg,no_drive,status_analise,erro_analise,titulo,resumo,temas,patologias,topicos,custo_usd,modelo,analisada_em,assistida,posicao_seg,anotacoes')
     .eq('curso_id', curCurso.id)
     .order('modulo_ordem').order('ordem');
   curAulas = data || [];
@@ -8297,6 +8318,64 @@ async function recarregarAulas() {
 
 function aulasPendentes() {
   return curAulas.filter(a => a.no_drive && a.status_analise !== 'analisada');
+}
+
+// ── Patologias ──
+// Guardadas em curso_aulas.patologias (jsonb): [{ nome, tempos: [segundos...] }].
+// null = ainda não extraídas; [] = extraídas e nenhuma encontrada.
+function patologiasDaAula(a) {
+  return Array.isArray(a?.patologias) ? a.patologias.filter(p => p && p.nome) : [];
+}
+
+// Junta as ocorrências devolvidas pelo Gemini ([{nome, inicio}]) por nome (sem acento/maiúscula)
+function agruparPatologias(lista) {
+  const mapa = new Map();
+  for (const x of Array.isArray(lista) ? lista : []) {
+    const nome = String(x?.nome || '').trim();
+    if (!nome) continue;
+    const chave = normalizarBusca(nome).replace(/\s+/g, ' ');
+    if (!mapa.has(chave)) mapa.set(chave, { nome, tempos: [] });
+    if (x.inicio != null && x.inicio !== '') {
+      const t = lerTempoCurso(x.inicio);
+      const tempos = mapa.get(chave).tempos;
+      if (!tempos.some(u => Math.abs(u - t) < 20)) tempos.push(t);
+    }
+  }
+  return [...mapa.values()].map(p => ({ ...p, tempos: p.tempos.sort((a, b) => a - b) }));
+}
+
+function patologiasConhecidas() {
+  return [...new Set(curAulas.flatMap(a => patologiasDaAula(a).map(p => p.nome)))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')).slice(0, 400);
+}
+
+function aulaTemPatologia(a, termo) {
+  const alvo = normalizarBusca(termo).trim();
+  if (!alvo) return true;
+  return patologiasDaAula(a).some(p => normalizarBusca(p.nome).includes(alvo));
+}
+
+function filtrarPatologiaDigitada() {
+  curPatFiltro = document.getElementById('cur-pat-filtro').value.trim();
+  document.getElementById('cur-pat-limpar').style.display = curPatFiltro ? '' : 'none';
+  renderModulos();
+}
+
+function filtrarPatologiaCurso(nome) {
+  document.getElementById('cur-pat-filtro').value = nome;
+  filtrarPatologiaDigitada();
+}
+
+function renderFiltroPatologia() {
+  const box = document.getElementById('cur-pat-filtro-box');
+  const nomes = patologiasConhecidas();
+  const pendentes = curAulas.filter(a => a.no_drive && a.status_analise === 'analisada' && a.patologias == null);
+  box.style.display = (nomes.length || pendentes.length) ? '' : 'none';
+  document.getElementById('cur-pat-lista').innerHTML = nomes.map(n => `<option value="${escHtml(n)}"></option>`).join('');
+  document.getElementById('cur-pat-filtro').style.display = nomes.length ? '' : 'none';
+  const btn = document.getElementById('cur-pat-extrair');
+  btn.style.display = pendentes.length && !curPatRodando ? '' : 'none';
+  btn.innerHTML = `<i class="ti ti-microscope"></i> Extrair patologias das aulas já analisadas (${pendentes.length})`;
 }
 
 function renderCurso() {
@@ -8330,6 +8409,7 @@ function renderCurso() {
       temas.map(t => `<button class="${curTemaFiltro === t ? 'active' : ''}" onclick="filtrarTemaCurso(${escHtml(JSON.stringify(t))})">${escHtml(t)}</button>`).join('')
     : '';
 
+  renderFiltroPatologia();
   renderModulos();
 }
 
@@ -8352,9 +8432,10 @@ function renderModulos() {
   const box = document.getElementById('cur-modulos');
   let aulas = curAulas;
   if (curTemaFiltro) aulas = aulas.filter(a => (a.temas || []).includes(curTemaFiltro));
+  if (curPatFiltro) aulas = aulas.filter(a => aulaTemPatologia(a, curPatFiltro));
   if (!aulas.length) {
     box.innerHTML = curAulas.length
-      ? '<div class="empty"><p>Nenhuma aula com esse tema.</p></div>'
+      ? '<div class="empty"><p>Nenhuma aula com esse filtro.</p></div>'
       : '<div class="empty"><i class="ti ti-folder-off"></i><p>Nenhum vídeo encontrado nas subpastas. Confira a pasta no Drive e clique em Sincronizar.</p></div>';
     return;
   }
@@ -8365,7 +8446,7 @@ function renderModulos() {
     m.aulas.push(a);
   }
   box.innerHTML = modulos.map(m => {
-    const aberto = curTemaFiltro || curModAbertos.has(m.nome);
+    const aberto = curTemaFiltro || curPatFiltro || curModAbertos.has(m.nome);
     const vistas = m.aulas.filter(a => a.assistida).length;
     const dur = m.aulas.reduce((s, a) => s + Number(a.duracao_seg || 0), 0);
     return `<div class="card cur-modulo ${aberto ? 'aberto' : ''}">
@@ -8381,7 +8462,7 @@ function renderModulos() {
             ${iconeAula(a)}
             <div class="cur-aula-info">
               <div class="cur-aula-nome">${escHtml(a.titulo || a.nome)}</div>
-              ${(a.temas || []).length ? `<div class="cur-aula-tags">${a.temas.map(t => `<span>${escHtml(t)}</span>`).join('')}</div>` : ''}
+              ${tagsDaAulaHtml(a)}
             </div>
             <div class="cur-aula-dir">
               ${(a.anotacoes || '').trim() ? '<i class="ti ti-notes" title="Tem anotações"></i>' : ''}
@@ -8392,6 +8473,19 @@ function renderModulos() {
       </div>
     </div>`;
   }).join('');
+}
+
+function tagsDaAulaHtml(a) {
+  const temas = a.temas || [];
+  const pats = patologiasDaAula(a);
+  if (!temas.length && !pats.length) return '';
+  const MAX = 6;
+  return `<div class="cur-aula-tags">
+    ${temas.map(t => `<span>${escHtml(t)}</span>`).join('')}
+    ${pats.slice(0, MAX).map(p => `<span class="pat" title="Filtrar por esta patologia"
+        onclick="event.stopPropagation(); filtrarPatologiaCurso(${escHtml(JSON.stringify(p.nome))})">${escHtml(p.nome)}</span>`).join('')}
+    ${pats.length > MAX ? `<span class="mais" title="${escHtml(pats.slice(MAX).map(p => p.nome).join(', '))}">+${pats.length - MAX}</span>` : ''}
+  </div>`;
 }
 
 function alternarModulo(nome) {
@@ -8411,9 +8505,10 @@ async function buscarNoCurso() {
   const res = document.getElementById('cur-resultados');
   const mods = document.getElementById('cur-modulos');
   const filtro = document.getElementById('cur-temas-filtro');
-  if (termo.length < 2) { res.style.display = 'none'; mods.style.display = ''; filtro.style.display = ''; return; }
+  const patBox = document.getElementById('cur-pat-filtro-box');
+  if (termo.length < 2) { res.style.display = 'none'; mods.style.display = ''; filtro.style.display = ''; patBox.style.visibility = ''; return; }
 
-  res.style.display = 'block'; mods.style.display = 'none'; filtro.style.display = 'none';
+  res.style.display = 'block'; mods.style.display = 'none'; filtro.style.display = 'none'; patBox.style.visibility = 'hidden';
   res.innerHTML = '<div class="loading-msg">Buscando…</div>';
 
   const alvo = normalizarBusca(termo).replace(/[%_\\]/g, ' ');
@@ -8657,6 +8752,16 @@ function renderResumoAula() {
           <option value="">+ tema</option>${opcoes.map(t => `<option>${escHtml(t)}</option>`).join('')}
         </select>` : ''}
     </div>
+    <div class="cur-rotulo">Patologias</div>
+    <div class="cur-temas" style="margin-top:.4rem">
+      ${patologiasDaAula(a).map((p, i) => `<span class="cur-tema pat cur-tema-ed">
+          <span class="${(p.tempos || []).length ? 'cur-pat-ir' : ''}" ${(p.tempos || []).length ? `title="Ir para ${formatarTempoCurso(p.tempos[0])}" onclick="pularCurso(${p.tempos[0]})"` : ''}>${escHtml(p.nome)}${(p.tempos || []).length > 1 ? ` · ${p.tempos.length}×` : ''}</span>
+          <button title="Remover patologia" onclick="removerPatologiaAula(${i})">×</button></span>`).join('')}
+      <input class="cur-pat-add" list="cur-pat-lista" id="cur-pat-add" placeholder="+ patologia"
+             onkeydown="if(event.key==='Enter'){adicionarPatologiaAula(this.value);this.value='';}"
+             onchange="if(this.value){adicionarPatologiaAula(this.value);this.value='';}">
+    </div>
+    ${a.patologias == null ? '<div class="cur-dica" style="margin-top:.4rem">Patologias ainda não extraídas desta aula — use o botão "Extrair patologias" na lista de aulas.</div>' : ''}
     <div class="cur-custo">Análise: ${usd(a.custo_usd)}${a.modelo ? ' · ' + escHtml(a.modelo) : ''}${a.analisada_em ? ' · ' + new Date(a.analisada_em).toLocaleDateString('pt-BR') : ''}</div>
     <div class="cur-acoes-aula">
       <button class="btn btn-ghost cur-btn-peq" onclick="analisarAulaAtual()"><i class="ti ti-refresh"></i> Analisar de novo</button>
@@ -8667,6 +8772,25 @@ async function salvarTemasAula(temas) {
   curAula.temas = temas;
   await db.from('curso_aulas').update({ temas }).eq('id', curAula.id);
   renderResumoAula();
+}
+async function salvarPatologiasAula(patologias) {
+  curAula.patologias = patologias;
+  const { error } = await db.from('curso_aulas').update({ patologias }).eq('id', curAula.id);
+  if (error) avisoEm('cur-aviso-aula', 'Não consegui salvar as patologias: ' + escHtml(error.message), true);
+  renderResumoAula();
+  if (curAba === 'patologias') renderPainelCurso();
+}
+function removerPatologiaAula(i) {
+  const lista = patologiasDaAula(curAula).slice();
+  lista.splice(i, 1);
+  salvarPatologiasAula(lista);
+}
+function adicionarPatologiaAula(nome) {
+  nome = String(nome || '').trim();
+  if (!nome) return;
+  const lista = patologiasDaAula(curAula);
+  if (lista.some(p => normalizarBusca(p.nome) === normalizarBusca(nome))) return;
+  salvarPatologiasAula([...lista, { nome, tempos: [] }]);
 }
 function removerTemaAula(t) { salvarTemasAula((curAula.temas || []).filter(x => x !== t)); }
 function adicionarTemaAula(t) { if (t) salvarTemasAula([...(curAula.temas || []), t]); }
@@ -8682,21 +8806,25 @@ function renderPainelCurso() {
   const lista = document.getElementById('cur-lista');
   if (!curAula) { lista.innerHTML = ''; return; }
   if (curAula.status_analise !== 'analisada') {
-    lista.innerHTML = '<div class="cur-vazio">A transcrição, os slides e os tópicos aparecem aqui depois que a aula for analisada.</div>';
+    lista.innerHTML = '<div class="cur-vazio">A transcrição, os slides, os tópicos e as patologias aparecem aqui depois que a aula for analisada.</div>';
     return;
   }
   const termo = document.getElementById('cur-busca').value.trim();
   const fonte = curAba === 'topicos'
     ? (curAula.topicos || []).map(x => ({ seg: lerTempoCurso(x.inicio), texto: x.titulo }))
-    : (curAba === 'slides' ? curTrechos.slide : curTrechos.fala) || [];
+    : curAba === 'patologias'
+      ? patologiasDaAula(curAula)
+          .flatMap(p => (p.tempos || []).length ? p.tempos.map(t => ({ seg: t, texto: p.nome })) : [{ seg: 0, texto: p.nome, semTempo: true }])
+          .sort((a, b) => a.seg - b.seg)
+      : (curAba === 'slides' ? curTrechos.slide : curTrechos.fala) || [];
   const alvo = normalizarBusca(termo);
   const itens = alvo ? fonte.filter(x => normalizarBusca(x.texto).includes(alvo)) : fonte;
   if (!itens.length) {
-    lista.innerHTML = `<div class="cur-vazio">${termo ? `Nenhum trecho com "${escHtml(termo)}" nesta aba.` : 'Nada nesta aba.'}</div>`;
+    lista.innerHTML = `<div class="cur-vazio">${termo ? `Nenhum trecho com "${escHtml(termo)}" nesta aba.` : (curAba === 'patologias' && curAula.patologias == null ? 'Patologias ainda não extraídas desta aula.' : 'Nada nesta aba.')}</div>`;
     return;
   }
-  lista.innerHTML = itens.map(x => `<div class="cur-item" data-seg="${x.seg}" onclick="pularCurso(${x.seg})">
-      <span class="cur-tempo">${escHtml(formatarTempoCurso(x.seg))}</span>
+  lista.innerHTML = itens.map(x => `<div class="cur-item" data-seg="${x.seg}" onclick="${x.semTempo ? '' : `pularCurso(${x.seg})`}">
+      <span class="cur-tempo">${x.semTempo ? '—' : escHtml(formatarTempoCurso(x.seg))}</span>
       <span>${destacarTermo(x.texto || '', termo)}</span>
     </div>`).join('');
   destacarTrechoAtual();
@@ -8880,10 +9008,10 @@ async function analisarVideoCurso(aula, progresso) {
   const slides = ordenar(parcial.trechos.flatMap(t => t.res.slides || []));
 
   progresso('Montando resumo, tópicos e temas…', 100);
-  const resumo = await cursoApi('resumir', { transcricao, slides });
+  const resumo = await cursoApi('resumir', { transcricao, slides, conhecidas: patologiasConhecidas() });
 
   const analise = {
-    dados: { titulo: resumo.titulo, resumo: resumo.resumo, temas: resumo.temas || [], topicos: resumo.topicos || [], slides, transcricao },
+    dados: { titulo: resumo.titulo, resumo: resumo.resumo, temas: resumo.temas || [], topicos: resumo.topicos || [], patologias: resumo.patologias || [], slides, transcricao },
     uso: somarUsoCurso(parcial.uso, resumo.uso),
     modelo: parcial.modelo
   };
@@ -8909,6 +9037,7 @@ async function salvarAnaliseAula(aula, analise) {
   const campos = {
     status_analise: 'analisada', erro_analise: null,
     titulo: d.titulo || null, resumo: d.resumo || null, temas,
+    patologias: agruparPatologias(d.patologias),
     topicos: d.topicos || [],
     custo_usd: Number(analise.uso?.custoUSD || 0),
     modelo: analise.modelo || null,
@@ -8947,6 +9076,69 @@ async function analisarPendentes() {
                (semDuracao ? ` (fora ${semDuracao} aula(s) sem duração conhecida)` : '') +
                '.\n\nPartes já analisadas antes não são cobradas de novo. Continuar?')) return;
   await rodarFila(fila);
+}
+
+// Lê a transcrição já guardada (sem reenviar o vídeo) e extrai só as patologias
+async function lerTextoDaAula(aulaId) {
+  const transcricao = [], slides = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await db.from('curso_trechos').select('tipo,inicio_seg,texto')
+      .eq('aula_id', aulaId).order('inicio_seg').range(de, de + 999);
+    if (error) throw new Error(error.message);
+    for (const t of data || []) {
+      const item = { inicio: formatarTempoCurso(Number(t.inicio_seg)), texto: t.texto };
+      (t.tipo === 'slide' ? slides : transcricao).push(item);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return { transcricao, slides };
+}
+
+async function extrairPatologiasPendentes() {
+  if (curPatRodando || curFila.rodando || !curCurso) return;
+  const alvo = curAulas.filter(a => a.no_drive && a.status_analise === 'analisada' && a.patologias == null);
+  if (!alvo.length) return;
+  if (!confirm(`Extrair as patologias de ${alvo.length} aula(s) já analisada(s).\n` +
+               'Usa a transcrição que já está guardada (o vídeo não é enviado de novo); o custo é de centavos no total.\n\nContinuar?')) return;
+
+  curPatRodando = true;
+  avisoEm('cur-aviso-curso', '');
+  const btn = document.getElementById('cur-pat-extrair');
+  let feitas = 0, falhas = 0, parar = null;
+  const mostrar = () => { btn.style.display = ''; btn.disabled = true; btn.innerHTML = `<i class="ti ti-loader-2"></i> Extraindo… ${feitas}/${alvo.length}`; };
+  mostrar();
+
+  const fila = alvo.slice();
+  const trabalhador = async () => {
+    while (fila.length && !parar) {
+      const a = fila.shift();
+      try {
+        const { transcricao, slides } = await lerTextoDaAula(a.id);
+        if (!transcricao.length && !slides.length) throw new Error('Sem transcrição guardada.');
+        const r = await cursoApi('resumir', { somentePatologias: true, transcricao, slides, conhecidas: patologiasConhecidas() });
+        const patologias = agruparPatologias(r.patologias);
+        const custo = Number(a.custo_usd || 0) + Number(r.uso?.custoUSD || 0);
+        const { error } = await db.from('curso_aulas').update({ patologias, custo_usd: custo }).eq('id', a.id);
+        if (error) throw new Error(error.message);
+        a.patologias = patologias; a.custo_usd = custo;
+      } catch (e) {
+        falhas++;
+        if (e.status === 429 || e.status === 403) parar = e;
+        console.error('[patologias]', a.nome, e);
+      }
+      feitas++;
+      mostrar();
+      renderCurso();
+    }
+  };
+  await Promise.all([trabalhador(), trabalhador()]);
+
+  curPatRodando = false;
+  btn.disabled = false;
+  renderCurso();
+  if (parar) avisoEm('cur-aviso-curso', msgErroCurso(parar) + ' As aulas restantes ficam para a próxima vez.', true);
+  else if (falhas) avisoEm('cur-aviso-curso', `${falhas} aula(s) não foram processadas. Clique no botão de novo para tentar só essas.`, true);
+  else avisoEm('cur-aviso-curso', 'Patologias extraídas.');
 }
 
 async function analisarAulaAtual() {
