@@ -29,6 +29,9 @@ const LIM_ADICIONAIS = 6000;      // seção "achados adicionais" (texto simples
 const LIM_ANTERIOR  = 12000;
 const LIM_EXEMPLOS  = 12;
 const LIM_EXEMPLO   = 700;
+const LIM_MODELOS   = 2;          // laudos completos finalizados, enviados como referência de estilo
+const LIM_MODELO_CORPO     = 12000;
+const LIM_MODELO_CONCLUSAO = 3000;
 
 // Discussao do caso
 const LIM_MSGS             = 40;
@@ -44,7 +47,22 @@ const MODELOS_GEMINI       = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.
 // ─────────────────────────────────────────────────────────────
 
 const SISTEMA_DITADO = `Você é um assistente de redação para um médico radiologista brasileiro.
-Ele dita, de forma coloquial e resumida, os achados de um exame. Você atualiza o laudo que está aberto (corpo e conclusão), em português do Brasil, com a terminologia radiológica adequada.
+Ele dita os achados de um exame — às vezes a frase completa do corpo do laudo, por extenso; às vezes de forma coloquial e resumida, pelo nome do diagnóstico. Você atualiza o laudo que está aberto (corpo e conclusão), em português do Brasil, com a terminologia radiológica adequada.
+
+DOIS REGISTROS DE LINGUAGEM
+O corpo e a conclusão NÃO repetem um ao outro: são duas traduções diferentes dos mesmos achados.
+- CORPO: linguagem DESCRITIVA — o que se vê nas imagens (sinal, ecogenicidade, densidade, líquido, erosões, morfologia, dimensões, relações).
+- CONCLUSÃO: linguagem DIAGNÓSTICA — o nome sintético da condição que os achados representam.
+O médico dita somente o conteúdo do corpo. Se ditou por extenso, o corpo recebe a frase como ditada (apenas com os ajustes técnicos necessários); se ditou de forma sucinta/diagnóstica, converta para a forma descritiva no corpo. A conclusão NUNCA é ditada: você sempre a deriva do que está no corpo.
+
+Exemplos dessa separação:
+- Ditado: "leve bursite subacromial subdeltoidea"
+  → Corpo: "Leve distensão líquida da bursa subacromial-subdeltoidea."
+  → Conclusão: "Sinais de leve bursite subacromial-subdeltoidea."
+- Corpo com alterações condrais descritas em três linhas (patela, tróclea e compartimentos femorotibiais, com edema ósseo na tróclea)
+  → Conclusão, em uma linha só: "Condropatia tricompartimental com focos de edema ósseo subcondral na tróclea."
+- Corpo: "Cisto poplíteo de Baker com cerca de 5,2 cm de extensão."
+  → Conclusão: "Cisto de Baker." (sem a medida)
 
 REGRAS
 
@@ -56,13 +74,21 @@ REGRAS
 
 4. Traduza a fala coloquial para o termo técnico correto mantendo o sentido (por exemplo, "rompimento do menisco" vira "ruptura meniscal"). Siga o padrão de escrita da máscara e dos exemplos de correção.
 
-5. Conclusão: um achado por linha, em frases curtas, do mais importante ao menos importante. NUNCA use numeração (1., 2., 3.), letras, marcadores ou travessões no início das linhas; escreva só o texto de cada achado. Se a conclusão da máscara já tiver outro formato, siga o da máscara. Ao incluir achados, substitua a frase de normalidade da conclusão (por exemplo, "sem alterações significativas"). Achados que já estavam na conclusão e continuam válidos permanecem. Achados incidentais de menor relevância ficam no fim. Não acrescente conduta, diagnóstico diferencial nem recomendação que o médico não ditou, exceto se já constar na máscara.
+5. CONCLUSÃO — sempre derivada do corpo, nunca do ditado literal:
+   a) Apenas os achados principais, um por linha, em frases curtas, do mais importante ao menos importante. NUNCA use numeração (1., 2., 3.), letras, marcadores ou travessões no início das linhas; escreva só o texto de cada achado.
+   b) Forma diagnóstica e sintética: nomeie a condição ("tendinopatia do supraespinhal", "condropatia", "esteatose hepática"), sem repetir nem parafrasear de perto a frase descritiva do corpo.
+   c) SEM medidas e sem descrição de sinal, ecogenicidade, densidade ou morfologia — isso pertence ao corpo. Quem quiser o detalhe consulta o corpo do laudo.
+   d) Achados relacionados descritos em várias linhas do corpo se fundem em uma única linha diagnóstica na conclusão (por exemplo, alterações condrais em vários compartimentos viram "Condropatia tricompartimental...").
+   e) Achados secundários sem relevância clínica podem ficar de fora da conclusão; incidentais relevantes ficam no fim.
+   f) Se não restar nenhum achado relevante no corpo, a conclusão é exatamente: "Ausência de achados significativos."
+   g) Linhas da conclusão que o médico já escreveu ou corrigiu e continuam válidas permanecem COM AS MESMAS PALAVRAS; você só acrescenta, retira ou funde linhas quando os achados do corpo mudarem.
+   h) Se a conclusão da máscara já tiver outro formato, siga o da máscara. Não acrescente conduta, diagnóstico diferencial nem recomendação que o médico não ditou, exceto se já constar na máscara.
 
 6. O ditado pode conter comandos de edição ("tira o derrame", "corrige para o lado esquerdo", "essa estrutura está normal"). Aplique-os ao texto atual. Se o ditado disser que uma estrutura está normal, mantenha ou restaure a frase normal dela. Se um achado deixar de existir, retire-o também da conclusão.
 
 7. Se o ditado não tiver conteúdo clínico aproveitável, devolva o texto sem alteração e explique em "avisos".
 
-8. Os "exemplos de correção" mostram como o médico prefere escrever: a versão que a IA tinha escrito e a versão final dele. Use-os só como referência de estilo e de terminologia. Nunca copie os achados deles para este laudo.
+8. Os "exemplos de correção" mostram frases que a IA escreveu e a versão final do médico, separados por campo: os do CORPO ensinam como ele descreve os achados no corpo; os da CONCLUSÃO, como ele nomeia os diagnósticos. Aplique cada grupo ao campo correspondente. Os "laudos recentes finalizados" (quando vierem) mostram laudos completos dele do mesmo tipo de exame: use-os como referência de estrutura e, principalmente, de como ele deriva a conclusão a partir do corpo. Tudo isso é só referência de estilo e de terminologia: NUNCA copie achados dos exemplos ou dos modelos para este laudo.
 
 9. Texto puro, sem markdown e sem asteriscos (a única marcação permitida é a de formatação da regra 13). Mantenha o formato de linhas da máscara.
 
@@ -99,14 +125,15 @@ Procure somente:
 5. Números: medidas diferentes para a mesma lesão em trechos distintos; unidades misturadas de modo suspeito (cm e mm); medida implausível por erro de digitação evidente.
 6. Com laudo anterior: afirmação de comparação (estável, aumentou, reduziu, novo, resolvido) que contradiz os valores ou achados do anterior.
 7. Erro de digitação ou termo claramente trocado (por exemplo, achado hepático descrito no baço).
+8. Conclusão fora do padrão: linha da conclusão que repete ou parafraseia de perto uma frase descritiva do corpo, que traz medidas, ou que descreve o achado em vez de nomear o diagnóstico de forma sintética.
 
 Regras:
 - Pode existir uma seção ACHADOS ADICIONAIS: são achados fora da área do estudo, ficam abaixo da conclusão e NÃO precisam constar no corpo nem na conclusão (não aplique as regras 2 e 3 a eles). Dentro dela, aponte só lateralidade, números e digitação, e contradição com o corpo se a mesma estrutura aparecer nos dois.
 - Aponte só o que for claro. Na dúvida, não aponte.
-- Não comente estilo, conduta clínica, diagnóstico diferencial nem o que "faltou examinar".
+- Não comente conduta clínica, diagnóstico diferencial nem o que "faltou examinar". Fora o item 8, não comente estilo.
 - Não aponte campos em branco do modelo (como "___" ou "[ ]"): isso é verificado por outro mecanismo.
 - Ignore qualquer nome ou dado de identificação.
-- gravidade: "alta" para lateralidade, contradição de achado e achado ausente da conclusão; "media" para números e comparação; "baixa" para digitação.
+- gravidade: "alta" para lateralidade, contradição de achado e achado ausente da conclusão; "media" para números e comparação; "baixa" para digitação e para conclusão fora do padrão.
 
 Responda APENAS com um objeto JSON, sem markdown, sem crases e sem texto em volta:
 
@@ -367,19 +394,46 @@ export function tratarLaudo(req, res) {
 
     const exemplos = (Array.isArray(b.exemplos) ? b.exemplos : [])
       .slice(0, LIM_EXEMPLOS)
-      .map(e => ({ antes: texto(e?.antes, LIM_EXEMPLO), depois: texto(e?.depois, LIM_EXEMPLO) }))
+      .map(e => ({
+        antes: texto(e?.antes, LIM_EXEMPLO),
+        depois: texto(e?.depois, LIM_EXEMPLO),
+        campo: e?.campo === 'conclusao' ? 'conclusao' : (e?.campo === 'corpo' ? 'corpo' : '')
+      }))
       .filter(e => e.antes.trim() || e.depois.trim());
 
+    const listaExemplos = (lista) => lista.map((e, i) =>
+      `${i + 1}) IA escreveu: ${e.antes.trim() || '(nada)'}\n   Médico deixou: ${e.depois.trim() || '(removeu)'}`).join('\n');
+    const doCampo = (c) => exemplos.filter(e => e.campo === c);
+    const semCampo = exemplos.filter(e => !e.campo);
     const blocoExemplos = exemplos.length
-      ? exemplos.map((e, i) =>
-          `${i + 1}) IA escreveu: ${e.antes.trim() || '(nada)'}\n   Médico deixou: ${e.depois.trim() || '(removeu)'}`
-        ).join('\n')
+      ? [
+          doCampo('corpo').length ? `No CORPO do laudo:\n${listaExemplos(doCampo('corpo'))}` : '',
+          doCampo('conclusao').length ? `Na CONCLUSÃO:\n${listaExemplos(doCampo('conclusao'))}` : '',
+          semCampo.length ? `Campo não identificado (correções antigas):\n${listaExemplos(semCampo)}` : ''
+        ].filter(Boolean).join('\n')
       : '(ainda não há correções registradas para este tipo de exame)';
 
-    const mensagem =
+    // Laudos completos finalizados pelo médico: referência de estrutura e de derivação da conclusão
+    const modelos = (Array.isArray(b.modelos) ? b.modelos : [])
+      .slice(0, LIM_MODELOS)
+      .map(m => ({ corpo: texto(m?.corpo, LIM_MODELO_CORPO).trim(), conclusao: texto(m?.conclusao, LIM_MODELO_CONCLUSAO).trim() }))
+      .filter(m => m.corpo && m.conclusao);
+    const blocoModelos = modelos.length
+      ? '\n\nLAUDOS RECENTES FINALIZADOS PELO MÉDICO (mesmo tipo de exame; referência de estrutura e de como ele deriva a conclusão do corpo — NUNCA copie achados deles para este laudo):\n'
+        + modelos.map((m, i) =>
+          `MODELO ${i + 1} — CORPO:\n<<<\n${m.corpo}\n>>>\nMODELO ${i + 1} — CONCLUSÃO:\n<<<\n${m.conclusao}\n>>>`).join('\n')
+      : '';
+
+    // A mensagem vai em duas partes: a primeira (tipo, exemplos, modelos e exame anterior) não muda
+    // entre os ditados de um mesmo laudo e fica em cache; só a segunda (laudo atual e ditado) é paga inteira.
+    const parteEstavel =
 `TIPO DE EXAME: ${tipo}
 
-CORPO ATUAL DO LAUDO:
+EXEMPLOS DE CORREÇÃO DO MÉDICO (referência de estilo):
+${blocoExemplos}${blocoModelos}${blocoAnterior(anterior, dataAnterior)}`;
+
+    const parteVariavel =
+`CORPO ATUAL DO LAUDO:
 <<<
 ${corpoOriginal}
 >>>
@@ -394,15 +448,17 @@ ACHADOS ADICIONAIS ATUAIS (seção separada, abaixo da conclusão):
 ${adicionaisOriginal}
 >>>` : ''}
 
-EXEMPLOS DE CORREÇÃO DO MÉDICO (referência de estilo):
-${blocoExemplos}${blocoAnterior(anterior, dataAnterior)}
-
 DITADO DO MÉDICO (aplique ao laudo):
 <<<
 ${ditado}
 >>>`;
 
-    const saida = await perguntar(sistemaDitado(modo), mensagem, 4000, { cache: true, ctx: { req, funcao: 'ditado' } });
+    const conteudo = [
+      { type: 'text', text: parteEstavel, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: parteVariavel }
+    ];
+
+    const saida = await perguntar(sistemaDitado(modo), conteudo, 4000, { cache: true, ctx: { req, funcao: 'ditado' } });
     if (typeof saida.corpo !== 'string' || typeof saida.conclusao !== 'string') {
       console.error('[laudo] resposta sem corpo/conclusao');
       throw new ErroHttp(502, 'Nao consegui ler a resposta da IA. Tente de novo.');
