@@ -14,7 +14,8 @@ import { requireAuth } from './_auth.js';
 //   enviar-parte    -> copia um pedaco do video, do Drive direto para o Gemini
 //   estado-arquivo  -> o Gemini ja terminou de preparar o video?
 //   analisar-trecho -> o Gemini assiste a um trecho de alguns minutos (cabe nos 60s)
-//   resumir         -> titulo, resumo, topicos e temas a partir do texto transcrito
+//   resumir         -> titulo, resumo, topicos, temas e patologias a partir do texto transcrito
+//                      (com somentePatologias: so as patologias, para aulas ja analisadas)
 //   apagar          -> apaga o video da area temporaria do Gemini
 //
 // O video vai do Drive para o Gemini passando so pelos servidores (Vercel e
@@ -67,21 +68,55 @@ Responda SOMENTE com um JSON valido, sem texto antes ou depois e sem crases, nes
 }`;
 }
 
-const PROMPT_RESUMO = `${CONTEXTO}
+// Regras para as patologias (usadas na analise completa e na extracao so de patologias)
+function blocoPatologias(conhecidas) {
+  const lista = (Array.isArray(conhecidas) ? conhecidas : [])
+    .map(n => String(n || '').trim()).filter(Boolean).slice(0, 400);
+  return `Sobre "patologias":
+- liste cada patologia, lesao ou diagnostico ESPECIFICO que a aula realmente aborda ou mostra em caso (ex.: "Lesao de Bankart", "Lesao de Hill-Sachs", "Tendinopatia do supraespinal", "Osteonecrose da cabeca femoral", "Condrossarcoma"). Nao liste anatomia normal, regioes do corpo, sequencias, tecnicas, nem termos genericos como "lesao" ou "fratura" sem o tipo.
+- em aulas de DISCUSSAO DE CASOS, liste o diagnostico de CADA caso (e os diagnosticos diferenciais so quando forem discutidos de forma relevante), com o tempo em que o caso comeca ou em que o diagnostico e dito.
+- se a mesma patologia aparece em momentos diferentes (casos diferentes ou retomada do assunto), repita-a uma vez para cada momento, cada uma com seu tempo.
+- use o nome tecnico padrao em portugues e SEMPRE a mesma grafia para a mesma coisa (nada de dois nomes para a mesma patologia); eponimos escritos corretamente.
+- "inicio" e o tempo exato (MM:SS ou H:MM:SS) tirado da transcricao.
+- se a aula nao aborda nenhuma patologia especifica, devolva "patologias": [].${lista.length ? `
+- patologias ja registradas neste curso: se a patologia for a mesma de alguma da lista, use EXATAMENTE o nome da lista:
+${lista.map(n => '  - ' + n).join('\n')}` : ''}`;
+}
+
+function promptResumo(conhecidas) {
+  return `${CONTEXTO}
 
 Abaixo estao a transcricao completa da aula (com tempos) e o texto dos slides. Com base neles:
 - escreva um titulo curto e um resumo de 3 a 6 frases;
 - liste as grandes partes da aula em "topicos", cada uma com o tempo de inicio tirado da transcricao;
 - escolha em "temas" UM OU MAIS da lista abaixo que a aula realmente aborda (nao invente temas fora da lista):
 ${TEMAS.map(t => '  - ' + t).join('\n')}
+- liste em "patologias" as patologias abordadas, seguindo as regras abaixo.
+
+${blocoPatologias(conhecidas)}
 
 Responda SOMENTE com um JSON valido, sem texto antes ou depois e sem crases, neste formato:
 {
   "titulo": "...",
   "resumo": "...",
   "temas": ["..."],
-  "topicos": [{ "inicio": "00:00", "titulo": "..." }]
+  "topicos": [{ "inicio": "00:00", "titulo": "..." }],
+  "patologias": [{ "nome": "...", "inicio": "00:00" }]
 }`;
+}
+
+function promptSoPatologias(conhecidas) {
+  return `${CONTEXTO}
+
+Abaixo estao a transcricao completa da aula (com tempos) e o texto dos slides. Sua unica tarefa e listar as patologias abordadas na aula.
+
+${blocoPatologias(conhecidas)}
+
+Responda SOMENTE com um JSON valido, sem texto antes ou depois e sem crases, neste formato:
+{
+  "patologias": [{ "nome": "...", "inicio": "00:00" }]
+}`;
+}
 
 // Preco do Gemini Flash no plano pago, em US$ por milhao de tokens.
 // Valido ate 31/12/2026; a partir de 2027 o Google dobra esses valores.
@@ -514,16 +549,20 @@ async function acaoAnalisarTrecho({ uri, tipo, inicio, fim }, chave) {
 }
 
 // Titulo, resumo, topicos e temas, a partir do texto ja transcrito (barato)
-async function acaoResumir({ transcricao, slides }, chave) {
+async function acaoResumir({ transcricao, slides, conhecidas, somentePatologias }, chave) {
   const linhas = (arr, campo) => (Array.isArray(arr) ? arr : [])
     .map(x => `[${x.inicio}] ${String(x[campo] || '').slice(0, 800)}`).join('\n');
   const texto = `TRANSCRICAO:\n${linhas(transcricao, 'texto')}\n\nSLIDES:\n${linhas(slides, 'texto')}`.slice(0, 400_000);
 
   const r = await chamarGeminiDireto(chave, () => [
     { type: 'text', text: texto },
-    { type: 'text', text: PROMPT_RESUMO }
+    { type: 'text', text: somentePatologias ? promptSoPatologias(conhecidas) : promptResumo(conhecidas) }
   ], Date.now() + 54_000);
-  return { ...r.dados, uso: r.uso, modelo: r.modelo };
+  const d = r.dados || {};
+  const patologias = (Array.isArray(d.patologias) ? d.patologias : [])
+    .map(p => ({ nome: String(p?.nome || '').trim().slice(0, 120), inicio: String(p?.inicio || '').trim() }))
+    .filter(p => p.nome);
+  return { ...d, patologias, uso: r.uso, modelo: r.modelo };
 }
 
 async function acaoApagar({ nome }, chave) {
