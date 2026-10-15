@@ -10981,7 +10981,7 @@ async function lgRegistrarCorrecoes() {
     const base = lgBaseline[campo];
     if (base == null) continue;
     const atual = lgEl('lg-' + campo).value;
-    pares = pares.concat(lgPares(base, atual));
+    pares = pares.concat(lgPares(base, atual).map(p => ({ ...p, campo })));
     lgBaseline[campo] = atual;   // ponto de partida novo: não registra a mesma edição duas vezes
   }
   if (!pares.length) return 0;
@@ -10991,7 +10991,7 @@ async function lgRegistrarCorrecoes() {
     const existentes = new Set((ja || []).map(r => r.texto_ia + '\u0000' + r.texto_final));
     const novos = pares
       .filter(p => !existentes.has(p.antes + '\u0000' + p.depois))
-      .map(p => ({ tipo_exame: tipo, texto_ia: p.antes, texto_final: p.depois }));
+      .map(p => ({ tipo_exame: tipo, texto_ia: p.antes, texto_final: p.depois, campo: p.campo }));
     if (!novos.length) return 0;
     const { error } = await db.from('laudo_correcoes').insert(novos);
     if (error) { console.error('[laudos] correcoes', error); return 0; }
@@ -11020,8 +11020,59 @@ async function lgBuscarCorrecoes(tipo, campos, limite) {
 }
 
 async function lgCarregarExemplos(tipo) {
-  const { data } = await lgBuscarCorrecoes(tipo, 'texto_ia, texto_final', 12);
-  return (data || []).map(r => ({ antes: r.texto_ia, depois: r.texto_final }));
+  const { data } = await lgBuscarCorrecoes(tipo, 'texto_ia, texto_final, campo', 12);
+  return (data || []).map(r => ({ antes: r.texto_ia, depois: r.texto_final, campo: r.campo || '' }));
+}
+
+// ── Modelos: laudos completos finalizados (tabela laudo_exemplos) ──
+// Ao copiar um laudo, o texto final (corpo + conclusão) é guardado como modelo do tipo de exame.
+// Nos ditados seguintes, os 2 mais recentes vão junto para a IA aprender como o médico
+// estrutura o corpo e deriva a conclusão. Ficam só os 5 mais recentes de cada tipo.
+
+async function lgBuscarModelos(tipo, limite) {
+  const t = String(tipo || '');
+  const { data, error } = await db.from('laudo_exemplos')
+    .select('id, tipo_exame, corpo, conclusao, created_at')
+    .ilike('tipo_exame', t + '%')
+    .order('created_at', { ascending: false }).limit(limite * 4);
+  if (error) return { data: null, error };
+  const alvo = t.toUpperCase();
+  const mesmos = (data || []).filter(r => {
+    const x = String(r.tipo_exame || '').toUpperCase();
+    return x === alvo || x.startsWith(alvo + ' ');
+  });
+  return { data: mesmos.slice(0, limite), error: null };
+}
+
+async function lgCarregarModelos(tipo) {
+  try {
+    const { data } = await lgBuscarModelos(tipo, 2);
+    return (data || []).map(r => ({ corpo: r.corpo, conclusao: r.conclusao }));
+  } catch (_) { return []; }
+}
+
+async function lgGuardarModelo() {
+  if (!lgMascaraAtual) return;
+  try {
+    const tipo = lgTipoAprendizado();
+    // A conclusão vai sem a seção "Achados adicionais" (ela não ensina a derivação)
+    const soConclusao = rtSepararAdicionais(rtDoc(lgEl('lg-conclusao'))).doc;
+    const corpo = lgEl('lg-corpo').value.trim().slice(0, 12000);
+    const conclusao = rtTextoDeDoc(soConclusao).trim().slice(0, 3000);
+    if (!corpo || !conclusao) return;
+    // Laudo idêntico ao texto puro da máscara não ensina nada
+    if (corpo === rtTextoDeDoc(lgDocDaMascara(lgMascaraAtual, 'corpo')).trim()
+      && conclusao === rtTextoDeDoc(lgDocDaMascara(lgMascaraAtual, 'conclusao')).trim()) return;
+    const { data: ultimo } = await lgBuscarModelos(tipo, 1);
+    if (ultimo && ultimo[0] && ultimo[0].corpo === corpo && ultimo[0].conclusao === conclusao) return;
+    const { error } = await db.from('laudo_exemplos').insert({ tipo_exame: tipo, corpo, conclusao });
+    if (error) { console.error('[laudos] modelo', error); return; }
+    const { data: todos } = await lgBuscarModelos(tipo, 50);
+    const sobras = (todos || []).slice(5).map(r => r.id);
+    if (sobras.length) await db.from('laudo_exemplos').delete().in('id', sobras);
+  } catch (e) {
+    console.error('[laudos] modelo', e);
+  }
 }
 
 async function lgRenderCorrecoes() {
@@ -11036,7 +11087,7 @@ async function lgRenderCorrecoes() {
   caixa.innerHTML = data.map(c => `
     <div class="lg-corr-item">
       <button class="lg-icone rm" title="Apagar esta correção" onclick="lgApagarCorrecao('${c.id}')"><i class="ti ti-trash"></i></button>
-      <div class="l">IA escreveu</div><div class="t">${escHtml(c.texto_ia) || '<i>(nada)</i>'}</div>
+      <div class="l">IA escreveu${c.campo ? ' · ' + (c.campo === 'conclusao' ? 'conclusão' : 'corpo') : ''}</div><div class="t">${escHtml(c.texto_ia) || '<i>(nada)</i>'}</div>
       <div class="l">Você deixou</div><div class="t" style="margin-bottom:0">${escHtml(c.texto_final) || '<i>(removeu)</i>'}</div>
     </div>`).join('');
 }
@@ -11260,12 +11311,12 @@ async function lgAplicarTexto(ditado, { origem = 'ditado', avisosExtras = [] } =
     // Achados adicionais ficam no fim da conclusão; para a IA viajam separados
     const docConclusaoTodaAntes = rtDoc(lgEl('lg-conclusao'));
     const { doc: docConclusaoAntes, linhas: adicionaisAntes } = rtSepararAdicionais(docConclusaoTodaAntes);
-    const exemplos  = await lgCarregarExemplos(tipo);
+    const [exemplos, modelos] = await Promise.all([lgCarregarExemplos(tipo), lgCarregarModelos(tipo)]);
 
     const r = await fetch('/api/receita-nutrir?tipo=laudo', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: rtMarkupDeDoc(docCorpoAntes), conclusao: rtMarkupDeDoc(docConclusaoAntes), adicionais: adicionaisAntes.join('\n'), ditado, exemplos, modo_alteracoes: lgModoAlteracoes(), ...lgDadosAnterior() })
+      body: JSON.stringify({ tipo_exame: lgRotuloExame(), corpo: rtMarkupDeDoc(docCorpoAntes), conclusao: rtMarkupDeDoc(docConclusaoAntes), adicionais: adicionaisAntes.join('\n'), ditado, exemplos, modelos, modo_alteracoes: lgModoAlteracoes(), ...lgDadosAnterior() })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Falha ao aplicar o ditado');
@@ -11407,6 +11458,7 @@ async function lgCopiarAgora() {
   if (!via) { toast('Não consegui copiar. Selecione o texto e copie manualmente.', 'error'); return; }
 
   const aprendidas = await lgRegistrarCorrecoes();
+  lgGuardarModelo();   // o laudo finalizado vira modelo para os próximos (sem travar a cópia)
   if (via === 'plano') {
     toast('Laudo copiado SEM formatação: o navegador não permitiu copiar o formato desta vez. Clique em Copiar laudo de novo.'
       + (aprendidas ? ` (${aprendidas === 1 ? '1 correção aprendida' : aprendidas + ' correções aprendidas'}.)` : ''), 'error');
