@@ -1209,6 +1209,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
 /* Sala de laudo: o vídeo fica num fundo escuro, como na estação de trabalho */
 .cur-video-box { background: #0D101C; border-radius: var(--radius-xl); overflow: hidden; aspect-ratio: 16 / 9; display: flex; }
 .cur-video-box video { width: 100%; height: 100%; background: #0D101C; outline: none; }
+.cur-video-box iframe { width: 100%; height: 100%; border: 0; background: #0D101C; }
 .cur-video-barra { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-top: -.25rem; }
 .cur-nome { font-size: 14px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .cur-vel { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
@@ -2294,6 +2295,7 @@ tr.duplicate-row:hover { background: #FFF6D6; }
           <div class="cur-col-video">
             <div class="cur-video-box">
               <video id="cur-video" controls preload="metadata" playsinline></video>
+              <iframe id="cur-drive-frame" style="display:none" allow="autoplay; fullscreen" allowfullscreen></iframe>
             </div>
             <div class="cur-video-barra">
               <label class="cur-assistida">
@@ -8150,6 +8152,9 @@ function mostrarVistaCurso(qual) {
   if (qual !== 'aula') {
     const v = document.getElementById('cur-video');
     if (v && !v.paused) v.pause();
+    const f = document.getElementById('cur-drive-frame');
+    if (f && f.getAttribute('src')) f.removeAttribute('src');
+    clearTimeout(curTimerPlayer);
   }
   window.scrollTo({ top: 0 });
 }
@@ -8606,11 +8611,50 @@ async function abrirAula(id, seg = null) {
     avisoEm('cur-aviso-aula', msgErroCurso(e), true);
     return;
   }
+  curUsarPlayerApp();
   const video = document.getElementById('cur-video');
   video.dataset.inicio = seg != null ? String(seg) : String(Number(aula.posicao_seg) > 5 && !aula.assistida ? aula.posicao_seg : 0);
   video.dataset.tocar = seg != null ? '1' : '';
   video.src = `/__drive/${aula.drive_arquivo_id}`;
   curPosSalvaEm = Date.now();
+  // Alguns formatos o navegador não toca e nem chega a avisar erro: se nada carregar em 20 s, usa o player do Drive
+  clearTimeout(curTimerPlayer);
+  curTimerPlayer = setTimeout(() => {
+    if (curAula === aula && !curModoDrive && video.readyState < 1) curUsarPlayerDrive();
+  }, 20_000);
+}
+
+// ── Player alternativo: o do próprio Google Drive ──
+// Para vídeos em formato que o navegador não toca (o Drive converte por conta própria).
+// Nele o app não enxerga o minuto do vídeo: sem retomar de onde parou, sem marcar assistida aos 90%
+// e sem pular ao clicar num tópico.
+let curModoDrive = false;
+let curTimerPlayer = null;
+
+function curUsarPlayerApp() {
+  clearTimeout(curTimerPlayer);
+  curModoDrive = false;
+  const frame = document.getElementById('cur-drive-frame');
+  frame.removeAttribute('src');
+  frame.style.display = 'none';
+  document.getElementById('cur-video').style.display = '';
+  document.getElementById('cur-vel').style.display = '';
+}
+
+function curUsarPlayerDrive() {
+  if (!curAula) return;
+  clearTimeout(curTimerPlayer);
+  curModoDrive = true;
+  const video = document.getElementById('cur-video');
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+  video.style.display = 'none';
+  document.getElementById('cur-vel').style.display = 'none';   // a velocidade fica no menu do próprio player
+  const frame = document.getElementById('cur-drive-frame');
+  frame.src = `https://drive.google.com/file/d/${encodeURIComponent(curAula.drive_arquivo_id)}/preview`;
+  frame.style.display = '';
+  avisoEm('cur-aviso-aula', 'Este vídeo está num formato que o navegador não toca, então ele abre pelo player do Google Drive. Nele o app não acompanha o minuto do vídeo: não retoma de onde você parou, não marca assistida sozinho e não pula ao clicar num tópico (o minuto aparece para você ir até lá). A velocidade fica na engrenagem do player.');
 }
 
 async function voltarAoCurso() {
@@ -8658,6 +8702,7 @@ function velocidadeCurso(v) {
   marcarVelocidade(v);
 }
 function pularCurso(seg) {
+  if (curModoDrive) { toast(`No player do Drive, vá até ${formatarTempoCurso(seg)} na barra do vídeo.`); return; }
   const video = document.getElementById('cur-video');
   video.currentTime = seg;
   video.play().catch(() => {});
@@ -8878,8 +8923,9 @@ function destacarTrechoAtual() {
   if (!video) return;
   let tentou = false;
   video.addEventListener('error', async () => {
-    if (!curAula || !video.src) return;
-    if (tentou) { avisoEm('cur-aviso-aula', 'O vídeo não carregou. Confira se o arquivo é MP4 e se a autorização do Google inclui o Drive.', true); return; }
+    if (!curAula || !video.getAttribute('src') || curModoDrive) return;
+    // 1ª falha: renova a autorização e tenta de novo; 2ª: formato que o navegador não toca, vai para o player do Drive
+    if (tentou) { tentou = false; curUsarPlayerDrive(); return; }
     tentou = true;
     video.dataset.inicio = String(Math.floor(video.currentTime || Number(video.dataset.inicio) || 0));
     try {
@@ -8889,6 +8935,7 @@ function destacarTrechoAtual() {
   });
   video.addEventListener('loadedmetadata', () => {
     tentou = false;
+    clearTimeout(curTimerPlayer);
     const ini = Number(video.dataset.inicio || 0);
     if (ini > 0) video.currentTime = ini;
     if (video.dataset.tocar) video.play().catch(() => {});
@@ -8958,6 +9005,11 @@ async function enviarVideoGeminiCurso(arquivoId, progresso) {
     await esperarCurso(4000);
     const st = await cursoApi('estado-arquivo', { nome: arquivo.nome });
     estado = st.estado; arquivo.uri = st.uri || arquivo.uri; arquivo.tipo = st.tipo || arquivo.tipo;
+    if (st.duracao) arquivo.duracao = st.duracao;
+  }
+  // A duração pode só aparecer depois que o vídeo fica pronto
+  if (!arquivo.duracao) {
+    try { const st = await cursoApi('estado-arquivo', { nome: arquivo.nome }); if (st.duracao) arquivo.duracao = st.duracao; } catch (_) { /* segue sem */ }
   }
   return arquivo;
 }
@@ -8966,21 +9018,25 @@ async function enviarVideoGeminiCurso(arquivoId, progresso) {
 // Lança { pausado: true } se a fila for pausada no meio.
 async function analisarVideoCurso(aula, progresso) {
   const arquivoId = aula.drive_arquivo_id;
-  let duracao = Number(aula.duracao_seg || 0);
-  if (!duracao) {
-    progresso('Lendo a duração do vídeo…', null);
-    await garantirTokenDrive();
-    duracao = await obterDuracaoVideo(arquivoId);
-    if (!duracao) throw new Error('Não consegui ler a duração do vídeo. Abra a aula uma vez e tente de novo.');
-    aula.duracao_seg = duracao;
-    await db.from('curso_aulas').update({ duracao_seg: duracao }).eq('id', aula.id);
-  }
-
   let parcial = parcialCurso(arquivoId);
   if (parcial && Date.now() - parcial.enviadoEm > 40 * 3600_000) parcial = null;   // o Gemini apaga em ~48h
 
+  let duracao = Number(aula.duracao_seg || 0);
+  if (!duracao && !parcial) {
+    // Primeiro tenta pelo navegador; alguns formatos ele não lê, e aí a duração vem do Gemini, depois do envio
+    progresso('Lendo a duração do vídeo…', null);
+    await garantirTokenDrive();
+    duracao = await obterDuracaoVideo(arquivoId);
+  }
+
   if (!parcial) {
     const arquivo = await enviarVideoGeminiCurso(arquivoId, progresso);
+    if (!duracao) duracao = Number(arquivo.duracao || 0);
+    if (!duracao) throw new Error('Nem o navegador nem o Gemini informaram a duração deste vídeo.');
+    if (Number(aula.duracao_seg || 0) !== duracao) {
+      aula.duracao_seg = duracao;
+      await db.from('curso_aulas').update({ duracao_seg: duracao }).eq('id', aula.id);
+    }
     const trechos = [];
     for (let t = 0; t < duracao; t += CUR_TRECHO) trechos.push({ inicio: t, fim: Math.min(t + CUR_TRECHO, Math.ceil(duracao)), res: null });
     parcial = { arquivo, enviadoEm: Date.now(), duracao, trechos, uso: {}, modelo: '' };
