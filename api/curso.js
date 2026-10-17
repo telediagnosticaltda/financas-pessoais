@@ -431,7 +431,7 @@ async function acaoEnviarParte({ id, enderecoEnvio, offset, tamanho }) {
   return {
     offset: tamanho,
     terminou: true,
-    arquivo: { nome: arquivo.name, uri: arquivo.uri, tipo: arquivo.mimeType, estado: arquivo.state }
+    arquivo: { nome: arquivo.name, uri: arquivo.uri, tipo: arquivo.mimeType, estado: arquivo.state, duracao: duracaoGemini(arquivo) }
   };
 }
 
@@ -440,7 +440,14 @@ async function acaoEstadoArquivo({ nome }, chave) {
   const r = await fetch(`${GEMINI_BASE}/v1beta/${nome}`, { headers: { 'x-goog-api-key': chave } });
   if (!r.ok) throw erro(`Nao consegui consultar o video no Gemini (${r.status}).`, 502);
   const d = await r.json();
-  return { estado: d.state, uri: d.uri, tipo: d.mimeType };
+  return { estado: d.state, uri: d.uri, tipo: d.mimeType, duracao: duracaoGemini(d) };
+}
+
+// Duração que o Gemini informa depois de processar o vídeo (ex.: "3612.5s"); 0 se ainda não houver.
+// Serve para os vídeos cujo formato o navegador não toca e cuja duração o Drive não informa.
+function duracaoGemini(arquivo) {
+  const m = String(arquivo?.videoMetadata?.videoDuration || '').match(/^([\d.]+)s$/);
+  return m ? Number(m[1]) || 0 : 0;
 }
 
 function hms(seg) {
