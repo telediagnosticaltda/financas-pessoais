@@ -2283,6 +2283,9 @@ tr.duplicate-row:hover { background: #FFF6D6; }
               <h1 class="page-title cur-aula-titulo" id="cur-aula-titulo"></h1>
             </div>
           </div>
+          <button class="btn btn-ghost" onclick="excluirAulaAtual()" title="Excluir esta aula do app (o arquivo no Drive não é apagado)">
+            <i class="ti ti-trash"></i> Excluir aula
+          </button>
         </div>
 
         <div id="cur-aviso-aula" class="cur-aviso" style="display:none;margin-bottom:1rem"></div>
@@ -8616,6 +8619,35 @@ async function voltarAoCurso() {
   curAula = null;
   mostrarVistaCurso('curso');
   renderCurso();
+}
+
+// Exclui a aula só do app (registro, análise, transcrição e anotações).
+// O arquivo no Drive não é tocado: se ele ainda estiver lá, volta como pendente na próxima sincronização.
+function excluirAulaAtual() {
+  if (!curAula) return;
+  if (curFila.rodando) { toast('Espere a análise em andamento terminar (ou pause a fila) para excluir.', 'error'); return; }
+  const aula = curAula;
+  const aviso = aula.no_drive
+    ? ' O vídeo ainda está no Drive: se você não apagá-lo lá, ele volta como aula pendente na próxima sincronização.'
+    : '';
+  showConfirm('Excluir aula',
+    `Excluir “${aula.titulo || aula.nome}” do app? A análise, a transcrição e as anotações desta aula serão apagadas.${aviso}`,
+    async () => {
+      const video = document.getElementById('cur-video');
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      const { error: e1 } = await db.from('curso_trechos').delete().eq('aula_id', aula.id);
+      if (e1) { toast('Não consegui excluir a transcrição: ' + e1.message, 'error'); return; }
+      const { error: e2 } = await db.from('curso_aulas').delete().eq('id', aula.id);
+      if (e2) { toast('Não consegui excluir a aula: ' + e2.message, 'error'); return; }
+      localStorage.removeItem('curso-parcial-' + aula.drive_arquivo_id);
+      curAula = null;
+      await recarregarAulas();
+      mostrarVistaCurso('curso');
+      renderCurso();
+      toast('Aula excluída');
+    });
 }
 
 function marcarVelocidade(v) {
